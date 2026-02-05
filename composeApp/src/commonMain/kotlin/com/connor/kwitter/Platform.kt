@@ -1,0 +1,7 @@
+package com.connor.kwitter
+
+interface Platform {
+    val name: String
+}
+
+expect fun getPlatform(): Platform
