@@ -14,8 +14,9 @@ import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.features.NavigationRoute
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 
 /**
  * Main ViewModel
@@ -29,7 +30,7 @@ class MainViewModel(
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    private val events = MutableSharedFlow<MainAction>(extraBufferCapacity = 10)
+    private val events = Channel<MainAction>(Channel.UNLIMITED)
 
     val state: StateFlow<MainState> = viewModelScope.launchMolecule(
         mode = RecompositionMode.Immediate
@@ -38,7 +39,7 @@ class MainViewModel(
     }
 
     fun onAction(action: MainAction) {
-        events.tryEmit(action)
+        events.trySend(action)
     }
 
     @Composable
@@ -69,15 +70,15 @@ class MainViewModel(
         }
 
         // 处理 Action
-        val eventFlow by events.collectAsState(null)
-        LaunchedEffect(eventFlow) {
-            when (eventFlow) {
-                is MainAction.Load -> {
-                    isLoading = true
-                    // 可以在这里做初始化工作
-                    isLoading = false
+        LaunchedEffect(Unit) {
+            events.receiveAsFlow().collect { action ->
+                when (action) {
+                    is MainAction.Load -> {
+                        isLoading = true
+                        // 可以在这里做初始化工作
+                        isLoading = false
+                    }
                 }
-                null -> { /* 无事件 */ }
             }
         }
 

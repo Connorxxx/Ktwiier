@@ -2,7 +2,6 @@ package com.connor.kwitter.features.auth
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -11,12 +10,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
-import arrow.core.Either
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.model.AuthToken
 import com.connor.kwitter.domain.auth.repository.AuthRepository
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 
 /**
  * 注册界面的状态
@@ -44,7 +43,7 @@ sealed interface RegisterAction : RegisterIntent {
     data class PasswordChanged(val password: String) : RegisterAction
     data object RegisterClicked : RegisterAction
     data object ErrorDismissed : RegisterAction
-    data object LoginClick : RegisterAction
+
 }
 
 /**
@@ -52,6 +51,7 @@ sealed interface RegisterAction : RegisterIntent {
  */
 sealed interface RegisterNavAction : RegisterIntent {
     data object OnRegisterSuccess : RegisterNavAction
+    data object LoginClick : RegisterNavAction
 }
 
 /**
@@ -62,7 +62,7 @@ class RegisterViewModel(
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    private val events = MutableSharedFlow<RegisterAction>(extraBufferCapacity = 10)
+    private val _events = Channel<RegisterAction>(Channel.UNLIMITED)
 
     val uiState: StateFlow<RegisterUiState> = viewModelScope.launchMolecule(
         mode = RecompositionMode.Immediate
@@ -71,54 +71,40 @@ class RegisterViewModel(
     }
 
     fun onEvent(event: RegisterAction) {
-        events.tryEmit(event)
+        _events.trySend(event)
     }
 
     @Composable
     private fun RegisterPresenter(): RegisterUiState {
         var state by remember { mutableStateOf(RegisterUiState()) }
-        val eventFlow by events.collectAsState(null)
 
-        LaunchedEffect(eventFlow) {
-            when (val event = eventFlow) {
-                is RegisterAction.EmailChanged -> {
-                    state = state.copy(email = event.email)
-                }
-                is RegisterAction.NameChanged -> {
-                    state = state.copy(name = event.name)
-                }
-                is RegisterAction.PasswordChanged -> {
-                    state = state.copy(password = event.password)
-                }
-                is RegisterAction.RegisterClicked -> {
-                    state = state.copy(isLoading = true, error = null)
+        LaunchedEffect(Unit) {
+            _events.receiveAsFlow().collect { action ->
+                state = when (action) {
+                    is RegisterAction.EmailChanged -> state.copy(email = action.email)
+                    is RegisterAction.NameChanged -> state.copy(name = action.name)
+                    is RegisterAction.PasswordChanged -> state.copy(password = action.password)
+                    is RegisterAction.RegisterClicked -> {
+                        val loading = state.copy(isLoading = true, error = null)
+                        state = loading
 
-                    when (val result = authRepository.register(
-                        email = state.email,
-                        name = state.name,
-                        password = state.password
-                    )) {
-                        is Either.Left -> {
-                            state = state.copy(
-                                isLoading = false,
-                                error = formatError(result.value)
-                            )
-                        }
-                        is Either.Right -> {
-                            state = state.copy(
-                                isLoading = false,
-                                registeredToken = result.value
-                            )
-                        }
+                        val result = authRepository.register(
+                            email = loading.email,
+                            name = loading.name,
+                            password = loading.password
+                        )
+
+                        result.fold(
+                            ifLeft = { error ->
+                                loading.copy(isLoading = false, error = formatError(error))
+                            },
+                            ifRight = { token ->
+                                loading.copy(isLoading = false, registeredToken = token)
+                            }
+                        )
                     }
+                    is RegisterAction.ErrorDismissed -> state.copy(error = null)
                 }
-                is RegisterAction.ErrorDismissed -> {
-                    state = state.copy(error = null)
-                }
-                is RegisterAction.LoginClick -> {
-                    // 导航由外部处理
-                }
-                null -> { /* 无事件 */ }
             }
         }
 

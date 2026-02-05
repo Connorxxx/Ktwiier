@@ -5,7 +5,7 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(11)
+    jvmToolchain(21)
 }
 
 dependencies {
@@ -18,7 +18,7 @@ dependencies {
 }
 
 android {
-    namespace = "com.connor.kwitter.android"
+    namespace = "com.connor.kwitter"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {

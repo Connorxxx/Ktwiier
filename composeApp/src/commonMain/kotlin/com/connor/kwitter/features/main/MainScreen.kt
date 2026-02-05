@@ -4,13 +4,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.connor.kwitter.features.NavigationRoute
-import com.connor.kwitter.features.auth.LoginScreen
+import com.connor.kwitter.features.login.LoginScreen
 import com.connor.kwitter.features.auth.RegisterAction
 import com.connor.kwitter.features.auth.RegisterNavAction
 import com.connor.kwitter.features.auth.RegisterScreen
@@ -50,7 +49,7 @@ fun MainScreen(
                             is RegisterAction -> vm.onEvent(action)
                             is RegisterNavAction -> when (action) {
                                 RegisterNavAction.OnRegisterSuccess -> mainState.onNavigate(NavigationRoute.Home)
-                                RegisterNavAction.OnLoginClick -> mainState.onNavigate(NavigationRoute.Login)
+                                RegisterNavAction.LoginClick -> mainState.onNavigate(NavigationRoute.Login)
                             }
                         }
                     }

@@ -1,4 +1,4 @@
-package com.connor.kwitter.features.auth
+package com.connor.kwitter.features.login
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
