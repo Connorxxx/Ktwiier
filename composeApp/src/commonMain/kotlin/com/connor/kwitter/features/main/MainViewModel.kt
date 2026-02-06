@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import com.connor.kwitter.domain.auth.model.UserSession
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.features.NavigationRoute
 import kotlinx.coroutines.channels.Channel
@@ -66,13 +67,13 @@ class MainViewModel(
             { backStack.removeLastOrNull() }
         }
 
-        // 监听认证 Token 状态，决定初始路由
-        val token by authRepository.token.collectAsState(initial = null)
+        val session by authRepository.session.collectAsState(initial = null)
 
-        LaunchedEffect(token) {
-            val route = when {
-                token != null -> NavigationRoute.Home
-                else -> NavigationRoute.Register // 暂时默认到注册页
+        LaunchedEffect(session) {
+            val route = when (session) {
+                is UserSession.Authenticated -> NavigationRoute.Home
+                UserSession.Unauthenticated -> NavigationRoute.Register
+                null -> NavigationRoute.Splash
             }
             backStack.clear()
             backStack.add(route)

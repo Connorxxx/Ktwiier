@@ -3,6 +3,7 @@ package com.connor.kwitter.domain.auth.repository
 import arrow.core.Either
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.model.AuthToken
+import com.connor.kwitter.domain.auth.model.UserSession
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -22,10 +23,9 @@ interface AuthRepository {
     ): Either<AuthError, AuthToken>
 
     /**
-     * 监听本地存储的令牌（响应式）
-     * @return null 表示没有存储的令牌
+     * 监听用户会话状态（响应式）
      */
-    val token: Flow<AuthToken?>
+    val session: Flow<UserSession>
 
     /**
      * 保存令牌到本地

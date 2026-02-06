@@ -6,8 +6,10 @@ import com.connor.kwitter.data.auth.datasource.AuthRemoteDataSource
 import com.connor.kwitter.data.auth.datasource.TokenDataSource
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.model.AuthToken
+import com.connor.kwitter.domain.auth.model.UserSession
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 /**
  * AuthRepository 实现
@@ -32,7 +34,13 @@ class AuthRepositoryImpl(
             }
     }
 
-    override val token: Flow<AuthToken?> = tokenDataSource.token
+    override val session: Flow<UserSession> = tokenDataSource.token.map { token ->
+        if (token != null) {
+            UserSession.Authenticated(token)
+        } else {
+            UserSession.Unauthenticated
+        }
+    }
 
     override suspend fun saveToken(token: AuthToken): Either<AuthError, Unit> {
         return tokenDataSource.saveToken(token)

@@ -159,7 +159,7 @@ fun MainScreen(
             }
 
             entry<NavigationRoute.Splash> {
-                // 暂时不需要 Splash，直接路由到 Register/Home
+                SplashScreen()
             }
         }
     )
