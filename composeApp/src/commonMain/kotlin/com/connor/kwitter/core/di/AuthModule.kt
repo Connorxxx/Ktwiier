@@ -6,7 +6,7 @@ import com.connor.kwitter.data.auth.repository.AuthRepositoryImpl
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import org.koin.dsl.module
 
-private const val AUTH_BASE_URL = "http://192.168.12.123"
+private const val AUTH_BASE_URL = "http://192.168.0.101:8080"
 
 /**
  * 认证模块
