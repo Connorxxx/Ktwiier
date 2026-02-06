@@ -136,7 +136,8 @@ fun MainScreen(
                             is RegisterAction -> vm.onEvent(action)
                             is RegisterNavAction -> when (action) {
                                 RegisterNavAction.OnRegisterSuccess -> mainState.onNavigate(NavigationRoute.Home)
-                                RegisterNavAction.LoginClick -> mainState.onNavigate(NavigationRoute.Login)
+                                // Login/Register 互相导航使用 replace，避免栈累积
+                                RegisterNavAction.LoginClick -> mainState.onNavigateReplace(NavigationRoute.Login)
                             }
                         }
                     }
@@ -146,7 +147,8 @@ fun MainScreen(
             entry<NavigationRoute.Login> {
                 LoginScreen(
                     onLoginSuccess = { mainState.onNavigate(NavigationRoute.Home) },
-                    onRegisterClick = { mainState.onNavigate(NavigationRoute.Register) }
+                    // Login/Register 互相导航使用 replace，避免栈累积
+                    onRegisterClick = { mainState.onNavigateReplace(NavigationRoute.Register) }
                 )
             }
 

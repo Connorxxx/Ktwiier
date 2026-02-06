@@ -12,6 +12,8 @@ data class MainState(
     val backStack: List<NavigationRoute>,
     // 行为：暴露给 UI 的回调，用于修改状态
     val onNavigate: (NavigationRoute) -> Unit,
+    // 替换式导航：移除栈中所有相同类型路由，然后添加新路由（实现 singleTop）
+    val onNavigateReplace: (NavigationRoute) -> Unit,
     val onBack: () -> Unit
 )
 

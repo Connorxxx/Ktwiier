@@ -53,6 +53,15 @@ class MainViewModel(
             { route -> backStack.add(route) }
         }
 
+        // 替换式导航：移除栈中所有指定类型，然后添加新路由（实现 singleTop 效果）
+        val onNavigateReplace: (NavigationRoute) -> Unit = remember {
+            { route ->
+                // 移除栈中所有相同类型的路由
+                backStack.removeAll { it::class == route::class }
+                backStack.add(route)
+            }
+        }
+
         val onBack: () -> Unit = remember {
             { backStack.removeLastOrNull() }
         }
@@ -86,6 +95,7 @@ class MainViewModel(
             isLoading = isLoading,
             backStack = backStack,
             onNavigate = onNavigate,
+            onNavigateReplace = onNavigateReplace,
             onBack = onBack
         )
     }
