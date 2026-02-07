@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -28,7 +28,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -44,10 +43,14 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.post.model.Post
+import com.connor.kwitter.domain.post.model.PostAuthor
+import com.connor.kwitter.domain.post.model.PostStats
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.home_empty
 import org.jetbrains.compose.resources.stringResource
@@ -109,7 +112,7 @@ fun HomeScreen(
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         items(state.posts, key = { it.id }) { post ->
                             PostItem(
@@ -130,25 +133,16 @@ private fun HomeTopBar(
     onLogoutClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        TopAppBar(
+        CenterAlignedTopAppBar(
             title = {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                KwitterLogo(
+                    modifier = Modifier.size(30.dp),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            },
+            navigationIcon = {
+                Box(modifier = Modifier.padding(start = 12.dp)) {
                     ProfilePlaceholder()
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = "Your timeline",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Fresh posts and conversations",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
             },
             actions = {
@@ -264,16 +258,13 @@ private fun PostItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 14.dp),
+                .padding(vertical = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top
         ) {
             AuthorAvatar(name = post.authorName)
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -284,10 +275,11 @@ private fun PostItem(
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     Text(
-                        text = "·",
+                        text = "\u00B7",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -298,17 +290,14 @@ private fun PostItem(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    if (post.replyCount > 0) {
-                        MetaPill(text = "${post.replyCount} replies")
-                    }
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
                     text = post.content,
                     style = MaterialTheme.typography.bodyLarge.copy(
-                        lineHeight = 26.sp,
+                        lineHeight = 24.sp,
                         letterSpacing = 0.sp
                     ),
                     color = MaterialTheme.colorScheme.onSurface,
@@ -316,12 +305,15 @@ private fun PostItem(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Text(
-                    text = "View conversation",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
-                )
+                if (post.replyCount > 0) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "${post.replyCount} replies",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
 
@@ -364,24 +356,28 @@ private fun AuthorAvatar(
 }
 
 @Composable
-private fun MetaPill(
-    text: String,
-    modifier: Modifier = Modifier
+private fun KwitterLogo(
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified
 ) {
-    Box(
-        modifier = modifier
-            .background(
-                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                shape = RoundedCornerShape(999.dp)
-            )
-            .padding(horizontal = 10.dp, vertical = 5.dp)
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Medium
-        )
+    val resolvedColor = if (color == Color.Unspecified) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        color
+    }
+    Canvas(modifier = modifier) {
+        val stroke = size.minDimension * 0.14f
+        val left = size.width * 0.25f
+        val top = size.height * 0.1f
+        val bottom = size.height * 0.9f
+        val midY = size.height * 0.5f
+        val right = size.width * 0.78f
+        // Vertical stroke
+        drawLine(resolvedColor, Offset(left, top), Offset(left, bottom), stroke, cap = StrokeCap.Round)
+        // Upper diagonal
+        drawLine(resolvedColor, Offset(left, midY), Offset(right, top), stroke, cap = StrokeCap.Round)
+        // Lower diagonal
+        drawLine(resolvedColor, Offset(left, midY), Offset(right, bottom), stroke, cap = StrokeCap.Round)
     }
 }
 
@@ -460,6 +456,66 @@ private fun PlusIcon(
             Offset(center.x, size.height - margin),
             stroke,
             cap = StrokeCap.Round
+        )
+    }
+}
+
+private val previewPosts = listOf(
+    Post(
+        id = "1",
+        content = "Just shipped a new feature for the app! Really excited about how the UI turned out after all the iterations.",
+        createdAt = 1700000000000L,
+        updatedAt = 1700000000000L,
+        author = PostAuthor(id = "1", displayName = "Connor", email = "connor@example.com"),
+        stats = PostStats(replyCount = 5, likeCount = 12, viewCount = 200)
+    ),
+    Post(
+        id = "2",
+        content = "Anyone else working on KMP projects? Would love to hear about your experience with Compose Multiplatform.",
+        createdAt = 1700001000000L,
+        updatedAt = 1700001000000L,
+        author = PostAuthor(id = "2", displayName = "Alice", email = "alice@example.com"),
+        stats = PostStats(replyCount = 0, likeCount = 3, viewCount = 50)
+    ),
+    Post(
+        id = "3",
+        content = "Good morning!",
+        createdAt = 1700002000000L,
+        updatedAt = 1700002000000L,
+        author = PostAuthor(id = "3", displayName = "Bob", email = "bob@example.com"),
+        stats = PostStats(replyCount = 2, likeCount = 1, viewCount = 30)
+    )
+)
+
+@Preview
+@Composable
+private fun HomeScreenPreview() {
+    KwitterTheme(darkTheme = false) {
+        HomeScreen(
+            state = HomeUiState(posts = previewPosts),
+            onAction = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun HomeScreenDarkPreview() {
+    KwitterTheme(darkTheme = true) {
+        HomeScreen(
+            state = HomeUiState(posts = previewPosts),
+            onAction = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun HomeScreenEmptyPreview() {
+    KwitterTheme(darkTheme = false) {
+        HomeScreen(
+            state = HomeUiState(),
+            onAction = {}
         )
     }
 }

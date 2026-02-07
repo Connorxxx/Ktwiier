@@ -196,7 +196,7 @@ private fun ThreadTopBar(
                 IconButton(
                     onClick = onBackClick,
                     modifier = Modifier
-                        .padding(start = 8.dp)
+                        .padding(horizontal = 8.dp)
                         .size(36.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceContainerLow)
@@ -227,7 +227,7 @@ private fun RootPostItem(post: Post) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 14.dp),
+            .padding(vertical = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -241,10 +241,7 @@ private fun RootPostItem(post: Post) {
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         )
 
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -255,10 +252,11 @@ private fun RootPostItem(post: Post) {
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
                 Text(
-                    text = "·",
+                    text = "\u00B7",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -271,14 +269,18 @@ private fun RootPostItem(post: Post) {
                 )
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+
             Text(
                 text = post.content,
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    lineHeight = 28.sp,
+                    lineHeight = 26.sp,
                     letterSpacing = 0.sp
                 ),
                 color = MaterialTheme.colorScheme.onSurface
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -334,8 +336,7 @@ private fun ReplyItem(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(top = 2.dp, bottom = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(top = 2.dp, bottom = 10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -347,10 +348,11 @@ private fun ReplyItem(
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
                 Text(
-                    text = "·",
+                    text = "\u00B7",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -363,16 +365,20 @@ private fun ReplyItem(
                 )
             }
 
+            Spacer(modifier = Modifier.height(10.dp))
+
             Text(
                 text = reply.content,
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    lineHeight = 25.sp,
+                    lineHeight = 24.sp,
                     letterSpacing = 0.sp
                 ),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 10,
                 overflow = TextOverflow.Ellipsis
             )
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             Box(
                 modifier = Modifier
