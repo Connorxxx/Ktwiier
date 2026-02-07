@@ -21,7 +21,10 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.connor.kwitter.features.NavigationRoute
+import com.connor.kwitter.features.login.LoginAction
+import com.connor.kwitter.features.login.LoginNavAction
 import com.connor.kwitter.features.login.LoginScreen
+import com.connor.kwitter.features.login.LoginViewModel
 import com.connor.kwitter.features.auth.RegisterAction
 import com.connor.kwitter.features.auth.RegisterNavAction
 import com.connor.kwitter.features.auth.RegisterScreen
@@ -145,10 +148,20 @@ fun MainScreen(
             }
 
             entry<NavigationRoute.Login> {
+                val vm: LoginViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
                 LoginScreen(
-                    onLoginSuccess = { mainState.onNavigate(NavigationRoute.Home) },
-                    // Login/Register 互相导航使用 replace，避免栈累积
-                    onRegisterClick = { mainState.onNavigateReplace(NavigationRoute.Register) }
+                    state = state,
+                    onAction = { action ->
+                        when (action) {
+                            is LoginAction -> vm.onEvent(action)
+                            is LoginNavAction -> when (action) {
+                                LoginNavAction.OnLoginSuccess -> mainState.onNavigate(NavigationRoute.Home)
+                                // Login/Register 互相导航使用 replace，避免栈累积
+                                LoginNavAction.RegisterClick -> mainState.onNavigateReplace(NavigationRoute.Register)
+                            }
+                        }
+                    }
                 )
             }
 

@@ -11,4 +11,14 @@
     <string name="register_have_account">已有账号？</string>
     <string name="register_login_link">去登录</string>
     <string name="register_terms">使用条款 · 隐私政策</string>
+
+    <string name="login_title">欢迎回来</string>
+    <string name="login_email_label">邮箱</string>
+    <string name="login_email_placeholder">name@example.com</string>
+    <string name="login_password_label">密码</string>
+    <string name="login_password_placeholder">请输入密码</string>
+    <string name="login_button">登录</string>
+    <string name="login_no_account">还没有账号？</string>
+    <string name="login_register_link">去注册</string>
+    <string name="login_terms">使用条款 · 隐私政策</string>
 </resources>

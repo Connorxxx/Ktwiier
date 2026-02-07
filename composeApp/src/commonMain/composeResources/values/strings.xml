@@ -11,4 +11,14 @@
     <string name="register_have_account">Already have an account?</string>
     <string name="register_login_link">Log in</string>
     <string name="register_terms">Terms of Use · Privacy Policy</string>
+
+    <string name="login_title">Welcome Back</string>
+    <string name="login_email_label">Email</string>
+    <string name="login_email_placeholder">name@example.com</string>
+    <string name="login_password_label">Password</string>
+    <string name="login_password_placeholder">Your password</string>
+    <string name="login_button">Log in</string>
+    <string name="login_no_account">Don\'t have an account?</string>
+    <string name="login_register_link">Sign up</string>
+    <string name="login_terms">Terms of Use · Privacy Policy</string>
 </resources>
