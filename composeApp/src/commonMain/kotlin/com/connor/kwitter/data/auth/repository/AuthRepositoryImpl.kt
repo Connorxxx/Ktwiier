@@ -34,6 +34,18 @@ class AuthRepositoryImpl(
             }
     }
 
+    override suspend fun login(
+        email: String,
+        password: String
+    ): Either<AuthError, AuthToken> {
+        return remoteDataSource.login(email, password)
+            .map { response -> AuthToken(response.token) }
+            .flatMap { token ->
+                // 登录成功后自动保存 token
+                tokenDataSource.saveToken(token).map { token }
+            }
+    }
+
     override val session: Flow<UserSession> = tokenDataSource.token.map { token ->
         if (token != null) {
             UserSession.Authenticated(token)

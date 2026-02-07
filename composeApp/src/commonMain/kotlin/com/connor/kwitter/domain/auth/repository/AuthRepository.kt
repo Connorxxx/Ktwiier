@@ -23,6 +23,16 @@ interface AuthRepository {
     ): Either<AuthError, AuthToken>
 
     /**
+     * 用户登录
+     * @return Either.Left(AuthError) 登录失败
+     * @return Either.Right(AuthToken) 登录成功，返回认证令牌
+     */
+    suspend fun login(
+        email: String,
+        password: String
+    ): Either<AuthError, AuthToken>
+
+    /**
      * 监听用户会话状态（响应式）
      */
     val session: Flow<UserSession>
