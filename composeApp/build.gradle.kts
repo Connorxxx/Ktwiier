@@ -37,6 +37,10 @@ kotlin {
             // Coroutines Android
             implementation(libs.kotlinx.coroutines.android)
 
+            // Video playback
+            implementation(libs.androidx.media3.exoplayer)
+            implementation(libs.androidx.media3.ui)
+
             // Koin Android
             implementation(libs.koin.android)
             implementation(libs.koin.androidx.compose)
@@ -109,6 +113,10 @@ kotlin {
             implementation(libs.ktor.client.encoding)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.serialization.kotlinx.protobuf)
+
+            // Coil
+            implementation(libs.coil.compose)
+            implementation(libs.coil.network.ktor3)
         }
 
         commonTest.dependencies {

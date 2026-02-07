@@ -47,6 +47,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.PostMediaGrid
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
@@ -304,6 +305,11 @@ private fun PostItem(
                     maxLines = 7,
                     overflow = TextOverflow.Ellipsis
                 )
+
+                if (post.media.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    PostMediaGrid(media = post.media)
+                }
 
                 if (post.replyCount > 0) {
                     Spacer(modifier = Modifier.height(10.dp))

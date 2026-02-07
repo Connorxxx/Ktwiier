@@ -48,6 +48,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.PostMediaGrid
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
@@ -316,6 +317,11 @@ private fun RootPostItem(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
+            if (post.media.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                PostMediaGrid(media = post.media)
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(
@@ -411,6 +417,11 @@ private fun ReplyItem(
                 maxLines = 10,
                 overflow = TextOverflow.Ellipsis
             )
+
+            if (reply.media.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                PostMediaGrid(media = reply.media)
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 
