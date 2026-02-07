@@ -72,7 +72,7 @@ class MainViewModel(
         LaunchedEffect(session) {
             val route = when (session) {
                 is UserSession.Authenticated -> NavigationRoute.Home
-                UserSession.Unauthenticated -> NavigationRoute.Register
+                UserSession.Unauthenticated -> NavigationRoute.Login
                 null -> NavigationRoute.Splash
             }
             backStack.clear()
