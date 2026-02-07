@@ -31,7 +31,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -106,6 +109,19 @@ fun PostDetailScreen(
             }
 
             state.post != null -> {
+                var expandedReplyIds by remember(state.post?.id, state.threadReplies) {
+                    mutableStateOf(emptySet<String>())
+                }
+                val replyIdsWithChildren = remember(state.threadReplies) {
+                    state.threadReplies.mapNotNull { it.post.parentId }.toSet()
+                }
+                val visibleReplies = remember(state.threadReplies, expandedReplyIds) {
+                    visibleThreadReplies(
+                        replies = state.threadReplies,
+                        expandedReplyIds = expandedReplyIds
+                    )
+                }
+
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -159,9 +175,18 @@ fun PostDetailScreen(
                             )
                         }
                     } else {
-                        items(state.threadReplies, key = { reply -> reply.post.id }) { reply ->
+                        items(visibleReplies, key = { reply -> reply.post.id }) { reply ->
+                            val hasNestedReplies = reply.post.id in replyIdsWithChildren
                             ReplyItem(
                                 threadReply = reply,
+                                hasNestedReplies = hasNestedReplies,
+                                isRepliesExpanded = reply.post.id in expandedReplyIds,
+                                onRepliesToggleClick = {
+                                    expandedReplyIds = toggleReplyExpansion(
+                                        currentExpandedReplyIds = expandedReplyIds,
+                                        replyId = reply.post.id
+                                    )
+                                },
                                 onReplyClick = { postId ->
                                     onAction(PostDetailNavAction.ReplyClick(postId))
                                 }
@@ -316,6 +341,9 @@ private fun RootPostItem(
 @Composable
 private fun ReplyItem(
     threadReply: ThreadReplyItem,
+    hasNestedReplies: Boolean,
+    isRepliesExpanded: Boolean,
+    onRepliesToggleClick: () -> Unit,
     onReplyClick: (String) -> Unit
 ) {
     val reply = threadReply.post
@@ -391,12 +419,47 @@ private fun ReplyItem(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                RepliesBadge(text = "${reply.replyCount}")
-                Text(
-                    text = "replies",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(
+                            if (hasNestedReplies) {
+                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+                            } else {
+                                Color.Transparent
+                            }
+                        )
+                        .clickable(
+                            enabled = hasNestedReplies,
+                            onClick = onRepliesToggleClick
+                        )
+                        .padding(horizontal = 2.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    RepliesBadge(text = "${reply.replyCount}")
+                    Text(
+                        text = if (hasNestedReplies) {
+                            if (isRepliesExpanded) "Hide replies" else "Show replies"
+                        } else {
+                            "replies"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (hasNestedReplies) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        fontWeight = if (hasNestedReplies) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                    if (hasNestedReplies) {
+                        ExpandCollapseChevron(
+                            expanded = isRepliesExpanded,
+                            modifier = Modifier.size(12.dp),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.weight(1f))
                 ReplyActionPill(
                     onClick = { onReplyClick(reply.id) }
@@ -528,6 +591,106 @@ private fun ReplyIcon(
         val arrowSize = size.width * 0.15f
         drawLine(resolvedColor, Offset(endX, endY), Offset(endX - arrowSize, endY + arrowSize), stroke, cap = StrokeCap.Round)
         drawLine(resolvedColor, Offset(endX, endY), Offset(endX + arrowSize, endY + arrowSize), stroke, cap = StrokeCap.Round)
+    }
+}
+
+private fun visibleThreadReplies(
+    replies: List<ThreadReplyItem>,
+    expandedReplyIds: Set<String>
+): List<ThreadReplyItem> {
+    if (replies.isEmpty()) return emptyList()
+
+    val repliesById = replies.associateBy { it.post.id }
+    return replies.filter { reply ->
+        if (reply.depth == 0) return@filter true
+        isReplyVisible(
+            reply = reply,
+            repliesById = repliesById,
+            expandedReplyIds = expandedReplyIds
+        )
+    }
+}
+
+private fun isReplyVisible(
+    reply: ThreadReplyItem,
+    repliesById: Map<String, ThreadReplyItem>,
+    expandedReplyIds: Set<String>
+): Boolean {
+    var currentParentId = reply.post.parentId ?: return false
+
+    while (true) {
+        val parent = repliesById[currentParentId] ?: return false
+        if (parent.post.id !in expandedReplyIds) {
+            return false
+        }
+        if (parent.depth == 0) {
+            return true
+        }
+        currentParentId = parent.post.parentId ?: return false
+    }
+}
+
+private fun toggleReplyExpansion(
+    currentExpandedReplyIds: Set<String>,
+    replyId: String
+): Set<String> {
+    return if (replyId in currentExpandedReplyIds) {
+        currentExpandedReplyIds - replyId
+    } else {
+        currentExpandedReplyIds + replyId
+    }
+}
+
+@Composable
+private fun ExpandCollapseChevron(
+    expanded: Boolean,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified
+) {
+    val resolvedColor = if (color == Color.Unspecified) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        color
+    }
+    Canvas(modifier = modifier) {
+        val stroke = size.minDimension * 0.18f
+        val left = size.width * 0.2f
+        val right = size.width * 0.8f
+        val centerX = size.width * 0.5f
+        val top = size.height * 0.3f
+        val bottom = size.height * 0.7f
+
+        if (expanded) {
+            drawLine(
+                color = resolvedColor,
+                start = Offset(left, bottom),
+                end = Offset(centerX, top),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                color = resolvedColor,
+                start = Offset(centerX, top),
+                end = Offset(right, bottom),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round
+            )
+        } else {
+            drawLine(
+                color = resolvedColor,
+                start = Offset(left, top),
+                end = Offset(centerX, bottom),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                color = resolvedColor,
+                start = Offset(centerX, bottom),
+                end = Offset(right, top),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round
+            )
+        }
     }
 }
 
