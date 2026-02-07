@@ -53,6 +53,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
 import androidx.compose.ui.text.input.KeyboardType
+import kwitter.composeapp.generated.resources.Res
+import kwitter.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.stringResource
 
 /**
  * 注册界面 - 状态提升版本
@@ -113,7 +116,7 @@ fun RegisterScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Terms of Use · Privacy Policy",
+                        text = stringResource(Res.string.register_terms),
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center,
                         style = MaterialTheme.typography.labelMedium,
@@ -140,7 +143,7 @@ fun RegisterScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "创建账号",
+                    text = stringResource(Res.string.register_title),
                     modifier = Modifier.fillMaxWidth(),
                     style = MaterialTheme.typography.headlineLarge.copy(
                         fontWeight = FontWeight.SemiBold,
@@ -156,28 +159,28 @@ fun RegisterScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     RegisterTextField(
-                        label = "邮箱",
+                        label = stringResource(Res.string.register_email_label),
                         value = state.email,
                         onValueChange = { onAction(RegisterAction.EmailChanged(it)) },
-                        placeholder = "name@example.com",
+                        placeholder = stringResource(Res.string.register_email_placeholder),
                         enabled = !state.isLoading
                     )
 
                     RegisterTextField(
-                        label = "用户名",
+                        label = stringResource(Res.string.register_username_label),
                         value = state.name,
                         onValueChange = { onAction(RegisterAction.NameChanged(it)) },
-                        placeholder = "你的用户名",
+                        placeholder = stringResource(Res.string.register_username_placeholder),
                         enabled = !state.isLoading
                     )
 
                     RegisterTextField(
-                        label = "密码",
+                        label = stringResource(Res.string.register_password_label),
                         value = state.password,
                         onValueChange = { input ->
                             onAction(RegisterAction.PasswordChanged(filterPasswordInput(input)))
                         },
-                        placeholder = "至少 8 位",
+                        placeholder = stringResource(Res.string.register_password_placeholder),
                         enabled = !state.isLoading,
                         visualTransformation = if (isPasswordVisible) {
                             VisualTransformation.None
@@ -244,7 +247,7 @@ fun RegisterScreen(
                         )
                     } else {
                         Text(
-                            text = "注册",
+                            text = stringResource(Res.string.register_button),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -260,7 +263,7 @@ fun RegisterScreen(
                     horizontalArrangement = Arrangement.Start
                 ) {
                     Text(
-                        text = "已有账号？",
+                        text = stringResource(Res.string.register_have_account),
                         style = MaterialTheme.typography.bodyMedium,
                         color = textSecondary
                     )
@@ -269,7 +272,7 @@ fun RegisterScreen(
                         colors = ButtonDefaults.textButtonColors(contentColor = textPrimary)
                     ) {
                         Text(
-                            text = "去登录",
+                            text = stringResource(Res.string.register_login_link),
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = FontWeight.Medium
                             )

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="register_title">创建账号</string>
+    <string name="register_email_label">邮箱</string>
+    <string name="register_email_placeholder">name@example.com</string>
+    <string name="register_username_label">用户名</string>
+    <string name="register_username_placeholder">你的用户名</string>
+    <string name="register_password_label">密码</string>
+    <string name="register_password_placeholder">至少 8 位</string>
+    <string name="register_button">注册</string>
+    <string name="register_have_account">已有账号？</string>
+    <string name="register_login_link">去登录</string>
+    <string name="register_terms">使用条款 · 隐私政策</string>
+</resources>

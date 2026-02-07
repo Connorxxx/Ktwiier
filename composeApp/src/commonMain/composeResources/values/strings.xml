@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="register_title">Create Account</string>
+    <string name="register_email_label">Email</string>
+    <string name="register_email_placeholder">name@example.com</string>
+    <string name="register_username_label">Username</string>
+    <string name="register_username_placeholder">Your username</string>
+    <string name="register_password_label">Password</string>
+    <string name="register_password_placeholder">At least 8 characters</string>
+    <string name="register_button">Register</string>
+    <string name="register_have_account">Already have an account?</string>
+    <string name="register_login_link">Log in</string>
+    <string name="register_terms">Terms of Use · Privacy Policy</string>
+</resources>
