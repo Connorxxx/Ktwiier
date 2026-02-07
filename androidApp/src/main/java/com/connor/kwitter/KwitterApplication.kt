@@ -4,6 +4,7 @@ import android.app.Application
 import com.connor.kwitter.core.di.authModule
 import com.connor.kwitter.core.di.networkModule
 import com.connor.kwitter.core.di.platformModule
+import com.connor.kwitter.core.di.postModule
 import com.connor.kwitter.core.di.viewModelModule
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
@@ -25,6 +26,7 @@ class KwitterApplication : Application() {
                 platformModule,  // 平台特定模块（DataStore, Database）
                 networkModule,   // 网络模块（HttpClient）
                 authModule,      // 认证模块（Repository, DataSource）
+                postModule,      // 帖子模块（Repository, DataSource）
                 viewModelModule  // ViewModel 模块
             )
         }
