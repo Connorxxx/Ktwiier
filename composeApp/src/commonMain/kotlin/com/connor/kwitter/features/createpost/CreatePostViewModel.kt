@@ -10,19 +10,27 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import com.connor.kwitter.core.media.SelectedMedia
+import com.connor.kwitter.core.media.readBytes
 import com.connor.kwitter.domain.post.model.CreatePostRequest
 import com.connor.kwitter.domain.post.model.PostError
+import com.connor.kwitter.domain.post.model.PostMedia
+import com.connor.kwitter.domain.post.model.PostMediaType
 import com.connor.kwitter.domain.post.repository.PostRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 
 data class CreatePostUiState(
     val content: String = "",
     val parentId: String? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
-    val isSuccess: Boolean = false
+    val isSuccess: Boolean = false,
+    val selectedMedia: List<SelectedMedia> = emptyList(),
+    val uploadedMedia: List<PostMedia> = emptyList(),
+    val isUploading: Boolean = false
 )
 
 sealed interface CreatePostIntent
@@ -32,6 +40,8 @@ sealed interface CreatePostAction : CreatePostIntent {
     data class SetParentId(val parentId: String?) : CreatePostAction
     data object SubmitClicked : CreatePostAction
     data object ErrorDismissed : CreatePostAction
+    data class MediaSelected(val media: List<SelectedMedia>) : CreatePostAction
+    data class RemoveMedia(val index: Int) : CreatePostAction
 }
 
 sealed interface CreatePostNavAction : CreatePostIntent {
@@ -64,12 +74,73 @@ class CreatePostViewModel(
                 state = when (action) {
                     is CreatePostAction.ContentChanged -> state.copy(content = action.content)
                     is CreatePostAction.SetParentId -> state.copy(parentId = action.parentId)
+                    is CreatePostAction.MediaSelected -> {
+                        val maxAllowed = 4 - state.selectedMedia.size
+                        val newMedia = action.media.take(maxAllowed)
+                        if (newMedia.isEmpty()) {
+                            state
+                        } else {
+                            val updatedSelected = state.selectedMedia + newMedia
+                            state = state.copy(
+                                selectedMedia = updatedSelected,
+                                isUploading = true
+                            )
+                            // Upload each new media file
+                            newMedia.forEach { media ->
+                                viewModelScope.launch {
+                                    val bytes = media.readBytes()
+                                    val result = postRepository.uploadMedia(
+                                        bytes = bytes,
+                                        fileName = media.name,
+                                        mimeType = media.mimeType
+                                    )
+                                    result.fold(
+                                        ifLeft = { error ->
+                                            state = state.copy(
+                                                error = formatError(error),
+                                                selectedMedia = state.selectedMedia - media,
+                                                isUploading = state.selectedMedia.size > state.uploadedMedia.size + 1
+                                            )
+                                        },
+                                        ifRight = { response ->
+                                            val postMedia = PostMedia(
+                                                url = response.url,
+                                                type = if (response.type == "VIDEO") PostMediaType.VIDEO else PostMediaType.IMAGE
+                                            )
+                                            state = state.copy(
+                                                uploadedMedia = state.uploadedMedia + postMedia,
+                                                isUploading = state.selectedMedia.size > state.uploadedMedia.size + 1
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                            state
+                        }
+                    }
+                    is CreatePostAction.RemoveMedia -> {
+                        if (action.index in state.selectedMedia.indices) {
+                            val newSelected = state.selectedMedia.toMutableList().apply { removeAt(action.index) }
+                            val newUploaded = if (action.index in state.uploadedMedia.indices) {
+                                state.uploadedMedia.toMutableList().apply { removeAt(action.index) }
+                            } else {
+                                state.uploadedMedia
+                            }
+                            state.copy(
+                                selectedMedia = newSelected,
+                                uploadedMedia = newUploaded
+                            )
+                        } else {
+                            state
+                        }
+                    }
                     is CreatePostAction.SubmitClicked -> {
                         val loading = state.copy(isLoading = true, error = null)
                         state = loading
                         val result = postRepository.createPost(
                             CreatePostRequest(
                                 content = loading.content,
+                                mediaUrls = loading.uploadedMedia,
                                 parentId = loading.parentId
                             )
                         )

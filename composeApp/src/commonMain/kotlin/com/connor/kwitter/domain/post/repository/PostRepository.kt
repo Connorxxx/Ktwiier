@@ -6,6 +6,7 @@ import com.connor.kwitter.domain.post.model.PostList
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.model.CreatePostRequest
+import com.connor.kwitter.domain.post.model.MediaUploadResponse
 
 interface PostRepository {
     suspend fun getTimeline(query: PostPageQuery = PostPageQuery()): Either<PostError, PostList>
@@ -19,4 +20,9 @@ interface PostRepository {
         query: PostPageQuery = PostPageQuery()
     ): Either<PostError, PostList>
     suspend fun createPost(request: CreatePostRequest): Either<PostError, Post>
+    suspend fun uploadMedia(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String
+    ): Either<PostError, MediaUploadResponse>
 }

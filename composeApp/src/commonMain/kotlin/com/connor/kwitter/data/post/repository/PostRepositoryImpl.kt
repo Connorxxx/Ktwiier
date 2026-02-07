@@ -5,6 +5,7 @@ import arrow.core.raise.either
 import com.connor.kwitter.data.auth.datasource.TokenDataSource
 import com.connor.kwitter.data.post.datasource.PostRemoteDataSource
 import com.connor.kwitter.domain.post.model.CreatePostRequest
+import com.connor.kwitter.domain.post.model.MediaUploadResponse
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostList
@@ -45,6 +46,21 @@ class PostRepositoryImpl(
         remoteDataSource.createPost(
             token = token.token,
             request = request
+        ).bind()
+    }
+
+    override suspend fun uploadMedia(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String
+    ): Either<PostError, MediaUploadResponse> = either {
+        val token = tokenDataSource.token.first()
+            ?: raise(PostError.Unauthorized("Not authenticated"))
+        remoteDataSource.uploadMedia(
+            token = token.token,
+            bytes = bytes,
+            fileName = fileName,
+            mimeType = mimeType
         ).bind()
     }
 }

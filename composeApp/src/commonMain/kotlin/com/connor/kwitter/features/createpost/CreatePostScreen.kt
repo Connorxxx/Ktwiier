@@ -1,9 +1,14 @@
 package com.connor.kwitter.features.createpost
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +17,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -30,22 +39,28 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.connor.kwitter.core.media.rememberMediaPickerLauncher
 import com.connor.kwitter.core.theme.KwitterTheme
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
 
 private const val MAX_POST_LENGTH = 280
+private const val MAX_MEDIA_COUNT = 4
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,6 +70,12 @@ fun CreatePostScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val isReply = state.parentId != null
+
+    val launchPicker = rememberMediaPickerLauncher { media ->
+        if (media.isNotEmpty()) {
+            onAction(CreatePostAction.MediaSelected(media))
+        }
+    }
 
     LaunchedEffect(state.isSuccess) {
         if (state.isSuccess) {
@@ -150,6 +171,69 @@ fun CreatePostScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Media picker button row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = { launchPicker() },
+                    enabled = !state.isLoading && state.selectedMedia.size < MAX_MEDIA_COUNT,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    ImageIcon(
+                        modifier = Modifier.size(22.dp),
+                        color = if (state.selectedMedia.size < MAX_MEDIA_COUNT) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        }
+                    )
+                }
+
+                if (state.selectedMedia.isNotEmpty()) {
+                    Text(
+                        text = "${state.selectedMedia.size}/$MAX_MEDIA_COUNT",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                if (state.isUploading) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Uploading...",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Media thumbnails
+            if (state.selectedMedia.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(end = 8.dp)
+                ) {
+                    itemsIndexed(state.selectedMedia) { index, media ->
+                        MediaThumbnail(
+                            name = media.name,
+                            isUploaded = index < state.uploadedMedia.size,
+                            onRemove = { onAction(CreatePostAction.RemoveMedia(index)) }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Box(
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -164,7 +248,7 @@ fun CreatePostScreen(
                     modifier = Modifier.align(Alignment.CenterStart)
                 )
 
-                val isFormValid = state.content.isNotBlank()
+                val isFormValid = state.content.isNotBlank() && !state.isUploading
                 Button(
                     onClick = { onAction(CreatePostAction.SubmitClicked) },
                     enabled = !state.isLoading && isFormValid,
@@ -202,6 +286,64 @@ fun CreatePostScreen(
 }
 
 @Composable
+private fun MediaThumbnail(
+    name: String,
+    isUploaded: Boolean,
+    onRemove: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(width = 100.dp, height = 80.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(8.dp)
+        ) {
+            ImageIcon(
+                modifier = Modifier.size(20.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = name.take(10),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
+        }
+
+        if (!isUploaded) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+            )
+        }
+
+        // Remove button
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(4.dp)
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.errorContainer)
+                .clickable(onClick = onRemove),
+            contentAlignment = Alignment.Center
+        ) {
+            CloseIcon(
+                modifier = Modifier.size(10.dp),
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+        }
+    }
+}
+
+@Composable
 private fun CloseIcon(
     modifier: Modifier = Modifier,
     color: Color = Color.Unspecified
@@ -217,6 +359,44 @@ private fun CloseIcon(
         // X shape
         drawLine(resolvedColor, Offset(margin, margin), Offset(size.width - margin, size.height - margin), stroke, cap = StrokeCap.Round)
         drawLine(resolvedColor, Offset(size.width - margin, margin), Offset(margin, size.height - margin), stroke, cap = StrokeCap.Round)
+    }
+}
+
+@Composable
+private fun ImageIcon(
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified
+) {
+    val resolvedColor = if (color == Color.Unspecified) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        color
+    }
+    Canvas(modifier = modifier) {
+        val stroke = size.minDimension * 0.1f
+        val margin = size.minDimension * 0.1f
+        // Frame
+        drawRoundRect(
+            color = resolvedColor,
+            topLeft = Offset(margin, margin),
+            size = Size(size.width - margin * 2, size.height - margin * 2),
+            cornerRadius = CornerRadius(size.minDimension * 0.15f),
+            style = Stroke(width = stroke)
+        )
+        // Mountain triangle
+        val mountainBaseY = size.height * 0.7f
+        val peakX = size.width * 0.4f
+        val peakY = size.height * 0.35f
+        drawLine(resolvedColor, Offset(margin * 2, mountainBaseY), Offset(peakX, peakY), stroke, cap = StrokeCap.Round)
+        drawLine(resolvedColor, Offset(peakX, peakY), Offset(size.width * 0.65f, mountainBaseY), stroke, cap = StrokeCap.Round)
+        // Small mountain
+        val smallPeakX = size.width * 0.7f
+        val smallPeakY = size.height * 0.5f
+        drawLine(resolvedColor, Offset(size.width * 0.55f, mountainBaseY), Offset(smallPeakX, smallPeakY), stroke, cap = StrokeCap.Round)
+        drawLine(resolvedColor, Offset(smallPeakX, smallPeakY), Offset(size.width - margin * 2, mountainBaseY), stroke, cap = StrokeCap.Round)
+        // Sun
+        val sunRadius = size.minDimension * 0.08f
+        drawCircle(resolvedColor, radius = sunRadius, center = Offset(size.width * 0.7f, size.height * 0.3f))
     }
 }
 
