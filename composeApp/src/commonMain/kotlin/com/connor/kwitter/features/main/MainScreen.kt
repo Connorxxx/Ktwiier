@@ -21,6 +21,10 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.connor.kwitter.features.NavigationRoute
+import com.connor.kwitter.features.createpost.CreatePostAction
+import com.connor.kwitter.features.createpost.CreatePostNavAction
+import com.connor.kwitter.features.createpost.CreatePostScreen
+import com.connor.kwitter.features.createpost.CreatePostViewModel
 import com.connor.kwitter.features.home.HomeAction
 import com.connor.kwitter.features.home.HomeNavAction
 import com.connor.kwitter.features.home.HomeScreen
@@ -33,6 +37,10 @@ import com.connor.kwitter.features.auth.RegisterAction
 import com.connor.kwitter.features.auth.RegisterNavAction
 import com.connor.kwitter.features.auth.RegisterScreen
 import com.connor.kwitter.features.auth.RegisterViewModel
+import com.connor.kwitter.features.postdetail.PostDetailAction
+import com.connor.kwitter.features.postdetail.PostDetailNavAction
+import com.connor.kwitter.features.postdetail.PostDetailScreen
+import com.connor.kwitter.features.postdetail.PostDetailViewModel
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -176,8 +184,59 @@ fun MainScreen(
                     onAction = { action ->
                         when (action) {
                             is HomeAction -> vm.onEvent(action)
-                            is HomeNavAction -> {
-                                // TODO: Implement PostDetail and CreatePost navigation
+                            is HomeNavAction -> when (action) {
+                                is HomeNavAction.PostClick -> mainState.onNavigate(
+                                    NavigationRoute.PostDetail(action.postId)
+                                )
+                                HomeNavAction.CreatePostClick -> mainState.onNavigate(
+                                    NavigationRoute.CreatePost()
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+
+            entry<NavigationRoute.PostDetail> { route ->
+                val vm: PostDetailViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                LaunchedEffect(route.postId) {
+                    vm.onEvent(PostDetailAction.Load(route.postId))
+                }
+
+                PostDetailScreen(
+                    state = state,
+                    onAction = { action ->
+                        when (action) {
+                            is PostDetailAction -> vm.onEvent(action)
+                            is PostDetailNavAction -> when (action) {
+                                is PostDetailNavAction.ReplyClick -> mainState.onNavigate(
+                                    NavigationRoute.CreatePost(parentId = action.postId)
+                                )
+                                PostDetailNavAction.BackClick -> mainState.onBack()
+                            }
+                        }
+                    }
+                )
+            }
+
+            entry<NavigationRoute.CreatePost> { route ->
+                val vm: CreatePostViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                LaunchedEffect(route.parentId) {
+                    vm.onEvent(CreatePostAction.SetParentId(route.parentId))
+                }
+
+                CreatePostScreen(
+                    state = state,
+                    onAction = { action ->
+                        when (action) {
+                            is CreatePostAction -> vm.onEvent(action)
+                            is CreatePostNavAction -> when (action) {
+                                CreatePostNavAction.OnPostCreated -> mainState.onBack()
+                                CreatePostNavAction.BackClick -> mainState.onBack()
                             }
                         }
                     }

@@ -19,4 +19,10 @@ sealed interface NavigationRoute {
 
     @Serializable
     data object Home : NavigationRoute
+
+    @Serializable
+    data class PostDetail(val postId: String) : NavigationRoute
+
+    @Serializable
+    data class CreatePost(val parentId: String? = null) : NavigationRoute
 }

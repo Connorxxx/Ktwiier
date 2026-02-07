@@ -26,4 +26,16 @@
     <string name="home_logout">Logout</string>
     <string name="home_empty">No posts yet. Be the first to post!</string>
     <string name="home_error_dismiss">Dismiss</string>
+
+    <string name="post_detail_title">Post</string>
+    <string name="post_detail_replies_header">Replies</string>
+    <string name="post_detail_no_replies">No replies yet</string>
+
+    <string name="create_post_title">New Post</string>
+    <string name="create_post_reply_title">Reply</string>
+    <string name="create_post_placeholder">What\'s happening?</string>
+    <string name="create_post_reply_placeholder">Post your reply</string>
+    <string name="create_post_replying_to">Replying to a post</string>
+    <string name="create_post_button">Post</string>
+    <string name="create_post_reply_button">Reply</string>
 </resources>
