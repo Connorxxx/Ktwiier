@@ -21,6 +21,10 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.connor.kwitter.features.NavigationRoute
+import com.connor.kwitter.features.home.HomeAction
+import com.connor.kwitter.features.home.HomeNavAction
+import com.connor.kwitter.features.home.HomeScreen
+import com.connor.kwitter.features.home.HomeViewModel
 import com.connor.kwitter.features.login.LoginAction
 import com.connor.kwitter.features.login.LoginNavAction
 import com.connor.kwitter.features.login.LoginScreen
@@ -29,7 +33,6 @@ import com.connor.kwitter.features.auth.RegisterAction
 import com.connor.kwitter.features.auth.RegisterNavAction
 import com.connor.kwitter.features.auth.RegisterScreen
 import com.connor.kwitter.features.auth.RegisterViewModel
-import com.connor.kwitter.features.home.HomeScreen
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -166,8 +169,18 @@ fun MainScreen(
             }
 
             entry<NavigationRoute.Home> {
+                val vm: HomeViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
                 HomeScreen(
-                    onLogout = { mainState.onNavigate(NavigationRoute.Login) }
+                    state = state,
+                    onAction = { action ->
+                        when (action) {
+                            is HomeAction -> vm.onEvent(action)
+                            is HomeNavAction -> {
+                                // TODO: Implement PostDetail and CreatePost navigation
+                            }
+                        }
+                    }
                 )
             }
 

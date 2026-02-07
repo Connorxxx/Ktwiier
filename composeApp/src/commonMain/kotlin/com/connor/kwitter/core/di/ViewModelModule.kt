@@ -1,6 +1,7 @@
 package com.connor.kwitter.core.di
 
 import com.connor.kwitter.features.auth.RegisterViewModel
+import com.connor.kwitter.features.home.HomeViewModel
 import com.connor.kwitter.features.login.LoginViewModel
 import com.connor.kwitter.features.main.MainViewModel
 import org.koin.core.module.dsl.viewModelOf
@@ -14,4 +15,5 @@ val viewModelModule = module {
     viewModelOf(::MainViewModel)
     viewModelOf(::RegisterViewModel)
     viewModelOf(::LoginViewModel)
+    viewModelOf(::HomeViewModel)
 }

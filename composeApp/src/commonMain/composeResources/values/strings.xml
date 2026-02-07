@@ -18,7 +18,12 @@
     <string name="login_password_label">Password</string>
     <string name="login_password_placeholder">Your password</string>
     <string name="login_button">Log in</string>
-    <string name="login_no_account">Don\'t have an account?</string>
+    <string name="login_no_account">Don't have an account?</string>
     <string name="login_register_link">Sign up</string>
     <string name="login_terms">Terms of Use · Privacy Policy</string>
+
+    <string name="home_title">Home</string>
+    <string name="home_logout">Logout</string>
+    <string name="home_empty">No posts yet. Be the first to post!</string>
+    <string name="home_error_dismiss">Dismiss</string>
 </resources>
