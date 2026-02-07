@@ -232,7 +232,10 @@ fun MainScreen(
                             is PostDetailAction -> vm.onEvent(action)
                             is PostDetailNavAction -> when (action) {
                                 is PostDetailNavAction.ReplyClick -> mainState.onNavigate(
-                                    NavigationRoute.CreatePost(parentId = action.postId)
+                                    NavigationRoute.CreatePost(
+                                        parentId = action.postId,
+                                        returnToPostId = route.postId
+                                    )
                                 )
                                 PostDetailNavAction.BackClick -> mainState.onBack()
                             }
@@ -257,7 +260,7 @@ fun MainScreen(
                             is CreatePostNavAction -> when (action) {
                                 CreatePostNavAction.OnPostCreated -> {
                                     pendingHomeRefresh = true
-                                    pendingPostDetailRefreshPostId = route.parentId
+                                    pendingPostDetailRefreshPostId = route.returnToPostId ?: route.parentId
                                     mainState.onBack()
                                 }
                                 CreatePostNavAction.BackClick -> mainState.onBack()

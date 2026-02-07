@@ -2,6 +2,7 @@ package com.connor.kwitter.features.postdetail
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +14,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,6 +51,7 @@ import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.post_detail_no_replies
+import kwitter.composeapp.generated.resources.post_detail_reply_action
 import kwitter.composeapp.generated.resources.post_detail_replies_header
 import org.jetbrains.compose.resources.stringResource
 
@@ -72,7 +73,7 @@ fun PostDetailScreen(
     Scaffold(
         topBar = {
             ThreadTopBar(
-                replyCount = state.replies.size,
+                replyCount = state.threadReplies.size,
                 onBackClick = { onAction(PostDetailNavAction.BackClick) }
             )
         },
@@ -112,7 +113,12 @@ fun PostDetailScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                 ) {
                     item {
-                        RootPostItem(post = state.post)
+                        RootPostItem(
+                            post = state.post,
+                            onReplyClick = { postId ->
+                                onAction(PostDetailNavAction.ReplyClick(postId))
+                            }
+                        )
                     }
 
                     item {
@@ -137,13 +143,13 @@ fun PostDetailScreen(
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            if (state.replies.isNotEmpty()) {
-                                RepliesBadge(text = state.replies.size.toString())
+                            if (state.threadReplies.isNotEmpty()) {
+                                RepliesBadge(text = state.threadReplies.size.toString())
                             }
                         }
                     }
 
-                    if (state.replies.isEmpty()) {
+                    if (state.threadReplies.isEmpty()) {
                         item {
                             Text(
                                 text = stringResource(Res.string.post_detail_no_replies),
@@ -153,10 +159,12 @@ fun PostDetailScreen(
                             )
                         }
                     } else {
-                        itemsIndexed(state.replies, key = { _, reply -> reply.id }) { index, reply ->
+                        items(state.threadReplies, key = { reply -> reply.post.id }) { reply ->
                             ReplyItem(
-                                reply = reply,
-                                showTimelineConnector = index != state.replies.lastIndex
+                                threadReply = reply,
+                                onReplyClick = { postId ->
+                                    onAction(PostDetailNavAction.ReplyClick(postId))
+                                }
                             )
                         }
                     }
@@ -223,7 +231,10 @@ private fun ThreadTopBar(
 }
 
 @Composable
-private fun RootPostItem(post: Post) {
+private fun RootPostItem(
+    post: Post,
+    onReplyClick: (String) -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -283,6 +294,7 @@ private fun RootPostItem(post: Post) {
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -292,6 +304,10 @@ private fun RootPostItem(post: Post) {
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                ReplyActionPill(
+                    onClick = { onReplyClick(post.id) }
+                )
             }
         }
     }
@@ -299,44 +315,34 @@ private fun RootPostItem(post: Post) {
 
 @Composable
 private fun ReplyItem(
-    reply: Post,
-    showTimelineConnector: Boolean
+    threadReply: ThreadReplyItem,
+    onReplyClick: (String) -> Unit
 ) {
+    val reply = threadReply.post
+    val indentation = (threadReply.depth * 20).coerceAtMost(80).dp
+    val replyAvatarSize = 36.dp
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 6.dp),
+            .padding(start = indentation, top = 6.dp, bottom = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            ThreadAvatar(
-                name = reply.authorName,
-                size = 36.dp,
-                gradient = listOf(
-                    MaterialTheme.colorScheme.secondaryContainer,
-                    MaterialTheme.colorScheme.tertiaryContainer
-                ),
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            )
-
-            if (showTimelineConnector) {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 6.dp)
-                        .width(1.dp)
-                        .height(54.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                )
-            }
-        }
+        ThreadAvatar(
+            name = reply.authorName,
+            size = replyAvatarSize,
+            gradient = listOf(
+                MaterialTheme.colorScheme.secondaryContainer,
+                MaterialTheme.colorScheme.tertiaryContainer
+            ),
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        )
 
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(top = 2.dp, bottom = 10.dp)
+                .padding(top = 2.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -380,12 +386,22 @@ private fun ReplyItem(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                RepliesBadge(text = "${reply.replyCount}")
+                Text(
+                    text = "replies",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                ReplyActionPill(
+                    onClick = { onReplyClick(reply.id) }
+                )
+            }
         }
     }
 }
@@ -436,6 +452,27 @@ private fun RepliesBadge(
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun ReplyActionPill(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(MaterialTheme.colorScheme.primaryContainer)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 5.dp)
+    ) {
+        Text(
+            text = stringResource(Res.string.post_detail_reply_action),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer
         )
     }
 }
@@ -510,23 +547,29 @@ private val previewPost = Post(
 )
 
 private val previewReplies = listOf(
-    Post(
-        id = "2",
-        content = "Great post!",
-        parentId = "1",
-        createdAt = 1700001000000L,
-        updatedAt = 1700001000000L,
-        author = PostAuthor(id = "2", displayName = "Alice", email = "alice@example.com"),
-        stats = PostStats(replyCount = 0, likeCount = 1, viewCount = 10)
+    ThreadReplyItem(
+        post = Post(
+            id = "2",
+            content = "Great post!",
+            parentId = "1",
+            createdAt = 1700001000000L,
+            updatedAt = 1700001000000L,
+            author = PostAuthor(id = "2", displayName = "Alice", email = "alice@example.com"),
+            stats = PostStats(replyCount = 1, likeCount = 1, viewCount = 10)
+        ),
+        depth = 0
     ),
-    Post(
-        id = "3",
-        content = "Thanks for sharing.",
-        parentId = "1",
-        createdAt = 1700002000000L,
-        updatedAt = 1700002000000L,
-        author = PostAuthor(id = "3", displayName = "Bob", email = "bob@example.com"),
-        stats = PostStats(replyCount = 0, likeCount = 0, viewCount = 5)
+    ThreadReplyItem(
+        post = Post(
+            id = "3",
+            content = "Thanks for sharing.",
+            parentId = "2",
+            createdAt = 1700002000000L,
+            updatedAt = 1700002000000L,
+            author = PostAuthor(id = "3", displayName = "Bob", email = "bob@example.com"),
+            stats = PostStats(replyCount = 0, likeCount = 0, viewCount = 5)
+        ),
+        depth = 1
     )
 )
 
@@ -537,7 +580,7 @@ private fun PostDetailScreenPreview() {
         PostDetailScreen(
             state = PostDetailUiState(
                 post = previewPost,
-                replies = previewReplies
+                threadReplies = previewReplies
             ),
             onAction = {}
         )
