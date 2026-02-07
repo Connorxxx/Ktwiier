@@ -13,6 +13,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,6 +55,8 @@ fun MainScreen(
     mainVm: MainViewModel = koinViewModel()
 ) {
     val mainState by mainVm.state.collectAsStateWithLifecycle()
+    var pendingHomeRefresh by remember { mutableStateOf(false) }
+    var pendingPostDetailRefreshPostId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         mainVm.onAction(MainAction.Load)
@@ -179,6 +184,14 @@ fun MainScreen(
             entry<NavigationRoute.Home> {
                 val vm: HomeViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
+
+                LaunchedEffect(pendingHomeRefresh) {
+                    if (pendingHomeRefresh) {
+                        vm.onEvent(HomeAction.Refresh)
+                        pendingHomeRefresh = false
+                    }
+                }
+
                 HomeScreen(
                     state = state,
                     onAction = { action ->
@@ -203,6 +216,13 @@ fun MainScreen(
 
                 LaunchedEffect(route.postId) {
                     vm.onEvent(PostDetailAction.Load(route.postId))
+                }
+
+                LaunchedEffect(route.postId, pendingPostDetailRefreshPostId) {
+                    if (pendingPostDetailRefreshPostId == route.postId) {
+                        vm.onEvent(PostDetailAction.Refresh(route.postId))
+                        pendingPostDetailRefreshPostId = null
+                    }
                 }
 
                 PostDetailScreen(
@@ -235,7 +255,11 @@ fun MainScreen(
                         when (action) {
                             is CreatePostAction -> vm.onEvent(action)
                             is CreatePostNavAction -> when (action) {
-                                CreatePostNavAction.OnPostCreated -> mainState.onBack()
+                                CreatePostNavAction.OnPostCreated -> {
+                                    pendingHomeRefresh = true
+                                    pendingPostDetailRefreshPostId = route.parentId
+                                    mainState.onBack()
+                                }
                                 CreatePostNavAction.BackClick -> mainState.onBack()
                             }
                         }

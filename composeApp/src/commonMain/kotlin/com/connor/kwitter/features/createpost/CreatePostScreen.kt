@@ -1,12 +1,15 @@
 package com.connor.kwitter.features.createpost
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,13 +30,17 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.connor.kwitter.core.theme.KwitterTheme
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -90,10 +97,16 @@ fun CreatePostScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
+        val focusManager = LocalFocusManager.current
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .imePadding()
+                .pointerInput(Unit) {
+                    detectTapGestures { focusManager.clearFocus() }
+                }
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             if (isReply) {
@@ -114,7 +127,7 @@ fun CreatePostScreen(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .heightIn(min = 160.dp, max = 240.dp),
                 placeholder = {
                     Text(
                         text = if (isReply) {
@@ -204,5 +217,32 @@ private fun CloseIcon(
         // X shape
         drawLine(resolvedColor, Offset(margin, margin), Offset(size.width - margin, size.height - margin), stroke, cap = StrokeCap.Round)
         drawLine(resolvedColor, Offset(size.width - margin, margin), Offset(margin, size.height - margin), stroke, cap = StrokeCap.Round)
+    }
+}
+
+@Preview
+@Composable
+private fun CreatePostScreenPreview() {
+    KwitterTheme(darkTheme = false) {
+        CreatePostScreen(
+            state = CreatePostUiState(
+                content = "Hello world!"
+            ),
+            onAction = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun CreatePostReplyPreview() {
+    KwitterTheme(darkTheme = true) {
+        CreatePostScreen(
+            state = CreatePostUiState(
+                content = "",
+                parentId = "123"
+            ),
+            onAction = {}
+        )
     }
 }
