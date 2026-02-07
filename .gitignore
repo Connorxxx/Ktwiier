@@ -6,6 +6,7 @@
 gradle-app.setting
 !gradle-wrapper.jar
 .gradletasknamecache
+gradle/gradle-daemon-jvm.properties
 
 # IntelliJ IDEA
 .idea
