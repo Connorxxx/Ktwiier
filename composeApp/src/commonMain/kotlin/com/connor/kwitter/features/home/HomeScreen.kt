@@ -47,6 +47,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.PostActionBar
 import com.connor.kwitter.core.ui.PostMediaGrid
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.post.model.Post
@@ -118,7 +119,9 @@ fun HomeScreen(
                         items(state.posts, key = { it.id }) { post ->
                             PostItem(
                                 post = post,
-                                onClick = { onAction(HomeNavAction.PostClick(post.id)) }
+                                onClick = { onAction(HomeNavAction.PostClick(post.id)) },
+                                onLikeClick = { onAction(HomeAction.ToggleLike(post.id)) },
+                                onBookmarkClick = { onAction(HomeAction.ToggleBookmark(post.id)) }
                             )
                         }
                     }
@@ -249,7 +252,9 @@ private fun ProfilePlaceholder(
 @Composable
 private fun PostItem(
     post: Post,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLikeClick: () -> Unit,
+    onBookmarkClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -311,15 +316,17 @@ private fun PostItem(
                     PostMediaGrid(media = post.media)
                 }
 
-                if (post.replyCount > 0) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = "${post.replyCount} replies",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                Spacer(modifier = Modifier.height(10.dp))
+
+                PostActionBar(
+                    replyCount = post.replyCount,
+                    likeCount = post.stats.likeCount,
+                    isLiked = post.isLikedByCurrentUser == true,
+                    isBookmarked = post.isBookmarkedByCurrentUser == true,
+                    onReplyClick = onClick,
+                    onLikeClick = onLikeClick,
+                    onBookmarkClick = onBookmarkClick
+                )
             }
         }
 

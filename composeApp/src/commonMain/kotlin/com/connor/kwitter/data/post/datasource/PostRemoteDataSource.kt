@@ -3,14 +3,17 @@ package com.connor.kwitter.data.post.datasource
 import arrow.core.Either
 import arrow.core.raise.either
 import com.connor.kwitter.domain.post.model.CreatePostRequest
+import com.connor.kwitter.domain.post.model.LikeResponse
 import com.connor.kwitter.domain.post.model.MediaUploadResponse
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostList
 import com.connor.kwitter.domain.post.model.PostPageQuery
+import com.connor.kwitter.domain.post.model.PostStats
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.delete
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
@@ -35,11 +38,15 @@ class PostRemoteDataSource(
         const val MEDIA_UPLOAD_PATH = "/v1/media/upload"
     }
 
-    suspend fun getTimeline(query: PostPageQuery): Either<PostError, PostList> = either {
+    suspend fun getTimeline(
+        query: PostPageQuery,
+        token: String? = null
+    ): Either<PostError, PostList> = either {
         try {
             val response: HttpResponse = httpClient.get(endpoint(TIMELINE_PATH)) {
                 parameter("limit", query.limit)
                 parameter("offset", query.offset)
+                token?.let { bearerAuth(it) }
             }
             handleResponse(response) { it.body() }
         } catch (e: Exception) {
@@ -48,9 +55,11 @@ class PostRemoteDataSource(
         }
     }
 
-    suspend fun getPost(postId: String): Either<PostError, Post> = either {
+    suspend fun getPost(postId: String, token: String? = null): Either<PostError, Post> = either {
         try {
-            val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId"))
+            val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId")) {
+                token?.let { bearerAuth(it) }
+            }
             handleResponse(response) { it.body() }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -60,12 +69,14 @@ class PostRemoteDataSource(
 
     suspend fun getReplies(
         postId: String,
-        query: PostPageQuery
+        query: PostPageQuery,
+        token: String? = null
     ): Either<PostError, PostList> = either {
         try {
             val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId/replies")) {
                 parameter("limit", query.limit)
                 parameter("offset", query.offset)
+                token?.let { bearerAuth(it) }
             }
             handleResponse(response) { it.body() }
         } catch (e: Exception) {
@@ -129,6 +140,54 @@ class PostRemoteDataSource(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             raise(PostError.NetworkError("Media upload failed: ${e.message}"))
+        }
+    }
+
+    suspend fun likePost(token: String, postId: String): Either<PostError, PostStats> = either {
+        try {
+            val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/like")) {
+                bearerAuth(token)
+            }
+            handleResponse<LikeResponse>(response) { it.body() }.stats
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            raise(PostError.NetworkError("Network request failed: ${e.message}"))
+        }
+    }
+
+    suspend fun unlikePost(token: String, postId: String): Either<PostError, PostStats> = either {
+        try {
+            val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/like")) {
+                bearerAuth(token)
+            }
+            handleResponse<LikeResponse>(response) { it.body() }.stats
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            raise(PostError.NetworkError("Network request failed: ${e.message}"))
+        }
+    }
+
+    suspend fun bookmarkPost(token: String, postId: String): Either<PostError, Unit> = either {
+        try {
+            val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/bookmark")) {
+                bearerAuth(token)
+            }
+            handleResponse(response) { }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            raise(PostError.NetworkError("Network request failed: ${e.message}"))
+        }
+    }
+
+    suspend fun unbookmarkPost(token: String, postId: String): Either<PostError, Unit> = either {
+        try {
+            val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/bookmark")) {
+                bearerAuth(token)
+            }
+            handleResponse(response) { }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            raise(PostError.NetworkError("Network request failed: ${e.message}"))
         }
     }
 

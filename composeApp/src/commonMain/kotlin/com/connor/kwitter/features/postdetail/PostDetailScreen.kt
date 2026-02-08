@@ -48,6 +48,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.PostActionBar
 import com.connor.kwitter.core.ui.PostMediaGrid
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.post.model.Post
@@ -55,7 +56,6 @@ import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.post_detail_no_replies
-import kwitter.composeapp.generated.resources.post_detail_reply_action
 import kwitter.composeapp.generated.resources.post_detail_replies_header
 import org.jetbrains.compose.resources.stringResource
 
@@ -148,6 +148,12 @@ fun PostDetailScreen(
                                         content = targetPost.content
                                     )
                                 )
+                            },
+                            onLikeClick = {
+                                onAction(PostDetailAction.ToggleLike(state.post.id))
+                            },
+                            onBookmarkClick = {
+                                onAction(PostDetailAction.ToggleBookmark(state.post.id))
                             }
                         )
                     }
@@ -210,6 +216,12 @@ fun PostDetailScreen(
                                             content = targetPost.content
                                         )
                                     )
+                                },
+                                onLikeClick = {
+                                    onAction(PostDetailAction.ToggleLike(reply.post.id))
+                                },
+                                onBookmarkClick = {
+                                    onAction(PostDetailAction.ToggleBookmark(reply.post.id))
                                 }
                             )
                         }
@@ -279,7 +291,9 @@ private fun ThreadTopBar(
 @Composable
 private fun RootPostItem(
     post: Post,
-    onReplyClick: (Post) -> Unit
+    onReplyClick: (Post) -> Unit,
+    onLikeClick: () -> Unit,
+    onBookmarkClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -344,22 +358,15 @@ private fun RootPostItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                RepliesBadge(text = "${post.replyCount}")
-                Text(
-                    text = "replies",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                ReplyActionPill(
-                    onClick = { onReplyClick(post) }
-                )
-            }
+            PostActionBar(
+                replyCount = post.replyCount,
+                likeCount = post.stats.likeCount,
+                isLiked = post.isLikedByCurrentUser == true,
+                isBookmarked = post.isBookmarkedByCurrentUser == true,
+                onReplyClick = { onReplyClick(post) },
+                onLikeClick = onLikeClick,
+                onBookmarkClick = onBookmarkClick
+            )
         }
     }
 }
@@ -370,7 +377,9 @@ private fun ReplyItem(
     hasNestedReplies: Boolean,
     isRepliesExpanded: Boolean,
     onRepliesToggleClick: () -> Unit,
-    onReplyClick: (Post) -> Unit
+    onReplyClick: (Post) -> Unit,
+    onLikeClick: () -> Unit,
+    onBookmarkClick: () -> Unit
 ) {
     val reply = threadReply.post
     val indentation = (threadReply.depth * 20).coerceAtMost(80).dp
@@ -445,56 +454,41 @@ private fun ReplyItem(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            PostActionBar(
+                replyCount = reply.replyCount,
+                likeCount = reply.stats.likeCount,
+                isLiked = reply.isLikedByCurrentUser == true,
+                isBookmarked = reply.isBookmarkedByCurrentUser == true,
+                onReplyClick = { onReplyClick(reply) },
+                onLikeClick = onLikeClick,
+                onBookmarkClick = onBookmarkClick
+            )
+
+            if (hasNestedReplies) {
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
                         .background(
-                            if (hasNestedReplies) {
-                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
-                            } else {
-                                Color.Transparent
-                            }
+                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
                         )
-                        .clickable(
-                            enabled = hasNestedReplies,
-                            onClick = onRepliesToggleClick
-                        )
-                        .padding(horizontal = 2.dp, vertical = 2.dp),
+                        .clickable(onClick = onRepliesToggleClick)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    RepliesBadge(text = "${reply.replyCount}")
                     Text(
-                        text = if (hasNestedReplies) {
-                            if (isRepliesExpanded) "Hide replies" else "Show replies"
-                        } else {
-                            "replies"
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (hasNestedReplies) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        fontWeight = if (hasNestedReplies) FontWeight.SemiBold else FontWeight.Normal
+                        text = if (isRepliesExpanded) "Hide replies" else "Show replies",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    if (hasNestedReplies) {
-                        ExpandCollapseChevron(
-                            expanded = isRepliesExpanded,
-                            modifier = Modifier.size(12.dp),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    ExpandCollapseChevron(
+                        expanded = isRepliesExpanded,
+                        modifier = Modifier.size(10.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
-                Spacer(modifier = Modifier.weight(1f))
-                ReplyActionPill(
-                    onClick = { onReplyClick(reply) }
-                )
             }
         }
     }
@@ -546,27 +540,6 @@ private fun RepliesBadge(
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold
-        )
-    }
-}
-
-@Composable
-private fun ReplyActionPill(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(MaterialTheme.colorScheme.primaryContainer)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 5.dp)
-    ) {
-        Text(
-            text = stringResource(Res.string.post_detail_reply_action),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
         )
     }
 }

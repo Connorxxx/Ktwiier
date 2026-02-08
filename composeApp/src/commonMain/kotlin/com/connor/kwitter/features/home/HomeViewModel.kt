@@ -18,6 +18,7 @@ import com.connor.kwitter.domain.post.repository.PostRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 
 data class HomeUiState(
     val posts: List<Post> = emptyList(),
@@ -33,6 +34,8 @@ sealed interface HomeAction : HomeIntent {
     data object Refresh : HomeAction
     data object LogoutClick : HomeAction
     data object ErrorDismissed : HomeAction
+    data class ToggleLike(val postId: String) : HomeAction
+    data class ToggleBookmark(val postId: String) : HomeAction
 }
 
 sealed interface HomeNavAction : HomeIntent {
@@ -107,6 +110,78 @@ class HomeViewModel(
                         )
                     }
                     is HomeAction.ErrorDismissed -> state.copy(error = null)
+                    is HomeAction.ToggleLike -> {
+                        val post = state.posts.find { it.id == action.postId }
+                        if (post != null) {
+                            val isCurrentlyLiked = post.isLikedByCurrentUser == true
+                            state = state.copy(
+                                posts = state.posts.updatePost(action.postId) {
+                                    copy(
+                                        isLikedByCurrentUser = !isCurrentlyLiked,
+                                        stats = stats.copy(
+                                            likeCount = if (isCurrentlyLiked) stats.likeCount - 1
+                                            else stats.likeCount + 1
+                                        )
+                                    )
+                                }
+                            )
+                            val result = if (isCurrentlyLiked) {
+                                postRepository.unlikePost(action.postId)
+                            } else {
+                                postRepository.likePost(action.postId)
+                            }
+                            result.fold(
+                                ifLeft = { error ->
+                                    state.copy(
+                                        posts = state.posts.updatePost(action.postId) {
+                                            copy(
+                                                isLikedByCurrentUser = isCurrentlyLiked,
+                                                stats = stats.copy(
+                                                    likeCount = if (isCurrentlyLiked) stats.likeCount + 1
+                                                    else stats.likeCount - 1
+                                                )
+                                            )
+                                        },
+                                        error = formatError(error)
+                                    )
+                                },
+                                ifRight = { updatedStats ->
+                                    state.copy(
+                                        posts = state.posts.updatePost(action.postId) {
+                                            copy(stats = updatedStats)
+                                        }
+                                    )
+                                }
+                            )
+                        } else state
+                    }
+                    is HomeAction.ToggleBookmark -> {
+                        val post = state.posts.find { it.id == action.postId }
+                        if (post != null) {
+                            val isCurrentlyBookmarked = post.isBookmarkedByCurrentUser == true
+                            state = state.copy(
+                                posts = state.posts.updatePost(action.postId) {
+                                    copy(isBookmarkedByCurrentUser = !isCurrentlyBookmarked)
+                                }
+                            )
+                            val result = if (isCurrentlyBookmarked) {
+                                postRepository.unbookmarkPost(action.postId)
+                            } else {
+                                postRepository.bookmarkPost(action.postId)
+                            }
+                            result.fold(
+                                ifLeft = { error ->
+                                    state.copy(
+                                        posts = state.posts.updatePost(action.postId) {
+                                            copy(isBookmarkedByCurrentUser = isCurrentlyBookmarked)
+                                        },
+                                        error = formatError(error)
+                                    )
+                                },
+                                ifRight = { state }
+                            )
+                        } else state
+                    }
                 }
             }
         }
@@ -132,3 +207,6 @@ class HomeViewModel(
         is AuthError.Unknown -> "Logout failed: unknown error (${error.message})"
     }
 }
+
+private fun List<Post>.updatePost(postId: String, transform: Post.() -> Post): List<Post> =
+    map { if (it.id == postId) it.transform() else it }

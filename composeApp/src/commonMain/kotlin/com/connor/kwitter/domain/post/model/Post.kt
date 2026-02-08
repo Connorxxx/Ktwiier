@@ -12,7 +12,9 @@ data class Post(
     val updatedAt: Long,
     val author: PostAuthor,
     val stats: PostStats,
-    val parentPost: PostSummary? = null
+    val parentPost: PostSummary? = null,
+    val isLikedByCurrentUser: Boolean? = null,
+    val isBookmarkedByCurrentUser: Boolean? = null
 ) {
     val authorName: String
         get() = author.displayName
@@ -61,6 +63,11 @@ data class PostList(
     val posts: List<Post>,
     val hasMore: Boolean,
     val total: Int? = null
+)
+
+@Serializable
+data class LikeResponse(
+    val stats: PostStats
 )
 
 data class PostPageQuery(

@@ -38,6 +38,8 @@ sealed interface PostDetailAction : PostDetailIntent {
     data class Load(val postId: String) : PostDetailAction
     data class Refresh(val postId: String) : PostDetailAction
     data object ErrorDismissed : PostDetailAction
+    data class ToggleLike(val postId: String) : PostDetailAction
+    data class ToggleBookmark(val postId: String) : PostDetailAction
 }
 
 sealed interface PostDetailNavAction : PostDetailIntent {
@@ -79,6 +81,8 @@ class PostDetailViewModel(
                     is PostDetailAction.Load -> loadPostDetail(action.postId, state)
                     is PostDetailAction.Refresh -> loadPostDetail(action.postId, state)
                     is PostDetailAction.ErrorDismissed -> state.copy(error = null)
+                    is PostDetailAction.ToggleLike -> handleToggleLike(action.postId, state)
+                    is PostDetailAction.ToggleBookmark -> handleToggleBookmark(action.postId, state)
                 }
             }
         }
@@ -192,5 +196,95 @@ class PostDetailViewModel(
         is PostError.Unauthorized -> "Authentication required"
         is PostError.NotFound -> "Post not found"
         is PostError.Unknown -> "Unknown error: ${error.message}"
+    }
+
+    private suspend fun handleToggleLike(
+        postId: String,
+        currentState: PostDetailUiState
+    ): PostDetailUiState {
+        val targetPost = findPost(postId, currentState) ?: return currentState
+        val isCurrentlyLiked = targetPost.isLikedByCurrentUser == true
+
+        val optimisticState = updatePostInState(currentState, postId) {
+            copy(
+                isLikedByCurrentUser = !isCurrentlyLiked,
+                stats = stats.copy(
+                    likeCount = if (isCurrentlyLiked) stats.likeCount - 1 else stats.likeCount + 1
+                )
+            )
+        }
+
+        val result = if (isCurrentlyLiked) {
+            postRepository.unlikePost(postId)
+        } else {
+            postRepository.likePost(postId)
+        }
+
+        return result.fold(
+            ifLeft = { error ->
+                updatePostInState(optimisticState, postId) {
+                    copy(
+                        isLikedByCurrentUser = isCurrentlyLiked,
+                        stats = stats.copy(
+                            likeCount = if (isCurrentlyLiked) stats.likeCount + 1 else stats.likeCount - 1
+                        )
+                    )
+                }.copy(error = formatError(error))
+            },
+            ifRight = { updatedStats ->
+                updatePostInState(optimisticState, postId) {
+                    copy(stats = updatedStats)
+                }
+            }
+        )
+    }
+
+    private suspend fun handleToggleBookmark(
+        postId: String,
+        currentState: PostDetailUiState
+    ): PostDetailUiState {
+        val targetPost = findPost(postId, currentState) ?: return currentState
+        val isCurrentlyBookmarked = targetPost.isBookmarkedByCurrentUser == true
+
+        val optimisticState = updatePostInState(currentState, postId) {
+            copy(isBookmarkedByCurrentUser = !isCurrentlyBookmarked)
+        }
+
+        val result = if (isCurrentlyBookmarked) {
+            postRepository.unbookmarkPost(postId)
+        } else {
+            postRepository.bookmarkPost(postId)
+        }
+
+        return result.fold(
+            ifLeft = { error ->
+                updatePostInState(optimisticState, postId) {
+                    copy(isBookmarkedByCurrentUser = isCurrentlyBookmarked)
+                }.copy(error = formatError(error))
+            },
+            ifRight = { optimisticState }
+        )
+    }
+
+    private fun findPost(postId: String, state: PostDetailUiState): Post? {
+        if (state.post?.id == postId) return state.post
+        return state.threadReplies.find { it.post.id == postId }?.post
+    }
+
+    private fun updatePostInState(
+        state: PostDetailUiState,
+        postId: String,
+        transform: Post.() -> Post
+    ): PostDetailUiState {
+        val updatedPost = if (state.post?.id == postId) {
+            state.post.transform()
+        } else {
+            state.post
+        }
+        val updatedReplies = state.threadReplies.map { reply ->
+            if (reply.post.id == postId) reply.copy(post = reply.post.transform())
+            else reply
+        }
+        return state.copy(post = updatedPost, threadReplies = updatedReplies)
     }
 }

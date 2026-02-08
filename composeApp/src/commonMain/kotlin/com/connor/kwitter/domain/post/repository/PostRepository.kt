@@ -8,6 +8,8 @@ import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.model.CreatePostRequest
 import com.connor.kwitter.domain.post.model.MediaUploadResponse
 
+import com.connor.kwitter.domain.post.model.PostStats
+
 interface PostRepository {
     suspend fun getTimeline(query: PostPageQuery = PostPageQuery()): Either<PostError, PostList>
     suspend fun getPost(postId: String): Either<PostError, Post>
@@ -25,4 +27,8 @@ interface PostRepository {
         fileName: String,
         mimeType: String
     ): Either<PostError, MediaUploadResponse>
+    suspend fun likePost(postId: String): Either<PostError, PostStats>
+    suspend fun unlikePost(postId: String): Either<PostError, PostStats>
+    suspend fun bookmarkPost(postId: String): Either<PostError, Unit>
+    suspend fun unbookmarkPost(postId: String): Either<PostError, Unit>
 }

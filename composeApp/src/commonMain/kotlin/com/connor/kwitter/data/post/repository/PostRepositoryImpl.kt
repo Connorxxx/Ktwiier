@@ -10,6 +10,7 @@ import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostList
 import com.connor.kwitter.domain.post.model.PostPageQuery
+import com.connor.kwitter.domain.post.model.PostStats
 import com.connor.kwitter.domain.post.repository.PostRepository
 import kotlinx.coroutines.flow.first
 
@@ -18,19 +19,21 @@ class PostRepositoryImpl(
     private val tokenDataSource: TokenDataSource
 ) : PostRepository {
 
+    private suspend fun getToken(): String? = tokenDataSource.token.first()?.token
+
     override suspend fun getTimeline(query: PostPageQuery): Either<PostError, PostList> {
-        return remoteDataSource.getTimeline(query)
+        return remoteDataSource.getTimeline(query, token = getToken())
     }
 
     override suspend fun getPost(postId: String): Either<PostError, Post> {
-        return remoteDataSource.getPost(postId)
+        return remoteDataSource.getPost(postId, token = getToken())
     }
 
     override suspend fun getReplies(
         postId: String,
         query: PostPageQuery
     ): Either<PostError, PostList> {
-        return remoteDataSource.getReplies(postId, query)
+        return remoteDataSource.getReplies(postId, query, token = getToken())
     }
 
     override suspend fun getUserPosts(
@@ -62,5 +65,29 @@ class PostRepositoryImpl(
             fileName = fileName,
             mimeType = mimeType
         ).bind()
+    }
+
+    override suspend fun likePost(postId: String): Either<PostError, PostStats> = either {
+        val token = tokenDataSource.token.first()
+            ?: raise(PostError.Unauthorized("Not authenticated"))
+        remoteDataSource.likePost(token.token, postId).bind()
+    }
+
+    override suspend fun unlikePost(postId: String): Either<PostError, PostStats> = either {
+        val token = tokenDataSource.token.first()
+            ?: raise(PostError.Unauthorized("Not authenticated"))
+        remoteDataSource.unlikePost(token.token, postId).bind()
+    }
+
+    override suspend fun bookmarkPost(postId: String): Either<PostError, Unit> = either {
+        val token = tokenDataSource.token.first()
+            ?: raise(PostError.Unauthorized("Not authenticated"))
+        remoteDataSource.bookmarkPost(token.token, postId).bind()
+    }
+
+    override suspend fun unbookmarkPost(postId: String): Either<PostError, Unit> = either {
+        val token = tokenDataSource.token.first()
+            ?: raise(PostError.Unauthorized("Not authenticated"))
+        remoteDataSource.unbookmarkPost(token.token, postId).bind()
     }
 }
