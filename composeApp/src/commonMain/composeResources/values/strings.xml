@@ -39,4 +39,16 @@
     <string name="create_post_replying_to">Replying to a post</string>
     <string name="create_post_button">Post</string>
     <string name="create_post_reply_button">Reply</string>
+    <string name="create_post_reply_context_title">Replying to</string>
+    <string name="create_post_reply_context_unknown_author">Unknown author</string>
+    <string name="create_post_reply_context_unknown_content">Original post preview unavailable.</string>
+    <string name="create_post_reply_context_post_id">Post</string>
+    <string name="create_post_content_hint">Write a clear reply so others can follow the conversation.</string>
+    <string name="create_post_media_title">Media</string>
+    <string name="create_post_media_add">Add media</string>
+    <string name="create_post_media_limit">Up to 4 attachments</string>
+    <string name="create_post_uploading">Uploading media...</string>
+    <string name="create_post_status_ready">Ready to publish</string>
+    <string name="create_post_status_need_text">Enter text to publish</string>
+    <string name="create_post_status_limit">Character limit reached</string>
 </resources>

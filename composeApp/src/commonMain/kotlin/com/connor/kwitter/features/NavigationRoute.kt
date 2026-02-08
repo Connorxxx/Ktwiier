@@ -26,6 +26,8 @@ sealed interface NavigationRoute {
     @Serializable
     data class CreatePost(
         val parentId: String? = null,
-        val returnToPostId: String? = null
+        val returnToPostId: String? = null,
+        val replyToAuthorName: String? = null,
+        val replyToContent: String? = null
     ) : NavigationRoute
 }

@@ -84,7 +84,15 @@ fun PostDetailScreen(
         floatingActionButton = {
             state.post?.let { post ->
                 FloatingActionButton(
-                    onClick = { onAction(PostDetailNavAction.ReplyClick(post.id)) },
+                    onClick = {
+                        onAction(
+                            PostDetailNavAction.ReplyClick(
+                                postId = post.id,
+                                authorName = post.authorName,
+                                content = post.content
+                            )
+                        )
+                    },
                     containerColor = MaterialTheme.colorScheme.primary
                 ) {
                     ReplyIcon(
@@ -132,8 +140,14 @@ fun PostDetailScreen(
                     item {
                         RootPostItem(
                             post = state.post,
-                            onReplyClick = { postId ->
-                                onAction(PostDetailNavAction.ReplyClick(postId))
+                            onReplyClick = { targetPost ->
+                                onAction(
+                                    PostDetailNavAction.ReplyClick(
+                                        postId = targetPost.id,
+                                        authorName = targetPost.authorName,
+                                        content = targetPost.content
+                                    )
+                                )
                             }
                         )
                     }
@@ -188,8 +202,14 @@ fun PostDetailScreen(
                                         replyId = reply.post.id
                                     )
                                 },
-                                onReplyClick = { postId ->
-                                    onAction(PostDetailNavAction.ReplyClick(postId))
+                                onReplyClick = { targetPost ->
+                                    onAction(
+                                        PostDetailNavAction.ReplyClick(
+                                            postId = targetPost.id,
+                                            authorName = targetPost.authorName,
+                                            content = targetPost.content
+                                        )
+                                    )
                                 }
                             )
                         }
@@ -259,7 +279,7 @@ private fun ThreadTopBar(
 @Composable
 private fun RootPostItem(
     post: Post,
-    onReplyClick: (String) -> Unit
+    onReplyClick: (Post) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -337,7 +357,7 @@ private fun RootPostItem(
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 ReplyActionPill(
-                    onClick = { onReplyClick(post.id) }
+                    onClick = { onReplyClick(post) }
                 )
             }
         }
@@ -350,7 +370,7 @@ private fun ReplyItem(
     hasNestedReplies: Boolean,
     isRepliesExpanded: Boolean,
     onRepliesToggleClick: () -> Unit,
-    onReplyClick: (String) -> Unit
+    onReplyClick: (Post) -> Unit
 ) {
     val reply = threadReply.post
     val indentation = (threadReply.depth * 20).coerceAtMost(80).dp
@@ -473,7 +493,7 @@ private fun ReplyItem(
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 ReplyActionPill(
-                    onClick = { onReplyClick(reply.id) }
+                    onClick = { onReplyClick(reply) }
                 )
             }
         }

@@ -234,7 +234,9 @@ fun MainScreen(
                                 is PostDetailNavAction.ReplyClick -> mainState.onNavigate(
                                     NavigationRoute.CreatePost(
                                         parentId = action.postId,
-                                        returnToPostId = route.postId
+                                        returnToPostId = route.postId,
+                                        replyToAuthorName = action.authorName,
+                                        replyToContent = action.content
                                     )
                                 )
                                 PostDetailNavAction.BackClick -> mainState.onBack()
@@ -248,8 +250,14 @@ fun MainScreen(
                 val vm: CreatePostViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
 
-                LaunchedEffect(route.parentId) {
-                    vm.onEvent(CreatePostAction.SetParentId(route.parentId))
+                LaunchedEffect(route.parentId, route.replyToAuthorName, route.replyToContent) {
+                    vm.onEvent(
+                        CreatePostAction.SetReplyTarget(
+                            parentId = route.parentId,
+                            authorName = route.replyToAuthorName,
+                            content = route.replyToContent
+                        )
+                    )
                 }
 
                 CreatePostScreen(

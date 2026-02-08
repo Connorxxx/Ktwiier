@@ -25,6 +25,8 @@ import kotlinx.coroutines.launch
 data class CreatePostUiState(
     val content: String = "",
     val parentId: String? = null,
+    val replyTargetAuthorName: String? = null,
+    val replyTargetContent: String? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
     val isSuccess: Boolean = false,
@@ -37,7 +39,11 @@ sealed interface CreatePostIntent
 
 sealed interface CreatePostAction : CreatePostIntent {
     data class ContentChanged(val content: String) : CreatePostAction
-    data class SetParentId(val parentId: String?) : CreatePostAction
+    data class SetReplyTarget(
+        val parentId: String?,
+        val authorName: String? = null,
+        val content: String? = null
+    ) : CreatePostAction
     data object SubmitClicked : CreatePostAction
     data object ErrorDismissed : CreatePostAction
     data class MediaSelected(val media: List<SelectedMedia>) : CreatePostAction
@@ -73,7 +79,11 @@ class CreatePostViewModel(
             _events.receiveAsFlow().collect { action ->
                 state = when (action) {
                     is CreatePostAction.ContentChanged -> state.copy(content = action.content)
-                    is CreatePostAction.SetParentId -> state.copy(parentId = action.parentId)
+                    is CreatePostAction.SetReplyTarget -> state.copy(
+                        parentId = action.parentId,
+                        replyTargetAuthorName = action.authorName,
+                        replyTargetContent = action.content
+                    )
                     is CreatePostAction.MediaSelected -> {
                         val maxAllowed = 4 - state.selectedMedia.size
                         val newMedia = action.media.take(maxAllowed)
