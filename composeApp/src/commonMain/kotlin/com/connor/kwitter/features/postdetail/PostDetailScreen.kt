@@ -119,8 +119,12 @@ fun PostDetailScreen(
             }
 
             state.post != null -> {
-                var expandedReplyIds by remember(state.post?.id, state.threadReplies) {
+                var expandedReplyIds by remember(state.post.id) {
                     mutableStateOf(emptySet<String>())
+                }
+                LaunchedEffect(state.threadReplies) {
+                    val currentReplyIds = state.threadReplies.map { it.post.id }.toSet()
+                    expandedReplyIds = expandedReplyIds.intersect(currentReplyIds)
                 }
                 val replyIdsWithChildren = remember(state.threadReplies) {
                     state.threadReplies.mapNotNull { it.post.parentId }.toSet()
