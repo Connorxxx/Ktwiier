@@ -121,7 +121,10 @@ fun HomeScreen(
                                 post = post,
                                 onClick = { onAction(HomeNavAction.PostClick(post.id)) },
                                 onLikeClick = { onAction(HomeAction.ToggleLike(post.id)) },
-                                onBookmarkClick = { onAction(HomeAction.ToggleBookmark(post.id)) }
+                                onBookmarkClick = { onAction(HomeAction.ToggleBookmark(post.id)) },
+                                onMediaClick = { index ->
+                                    onAction(HomeNavAction.MediaClick(post.media, index))
+                                }
                             )
                         }
                     }
@@ -254,7 +257,8 @@ private fun PostItem(
     post: Post,
     onClick: () -> Unit,
     onLikeClick: () -> Unit,
-    onBookmarkClick: () -> Unit
+    onBookmarkClick: () -> Unit,
+    onMediaClick: (Int) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -313,7 +317,10 @@ private fun PostItem(
 
                 if (post.media.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(10.dp))
-                    PostMediaGrid(media = post.media)
+                    PostMediaGrid(
+                        media = post.media,
+                        onMediaClick = onMediaClick
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))

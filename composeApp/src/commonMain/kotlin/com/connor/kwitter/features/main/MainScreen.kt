@@ -24,6 +24,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.connor.kwitter.features.NavigationRoute
+import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.features.createpost.CreatePostAction
 import com.connor.kwitter.features.createpost.CreatePostNavAction
 import com.connor.kwitter.features.createpost.CreatePostScreen
@@ -40,10 +41,16 @@ import com.connor.kwitter.features.auth.RegisterAction
 import com.connor.kwitter.features.auth.RegisterNavAction
 import com.connor.kwitter.features.auth.RegisterScreen
 import com.connor.kwitter.features.auth.RegisterViewModel
+import com.connor.kwitter.features.mediaviewer.MediaViewerAction
+import com.connor.kwitter.features.mediaviewer.MediaViewerNavAction
+import com.connor.kwitter.features.mediaviewer.MediaViewerScreen
+import com.connor.kwitter.features.mediaviewer.MediaViewerViewModel
 import com.connor.kwitter.features.postdetail.PostDetailAction
 import com.connor.kwitter.features.postdetail.PostDetailNavAction
 import com.connor.kwitter.features.postdetail.PostDetailScreen
 import com.connor.kwitter.features.postdetail.PostDetailViewModel
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -57,6 +64,14 @@ fun MainScreen(
     val mainState by mainVm.state.collectAsStateWithLifecycle()
     var pendingHomeRefresh by remember { mutableStateOf(false) }
     var pendingPostDetailRefreshPostId by remember { mutableStateOf<String?>(null) }
+    val json = remember { Json { ignoreUnknownKeys = true } }
+
+    val navigateToMediaViewer: (List<PostMedia>, Int) -> Unit = remember(mainState) {
+        { media, index ->
+            val mediaJson = json.encodeToString(media)
+            mainState.onNavigate(NavigationRoute.MediaViewer(mediaJson, index))
+        }
+    }
 
     LaunchedEffect(Unit) {
         mainVm.onAction(MainAction.Load)
@@ -204,6 +219,9 @@ fun MainScreen(
                                 HomeNavAction.CreatePostClick -> mainState.onNavigate(
                                     NavigationRoute.CreatePost()
                                 )
+                                is HomeNavAction.MediaClick -> navigateToMediaViewer(
+                                    action.media, action.index
+                                )
                             }
                         }
                     }
@@ -240,6 +258,9 @@ fun MainScreen(
                                     )
                                 )
                                 PostDetailNavAction.BackClick -> mainState.onBack()
+                                is PostDetailNavAction.MediaClick -> navigateToMediaViewer(
+                                    action.media, action.index
+                                )
                             }
                         }
                     }
@@ -280,6 +301,28 @@ fun MainScreen(
 
             entry<NavigationRoute.Splash> {
                 SplashScreen()
+            }
+
+            entry<NavigationRoute.MediaViewer> { route ->
+                val vm: MediaViewerViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                LaunchedEffect(route.mediaJson, route.initialIndex) {
+                    val mediaList = json.decodeFromString<List<PostMedia>>(route.mediaJson)
+                    vm.onEvent(MediaViewerAction.Initialize(mediaList, route.initialIndex))
+                }
+
+                MediaViewerScreen(
+                    state = state,
+                    onAction = { action ->
+                        when (action) {
+                            is MediaViewerAction -> vm.onEvent(action)
+                            is MediaViewerNavAction -> when (action) {
+                                MediaViewerNavAction.BackClick -> mainState.onBack()
+                            }
+                        }
+                    }
+                )
             }
         }
     )

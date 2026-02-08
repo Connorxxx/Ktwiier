@@ -30,4 +30,10 @@ sealed interface NavigationRoute {
         val replyToAuthorName: String? = null,
         val replyToContent: String? = null
     ) : NavigationRoute
+
+    @Serializable
+    data class MediaViewer(
+        val mediaJson: String,
+        val initialIndex: Int
+    ) : NavigationRoute
 }

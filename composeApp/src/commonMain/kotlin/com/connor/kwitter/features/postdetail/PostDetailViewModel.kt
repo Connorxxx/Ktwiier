@@ -15,6 +15,7 @@ import arrow.core.raise.either
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
+import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.post.repository.PostRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +50,7 @@ sealed interface PostDetailNavAction : PostDetailIntent {
         val content: String
     ) : PostDetailNavAction
     data object BackClick : PostDetailNavAction
+    data class MediaClick(val media: List<PostMedia>, val index: Int) : PostDetailNavAction
 }
 
 class PostDetailViewModel(

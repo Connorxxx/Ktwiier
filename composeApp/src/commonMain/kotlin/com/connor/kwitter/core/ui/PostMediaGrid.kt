@@ -1,6 +1,7 @@
 package com.connor.kwitter.core.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,11 +25,14 @@ private const val BASE_URL = "http://192.168.0.101:8080"
 @Composable
 fun PostMediaGrid(
     media: List<PostMedia>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onMediaClick: ((index: Int) -> Unit)? = null
 ) {
     if (media.isEmpty()) return
 
     val shape = RoundedCornerShape(12.dp)
+    fun Modifier.mediaClickable(index: Int): Modifier =
+        if (onMediaClick != null) this.clickable { onMediaClick(index) } else this
 
     when (media.size) {
         1 -> {
@@ -39,6 +43,7 @@ fun PostMediaGrid(
                     .heightIn(min = 180.dp, max = 280.dp)
                     .clip(shape)
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .mediaClickable(0)
             )
         }
         2 -> {
@@ -46,7 +51,7 @@ fun PostMediaGrid(
                 modifier = modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                media.forEach { item ->
+                media.forEachIndexed { index, item ->
                     PostMediaItem(
                         media = item,
                         modifier = Modifier
@@ -54,6 +59,7 @@ fun PostMediaGrid(
                             .heightIn(min = 140.dp, max = 200.dp)
                             .clip(shape)
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .mediaClickable(index)
                     )
                 }
             }
@@ -70,6 +76,7 @@ fun PostMediaGrid(
                         .fillMaxSize()
                         .clip(shape)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .mediaClickable(0)
                 )
                 Column(
                     modifier = Modifier.weight(1f).fillMaxSize(),
@@ -82,6 +89,7 @@ fun PostMediaGrid(
                             .fillMaxWidth()
                             .clip(shape)
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .mediaClickable(1)
                     )
                     PostMediaItem(
                         media = media[2],
@@ -90,6 +98,7 @@ fun PostMediaGrid(
                             .fillMaxWidth()
                             .clip(shape)
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .mediaClickable(2)
                     )
                 }
             }
@@ -112,6 +121,7 @@ fun PostMediaGrid(
                                 .aspectRatio(1.5f)
                                 .clip(shape)
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .mediaClickable(i)
                         )
                     }
                 }
@@ -127,6 +137,7 @@ fun PostMediaGrid(
                                 .aspectRatio(1.5f)
                                 .clip(shape)
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .mediaClickable(i)
                         )
                     }
                 }

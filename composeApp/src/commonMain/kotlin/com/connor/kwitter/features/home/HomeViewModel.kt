@@ -14,6 +14,7 @@ import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
+import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.post.repository.PostRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
@@ -41,6 +42,7 @@ sealed interface HomeAction : HomeIntent {
 sealed interface HomeNavAction : HomeIntent {
     data class PostClick(val postId: String) : HomeNavAction
     data object CreatePostClick : HomeNavAction
+    data class MediaClick(val media: List<PostMedia>, val index: Int) : HomeNavAction
 }
 
 class HomeViewModel(

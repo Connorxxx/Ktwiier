@@ -53,6 +53,7 @@ import com.connor.kwitter.core.ui.PostMediaGrid
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
+import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.post.model.PostStats
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.post_detail_no_replies
@@ -154,6 +155,9 @@ fun PostDetailScreen(
                             },
                             onBookmarkClick = {
                                 onAction(PostDetailAction.ToggleBookmark(state.post.id))
+                            },
+                            onMediaClick = { index ->
+                                onAction(PostDetailNavAction.MediaClick(state.post.media, index))
                             }
                         )
                     }
@@ -222,6 +226,9 @@ fun PostDetailScreen(
                                 },
                                 onBookmarkClick = {
                                     onAction(PostDetailAction.ToggleBookmark(reply.post.id))
+                                },
+                                onMediaClick = { index ->
+                                    onAction(PostDetailNavAction.MediaClick(reply.post.media, index))
                                 }
                             )
                         }
@@ -293,7 +300,8 @@ private fun RootPostItem(
     post: Post,
     onReplyClick: (Post) -> Unit,
     onLikeClick: () -> Unit,
-    onBookmarkClick: () -> Unit
+    onBookmarkClick: () -> Unit,
+    onMediaClick: (Int) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -353,7 +361,10 @@ private fun RootPostItem(
 
             if (post.media.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                PostMediaGrid(media = post.media)
+                PostMediaGrid(
+                    media = post.media,
+                    onMediaClick = onMediaClick
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -379,7 +390,8 @@ private fun ReplyItem(
     onRepliesToggleClick: () -> Unit,
     onReplyClick: (Post) -> Unit,
     onLikeClick: () -> Unit,
-    onBookmarkClick: () -> Unit
+    onBookmarkClick: () -> Unit,
+    onMediaClick: (Int) -> Unit
 ) {
     val reply = threadReply.post
     val indentation = (threadReply.depth * 20).coerceAtMost(80).dp
@@ -449,7 +461,10 @@ private fun ReplyItem(
 
             if (reply.media.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(10.dp))
-                PostMediaGrid(media = reply.media)
+                PostMediaGrid(
+                    media = reply.media,
+                    onMediaClick = onMediaClick
+                )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
