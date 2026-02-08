@@ -27,6 +27,7 @@ actual fun AutoPlayVideoPlayer(
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
             repeatMode = Player.REPEAT_MODE_ALL
+            volume = 0f
             playWhenReady = true
             prepare()
         }

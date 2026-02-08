@@ -6,6 +6,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitViewController
 import kotlinx.cinterop.ExperimentalForeignApi
+import platform.AVFAudio.AVAudioSession
+import platform.AVFAudio.AVAudioSessionCategoryAmbient
+import platform.AVFAudio.AVAudioSessionCategoryOptionMixWithOthers
 import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
 import platform.AVFoundation.AVPlayer
 import platform.AVFoundation.AVPlayerItemDidPlayToEndTimeNotification
@@ -15,6 +18,7 @@ import platform.AVFoundation.pause
 import platform.AVFoundation.play
 import platform.AVFoundation.replaceCurrentItemWithPlayerItem
 import platform.AVFoundation.seekToTime
+import platform.AVFoundation.volume
 import platform.AVKit.AVPlayerViewController
 import platform.CoreMedia.CMTimeMake
 import platform.Foundation.NSNotificationCenter
@@ -30,10 +34,17 @@ actual fun AutoPlayVideoPlayer(
     val player = remember(url) {
         AVPlayer.playerWithURL(nsUrl).apply {
             muted = true
+            volume = 0f
         }
     }
 
     DisposableEffect(player) {
+        AVAudioSession.sharedInstance().setCategory(
+            category = AVAudioSessionCategoryAmbient,
+            withOptions = AVAudioSessionCategoryOptionMixWithOthers,
+            error = null
+        )
+
         player.play()
 
         val loopObserver = NSNotificationCenter.defaultCenter.addObserverForName(
