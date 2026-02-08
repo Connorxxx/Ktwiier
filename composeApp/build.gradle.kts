@@ -41,6 +41,9 @@ kotlin {
             implementation(libs.androidx.media3.exoplayer)
             implementation(libs.androidx.media3.ui)
 
+            // Coil video thumbnail
+            implementation(libs.coil.video)
+
             // Koin Android
             implementation(libs.koin.android)
             implementation(libs.koin.androidx.compose)

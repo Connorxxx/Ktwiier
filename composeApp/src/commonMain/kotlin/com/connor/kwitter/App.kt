@@ -6,6 +6,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
+import com.connor.kwitter.core.media.addPlatformComponents
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.features.main.MainScreen
 
@@ -16,6 +17,7 @@ fun App(isDarkTheme: Boolean? = null) {
         ImageLoader.Builder(context)
             .components {
                 add(KtorNetworkFetcherFactory())
+                addPlatformComponents()
             }
             .build()
     }

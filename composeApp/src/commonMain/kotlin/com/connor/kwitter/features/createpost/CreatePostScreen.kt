@@ -49,10 +49,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.connor.kwitter.core.media.MediaThumbnailImage
+import com.connor.kwitter.core.media.SelectedMedia
 import com.connor.kwitter.core.media.rememberMediaPickerLauncher
 import com.connor.kwitter.core.theme.KwitterTheme
 import kwitter.composeapp.generated.resources.Res
@@ -224,7 +227,7 @@ fun CreatePostScreen(
                 ) {
                     itemsIndexed(state.selectedMedia) { index, media ->
                         MediaThumbnail(
-                            name = media.name,
+                            media = media,
                             isUploaded = index < state.uploadedMedia.size,
                             onRemove = { onAction(CreatePostAction.RemoveMedia(index)) }
                         )
@@ -287,7 +290,7 @@ fun CreatePostScreen(
 
 @Composable
 private fun MediaThumbnail(
-    name: String,
+    media: SelectedMedia,
     isUploaded: Boolean,
     onRemove: () -> Unit
 ) {
@@ -298,30 +301,25 @@ private fun MediaThumbnail(
             .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(8.dp)
-        ) {
-            ImageIcon(
-                modifier = Modifier.size(20.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = name.take(10),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
-        }
+        MediaThumbnailImage(
+            media = media,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
 
         if (!isUploaded) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White
+                )
+            }
         }
 
         // Remove button
