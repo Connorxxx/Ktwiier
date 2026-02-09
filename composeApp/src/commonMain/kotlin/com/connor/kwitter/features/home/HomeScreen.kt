@@ -486,7 +486,7 @@ private val previewPosts = listOf(
         content = "Just shipped a new feature for the app! Really excited about how the UI turned out after all the iterations.",
         createdAt = 1700000000000L,
         updatedAt = 1700000000000L,
-        author = PostAuthor(id = "1", displayName = "Connor", email = "connor@example.com"),
+        author = PostAuthor(id = "1", displayName = "Connor"),
         stats = PostStats(replyCount = 5, likeCount = 12, viewCount = 200)
     ),
     Post(
@@ -494,7 +494,7 @@ private val previewPosts = listOf(
         content = "Anyone else working on KMP projects? Would love to hear about your experience with Compose Multiplatform.",
         createdAt = 1700001000000L,
         updatedAt = 1700001000000L,
-        author = PostAuthor(id = "2", displayName = "Alice", email = "alice@example.com"),
+        author = PostAuthor(id = "2", displayName = "Alice"),
         stats = PostStats(replyCount = 0, likeCount = 3, viewCount = 50)
     ),
     Post(
@@ -502,7 +502,7 @@ private val previewPosts = listOf(
         content = "Good morning!",
         createdAt = 1700002000000L,
         updatedAt = 1700002000000L,
-        author = PostAuthor(id = "3", displayName = "Bob", email = "bob@example.com"),
+        author = PostAuthor(id = "3", displayName = "Bob"),
         stats = PostStats(replyCount = 2, likeCount = 1, viewCount = 30)
     )
 )

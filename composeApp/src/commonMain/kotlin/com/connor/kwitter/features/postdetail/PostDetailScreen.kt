@@ -719,8 +719,7 @@ private fun ExpandCollapseChevron(
 
 private val previewAuthor = PostAuthor(
     id = "1",
-    displayName = "Connor",
-    email = "connor@example.com"
+    displayName = "Connor"
 )
 
 private val previewPost = Post(
@@ -740,7 +739,7 @@ private val previewReplies = listOf(
             parentId = "1",
             createdAt = 1700001000000L,
             updatedAt = 1700001000000L,
-            author = PostAuthor(id = "2", displayName = "Alice", email = "alice@example.com"),
+            author = PostAuthor(id = "2", displayName = "Alice"),
             stats = PostStats(replyCount = 1, likeCount = 1, viewCount = 10)
         ),
         depth = 0
@@ -752,7 +751,7 @@ private val previewReplies = listOf(
             parentId = "2",
             createdAt = 1700002000000L,
             updatedAt = 1700002000000L,
-            author = PostAuthor(id = "3", displayName = "Bob", email = "bob@example.com"),
+            author = PostAuthor(id = "3", displayName = "Bob"),
             stats = PostStats(replyCount = 0, likeCount = 0, viewCount = 5)
         ),
         depth = 1

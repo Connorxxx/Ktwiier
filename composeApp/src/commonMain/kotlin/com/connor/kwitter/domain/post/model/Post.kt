@@ -39,7 +39,7 @@ enum class PostMediaType {
 data class PostAuthor(
     val id: String,
     val displayName: String,
-    val email: String,
+    //val email: String,
     val avatarUrl: String? = null
 )
 
