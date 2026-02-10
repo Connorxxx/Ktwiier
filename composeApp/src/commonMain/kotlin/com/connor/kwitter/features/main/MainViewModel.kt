@@ -12,7 +12,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
-import com.connor.kwitter.domain.auth.model.UserSession
+import com.connor.kwitter.domain.auth.model.SessionState
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.features.NavigationRoute
 import kotlinx.coroutines.channels.Channel
@@ -67,13 +67,13 @@ class MainViewModel(
             { backStack.removeLastOrNull() }
         }
 
-        val session by authRepository.session.collectAsState(initial = null)
+        val session by authRepository.session.collectAsState(initial = SessionState.Bootstrapping)
 
         LaunchedEffect(session) {
             val route = when (session) {
-                is UserSession.Authenticated -> NavigationRoute.Home
-                UserSession.Unauthenticated -> NavigationRoute.Login
-                null -> NavigationRoute.Splash
+                is SessionState.Authenticated -> NavigationRoute.Home
+                SessionState.Unauthenticated -> NavigationRoute.Login
+                SessionState.Bootstrapping -> NavigationRoute.Splash
             }
             backStack.clear()
             backStack.add(route)

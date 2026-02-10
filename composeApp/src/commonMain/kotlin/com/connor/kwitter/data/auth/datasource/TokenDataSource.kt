@@ -22,14 +22,25 @@ class TokenDataSource(
 ) {
     private companion object {
         val TOKEN_KEY = stringPreferencesKey("auth_token")
+        val USER_ID_KEY = stringPreferencesKey("user_id")
     }
 
     /**
      * 获取存储的令牌
      */
     val token: Flow<AuthToken?> = dataStore.data
-        .map { preferences -> preferences[TOKEN_KEY] }
-        .map { token -> token?.let { AuthToken(it) } }
+        .map { preferences ->
+            val token = preferences[TOKEN_KEY]
+            val userId = preferences[USER_ID_KEY]
+            token?.let { AuthToken(it, userId) }
+        }
+        .catch { emit(null) }
+
+    /**
+     * 获取当前用户ID
+     */
+    val currentUserId: Flow<String?> = dataStore.data
+        .map { preferences -> preferences[USER_ID_KEY] }
         .catch { emit(null) }
 
     /**
@@ -43,6 +54,9 @@ class TokenDataSource(
 
             dataStore.edit { preferences ->
                 preferences[TOKEN_KEY] = token.token
+                if (token.userId != null) {
+                    preferences[USER_ID_KEY] = token.userId
+                }
             }
         } catch (e: Exception) {
             raise(AuthError.StorageError("Failed to save token: ${e.message}"))
@@ -56,6 +70,7 @@ class TokenDataSource(
         try {
             dataStore.edit { preferences ->
                 preferences.remove(TOKEN_KEY)
+                preferences.remove(USER_ID_KEY)
             }
         } catch (e: Exception) {
             raise(AuthError.StorageError("Failed to clear token: ${e.message}"))
