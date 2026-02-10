@@ -62,7 +62,6 @@ fun MainScreen(
     mainVm: MainViewModel = koinViewModel()
 ) {
     val mainState by mainVm.state.collectAsStateWithLifecycle()
-    var pendingHomeRefresh by remember { mutableStateOf(false) }
     var pendingPostDetailRefreshPostId by remember { mutableStateOf<String?>(null) }
     val json = remember { Json { ignoreUnknownKeys = true } }
 
@@ -200,15 +199,9 @@ fun MainScreen(
                 val vm: HomeViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
 
-                LaunchedEffect(pendingHomeRefresh) {
-                    if (pendingHomeRefresh) {
-                        vm.onEvent(HomeAction.Refresh)
-                        pendingHomeRefresh = false
-                    }
-                }
-
                 HomeScreen(
                     state = state,
+                    pagingFlow = vm.pagingFlow,
                     onAction = { action ->
                         when (action) {
                             is HomeAction -> vm.onEvent(action)
@@ -288,7 +281,6 @@ fun MainScreen(
                             is CreatePostAction -> vm.onEvent(action)
                             is CreatePostNavAction -> when (action) {
                                 CreatePostNavAction.OnPostCreated -> {
-                                    pendingHomeRefresh = true
                                     pendingPostDetailRefreshPostId = route.returnToPostId ?: route.parentId
                                     mainState.onBack()
                                 }

@@ -1,0 +1,140 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "c55585f1744443c4517ed92e8c430244",
+    "entities": [
+      {
+        "tableName": "posts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `content` TEXT NOT NULL, `mediaJson` TEXT NOT NULL, `parentId` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `authorId` TEXT NOT NULL, `authorDisplayName` TEXT NOT NULL, `authorAvatarUrl` TEXT, `replyCount` INTEGER NOT NULL, `likeCount` INTEGER NOT NULL, `viewCount` INTEGER NOT NULL, `parentPostJson` TEXT, `isLikedByCurrentUser` INTEGER, `isBookmarkedByCurrentUser` INTEGER, `timelineIndex` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaJson",
+            "columnName": "mediaJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentId",
+            "columnName": "parentId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authorId",
+            "columnName": "authorId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authorDisplayName",
+            "columnName": "authorDisplayName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authorAvatarUrl",
+            "columnName": "authorAvatarUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "replyCount",
+            "columnName": "replyCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "likeCount",
+            "columnName": "likeCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "viewCount",
+            "columnName": "viewCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentPostJson",
+            "columnName": "parentPostJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isLikedByCurrentUser",
+            "columnName": "isLikedByCurrentUser",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "isBookmarkedByCurrentUser",
+            "columnName": "isBookmarkedByCurrentUser",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "timelineIndex",
+            "columnName": "timelineIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "remote_keys",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`label` TEXT NOT NULL, `nextOffset` INTEGER NOT NULL, PRIMARY KEY(`label`))",
+        "fields": [
+          {
+            "fieldPath": "label",
+            "columnName": "label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextOffset",
+            "columnName": "nextOffset",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "label"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c55585f1744443c4517ed92e8c430244')"
+    ]
+  }
+}

@@ -8,6 +8,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import com.connor.kwitter.domain.auth.model.AuthError
@@ -17,13 +19,12 @@ import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.post.repository.PostRepository
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 data class HomeUiState(
-    val posts: List<Post> = emptyList(),
-    val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val error: String? = null
 )
@@ -31,12 +32,18 @@ data class HomeUiState(
 sealed interface HomeIntent
 
 sealed interface HomeAction : HomeIntent {
-    data object LoadTimeline : HomeAction
-    data object Refresh : HomeAction
     data object LogoutClick : HomeAction
     data object ErrorDismissed : HomeAction
-    data class ToggleLike(val postId: String) : HomeAction
-    data class ToggleBookmark(val postId: String) : HomeAction
+    data class ToggleLike(
+        val postId: String,
+        val isCurrentlyLiked: Boolean,
+        val currentLikeCount: Int
+    ) : HomeAction
+
+    data class ToggleBookmark(
+        val postId: String,
+        val isCurrentlyBookmarked: Boolean
+    ) : HomeAction
 }
 
 sealed interface HomeNavAction : HomeIntent {
@@ -51,6 +58,10 @@ class HomeViewModel(
 ) : ViewModel() {
 
     private val _events = Channel<HomeAction>(Channel.UNLIMITED)
+
+    val pagingFlow: Flow<PagingData<Post>> = postRepository
+        .timelinePaging
+        .cachedIn(viewModelScope)
 
     val uiState: StateFlow<HomeUiState> = viewModelScope.launchMolecule(
         mode = RecompositionMode.Immediate
@@ -67,38 +78,8 @@ class HomeViewModel(
         var state by remember { mutableStateOf(HomeUiState()) }
 
         LaunchedEffect(Unit) {
-            // Auto-load timeline
-            state = state.copy(isLoading = true)
-            val result = postRepository.getTimeline()
-            state = result.fold(
-                ifLeft = { error -> state.copy(isLoading = false, error = formatError(error)) },
-                ifRight = { postList -> state.copy(isLoading = false, posts = postList.posts) }
-            )
-
             _events.receiveAsFlow().collect { action ->
                 state = when (action) {
-                    is HomeAction.LoadTimeline -> {
-                        val loading = state.copy(isLoading = true, error = null)
-                        state = loading
-                        val loadResult = postRepository.getTimeline()
-                        loadResult.fold(
-                            ifLeft = { error -> loading.copy(isLoading = false, error = formatError(error)) },
-                            ifRight = { postList ->
-                                loading.copy(isLoading = false, posts = postList.posts)
-                            }
-                        )
-                    }
-                    is HomeAction.Refresh -> {
-                        val refreshing = state.copy(isRefreshing = true, error = null)
-                        state = refreshing
-                        val refreshResult = postRepository.getTimeline()
-                        refreshResult.fold(
-                            ifLeft = { error -> refreshing.copy(isRefreshing = false, error = formatError(error)) },
-                            ifRight = { postList ->
-                                refreshing.copy(isRefreshing = false, posts = postList.posts)
-                            }
-                        )
-                    }
                     is HomeAction.LogoutClick -> {
                         val current = state.copy(error = null)
                         state = current
@@ -113,76 +94,57 @@ class HomeViewModel(
                     }
                     is HomeAction.ErrorDismissed -> state.copy(error = null)
                     is HomeAction.ToggleLike -> {
-                        val post = state.posts.find { it.id == action.postId }
-                        if (post != null) {
-                            val isCurrentlyLiked = post.isLikedByCurrentUser == true
-                            state = state.copy(
-                                posts = state.posts.updatePost(action.postId) {
-                                    copy(
-                                        isLikedByCurrentUser = !isCurrentlyLiked,
-                                        stats = stats.copy(
-                                            likeCount = if (isCurrentlyLiked) stats.likeCount - 1
-                                            else stats.likeCount + 1
-                                        )
-                                    )
-                                }
-                            )
-                            val result = if (isCurrentlyLiked) {
-                                postRepository.unlikePost(action.postId)
-                            } else {
-                                postRepository.likePost(action.postId)
+                        val newLiked = !action.isCurrentlyLiked
+                        val newCount = if (action.isCurrentlyLiked) {
+                            action.currentLikeCount - 1
+                        } else {
+                            action.currentLikeCount + 1
+                        }
+                        postRepository.updateLocalLikeState(action.postId, newLiked, newCount)
+
+                        val result = if (action.isCurrentlyLiked) {
+                            postRepository.unlikePost(action.postId)
+                        } else {
+                            postRepository.likePost(action.postId)
+                        }
+                        result.fold(
+                            ifLeft = { error ->
+                                postRepository.updateLocalLikeState(
+                                    action.postId,
+                                    action.isCurrentlyLiked,
+                                    action.currentLikeCount
+                                )
+                                state.copy(error = formatError(error))
+                            },
+                            ifRight = { updatedStats ->
+                                postRepository.updateLocalLikeState(
+                                    action.postId,
+                                    newLiked,
+                                    updatedStats.likeCount
+                                )
+                                state
                             }
-                            result.fold(
-                                ifLeft = { error ->
-                                    state.copy(
-                                        posts = state.posts.updatePost(action.postId) {
-                                            copy(
-                                                isLikedByCurrentUser = isCurrentlyLiked,
-                                                stats = stats.copy(
-                                                    likeCount = if (isCurrentlyLiked) stats.likeCount + 1
-                                                    else stats.likeCount - 1
-                                                )
-                                            )
-                                        },
-                                        error = formatError(error)
-                                    )
-                                },
-                                ifRight = { updatedStats ->
-                                    state.copy(
-                                        posts = state.posts.updatePost(action.postId) {
-                                            copy(stats = updatedStats)
-                                        }
-                                    )
-                                }
-                            )
-                        } else state
+                        )
                     }
                     is HomeAction.ToggleBookmark -> {
-                        val post = state.posts.find { it.id == action.postId }
-                        if (post != null) {
-                            val isCurrentlyBookmarked = post.isBookmarkedByCurrentUser == true
-                            state = state.copy(
-                                posts = state.posts.updatePost(action.postId) {
-                                    copy(isBookmarkedByCurrentUser = !isCurrentlyBookmarked)
-                                }
-                            )
-                            val result = if (isCurrentlyBookmarked) {
-                                postRepository.unbookmarkPost(action.postId)
-                            } else {
-                                postRepository.bookmarkPost(action.postId)
-                            }
-                            result.fold(
-                                ifLeft = { error ->
-                                    state.copy(
-                                        posts = state.posts.updatePost(action.postId) {
-                                            copy(isBookmarkedByCurrentUser = isCurrentlyBookmarked)
-                                        },
-                                        error = formatError(error)
-                                    )
-                                },
-                                ifRight = { state }
-                            )
-                        } else state
+                        val newBookmarked = !action.isCurrentlyBookmarked
+                        postRepository.updateLocalBookmarkState(action.postId, newBookmarked)
+
+                        val result = if (action.isCurrentlyBookmarked) {
+                            postRepository.unbookmarkPost(action.postId)
+                        } else {
+                            postRepository.bookmarkPost(action.postId)
+                        }
+                        result.fold(
+                            ifLeft = { error ->
+                                postRepository.updateLocalBookmarkState(
+                                    action.postId,
+                                    action.isCurrentlyBookmarked
+                                )
+                                state.copy(error = formatError(error))
+                            },
+                            ifRight = { state }
+                        )
                     }
                 }
             }
@@ -209,6 +171,3 @@ class HomeViewModel(
         is AuthError.Unknown -> "Logout failed: unknown error (${error.message})"
     }
 }
-
-private fun List<Post>.updatePost(postId: String, transform: Post.() -> Post): List<Post> =
-    map { if (it.id == postId) it.transform() else it }

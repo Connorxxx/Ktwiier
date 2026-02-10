@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
@@ -46,6 +45,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.paging.LoadState
+import androidx.paging.PagingData
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.PostActionBar
 import com.connor.kwitter.core.ui.PostMediaGrid
@@ -53,6 +57,8 @@ import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.home_empty
 import org.jetbrains.compose.resources.stringResource
@@ -61,9 +67,11 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun HomeScreen(
     state: HomeUiState,
+    pagingFlow: Flow<PagingData<Post>>,
     onAction: (HomeIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -90,15 +98,17 @@ fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
+        val refreshState = lazyPagingItems.loadState.refresh
+
         PullToRefreshBox(
-            isRefreshing = state.isRefreshing,
-            onRefresh = { onAction(HomeAction.Refresh) },
+            isRefreshing = refreshState is LoadState.Loading && lazyPagingItems.itemCount > 0,
+            onRefresh = { lazyPagingItems.refresh() },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
             when {
-                state.isLoading -> {
+                refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -107,7 +117,11 @@ fun HomeScreen(
                     }
                 }
 
-                state.posts.isEmpty() -> {
+                refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
+                    EmptyTimelineState()
+                }
+
+                refreshState is LoadState.NotLoading && lazyPagingItems.itemCount == 0 -> {
                     EmptyTimelineState()
                 }
 
@@ -116,16 +130,48 @@ fun HomeScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                     ) {
-                        items(state.posts, key = { it.id }) { post ->
+                        items(
+                            count = lazyPagingItems.itemCount,
+                            key = lazyPagingItems.itemKey { it.id }
+                        ) { index ->
+                            val post = lazyPagingItems[index] ?: return@items
                             PostItem(
                                 post = post,
                                 onClick = { onAction(HomeNavAction.PostClick(post.id)) },
-                                onLikeClick = { onAction(HomeAction.ToggleLike(post.id)) },
-                                onBookmarkClick = { onAction(HomeAction.ToggleBookmark(post.id)) },
+                                onLikeClick = {
+                                    onAction(
+                                        HomeAction.ToggleLike(
+                                            postId = post.id,
+                                            isCurrentlyLiked = post.isLikedByCurrentUser == true,
+                                            currentLikeCount = post.stats.likeCount
+                                        )
+                                    )
+                                },
+                                onBookmarkClick = {
+                                    onAction(
+                                        HomeAction.ToggleBookmark(
+                                            postId = post.id,
+                                            isCurrentlyBookmarked = post.isBookmarkedByCurrentUser == true
+                                        )
+                                    )
+                                },
                                 onMediaClick = { index ->
                                     onAction(HomeNavAction.MediaClick(post.media, index))
                                 }
                             )
+                        }
+
+                        if (lazyPagingItems.loadState.append is LoadState.Loading) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                }
+                            }
                         }
                     }
                 }
@@ -512,7 +558,8 @@ private val previewPosts = listOf(
 private fun HomeScreenPreview() {
     KwitterTheme(darkTheme = false) {
         HomeScreen(
-            state = HomeUiState(posts = previewPosts),
+            state = HomeUiState(),
+            pagingFlow = flowOf(PagingData.from(previewPosts)),
             onAction = {}
         )
     }
@@ -523,7 +570,8 @@ private fun HomeScreenPreview() {
 private fun HomeScreenDarkPreview() {
     KwitterTheme(darkTheme = true) {
         HomeScreen(
-            state = HomeUiState(posts = previewPosts),
+            state = HomeUiState(),
+            pagingFlow = flowOf(PagingData.from(previewPosts)),
             onAction = {}
         )
     }
@@ -535,6 +583,7 @@ private fun HomeScreenEmptyPreview() {
     KwitterTheme(darkTheme = false) {
         HomeScreen(
             state = HomeUiState(),
+            pagingFlow = flowOf(PagingData.empty()),
             onAction = {}
         )
     }

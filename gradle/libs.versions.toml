@@ -27,6 +27,9 @@ kotlinx-io = "0.8.2"
 # DataStore
 androidx-datastore = "1.2.0"
 
+# Paging
+androidx-paging = "3.4.0"
+
 # Room
 androidx-room = "2.8.4"
 androidx-sqlite = "2.6.2"
@@ -97,7 +100,12 @@ androidx-datastore-core = { module = "androidx.datastore:datastore-core", versio
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "androidx-room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "androidx-room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "androidx-room" }
+androidx-room-paging = { module = "androidx.room:room-paging", version.ref = "androidx-room" }
 androidx-sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "androidx-sqlite" }
+
+# Paging
+androidx-paging-common = { module = "androidx.paging:paging-common", version.ref = "androidx-paging" }
+androidx-paging-compose = { module = "androidx.paging:paging-compose", version.ref = "androidx-paging" }
 
 # Arrow
 arrow-core = { module = "io.arrow-kt:arrow-core", version.ref = "arrow" }
