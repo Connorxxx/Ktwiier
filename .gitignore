@@ -106,3 +106,7 @@ yarn-error.log*
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Local-only: do not track wrapper script mode and Xcode project file in this repo clone
+gradlew
+iosApp/iosApp.xcodeproj/project.pbxproj
