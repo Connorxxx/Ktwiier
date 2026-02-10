@@ -17,12 +17,18 @@ import com.connor.kwitter.domain.post.model.MediaUploadResponse
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostList
+import com.connor.kwitter.domain.post.model.PostMutationEvent
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.model.PostStats
 import com.connor.kwitter.domain.post.repository.PostRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 
 class PostRepositoryImpl(
     private val remoteDataSource: PostRemoteDataSource,
@@ -31,19 +37,24 @@ class PostRepositoryImpl(
 ) : PostRepository {
 
     private val postDao = database.postDao()
+    private val timelineRefreshTrigger = MutableStateFlow(0L)
+    private val _postMutations = MutableSharedFlow<PostMutationEvent>(extraBufferCapacity = 1)
+    override val postMutations: Flow<PostMutationEvent> = _postMutations.asSharedFlow()
 
     private suspend fun getToken(): String? = tokenDataSource.token.first()?.token
 
     @OptIn(ExperimentalPagingApi::class)
-    override val timelinePaging: Flow<PagingData<Post>> = Pager(
-        config = PagingConfig(pageSize = 20, enablePlaceholders = false),
-        remoteMediator = TimelineRemoteMediator(
-            remoteDataSource = remoteDataSource,
-            database = database,
-            getToken = { getToken() }
-        ),
-        pagingSourceFactory = { postDao.getTimelinePagingSource() }
-    ).flow.map { pagingData -> pagingData.map { it.toDomain() } }
+    override val timelinePaging: Flow<PagingData<Post>> = timelineRefreshTrigger.flatMapLatest {
+        Pager(
+            config = PagingConfig(pageSize = 20, enablePlaceholders = false),
+            remoteMediator = TimelineRemoteMediator(
+                remoteDataSource = remoteDataSource,
+                database = database,
+                getToken = { getToken() }
+            ),
+            pagingSourceFactory = { postDao.getTimelinePagingSource() }
+        ).flow.map { pagingData -> pagingData.map { it.toDomain() } }
+    }
 
     override suspend fun getTimeline(query: PostPageQuery): Either<PostError, PostList> {
         return remoteDataSource.getTimeline(query, token = getToken())
@@ -74,8 +85,13 @@ class PostRepositoryImpl(
             token = token.token,
             request = request
         ).bind()
-        postDao.clearAll()
-        database.remoteKeyDao().deleteByLabel("timeline")
+        timelineRefreshTrigger.update { it + 1 }
+        _postMutations.emit(
+            PostMutationEvent.PostCreated(
+                postId = post.id,
+                parentId = post.parentId
+            )
+        )
         post
     }
 

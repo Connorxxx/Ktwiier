@@ -53,6 +53,8 @@ import androidx.paging.compose.itemKey
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.PostActionBar
 import com.connor.kwitter.core.ui.PostMediaGrid
+import com.connor.kwitter.core.ui.PostItem
+import com.connor.kwitter.core.ui.AuthorAvatar
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
@@ -157,6 +159,9 @@ fun HomeScreen(
                                 },
                                 onMediaClick = { index ->
                                     onAction(HomeNavAction.MediaClick(post.media, index))
+                                },
+                                onAuthorClick = {
+                                    onAction(HomeNavAction.AuthorClick(post.author.id))
                                 }
                             )
                         }
@@ -294,129 +299,6 @@ private fun ProfilePlaceholder(
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
                     shape = CircleShape
                 )
-        )
-    }
-}
-
-@Composable
-private fun PostItem(
-    post: Post,
-    onClick: () -> Unit,
-    onLikeClick: () -> Unit,
-    onBookmarkClick: () -> Unit,
-    onMediaClick: (Int) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            AuthorAvatar(name = post.authorName)
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = post.authorName,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    Text(
-                        text = "\u00B7",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = formatPostTime(post.createdAt),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = post.content,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        lineHeight = 24.sp,
-                        letterSpacing = 0.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 7,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                if (post.media.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    PostMediaGrid(
-                        media = post.media,
-                        onMediaClick = onMediaClick
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                PostActionBar(
-                    replyCount = post.replyCount,
-                    likeCount = post.stats.likeCount,
-                    isLiked = post.isLikedByCurrentUser == true,
-                    isBookmarked = post.isBookmarkedByCurrentUser == true,
-                    onReplyClick = onClick,
-                    onLikeClick = onLikeClick,
-                    onBookmarkClick = onBookmarkClick
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.42f))
-        )
-    }
-}
-
-@Composable
-private fun AuthorAvatar(
-    name: String,
-    modifier: Modifier = Modifier
-) {
-    val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
-    val gradient = listOf(
-        MaterialTheme.colorScheme.primaryContainer,
-        MaterialTheme.colorScheme.tertiaryContainer
-    )
-
-    Box(
-        modifier = modifier
-            .size(44.dp)
-            .background(
-                brush = Brush.linearGradient(gradient),
-                shape = CircleShape
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = initial,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
         )
     }
 }

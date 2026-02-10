@@ -16,10 +16,13 @@ import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostMedia
+import com.connor.kwitter.domain.post.model.PostMutationEvent
 import com.connor.kwitter.domain.post.repository.PostRepository
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 
 data class ThreadReplyItem(
     val post: Post,
@@ -51,6 +54,7 @@ sealed interface PostDetailNavAction : PostDetailIntent {
     ) : PostDetailNavAction
     data object BackClick : PostDetailNavAction
     data class MediaClick(val media: List<PostMedia>, val index: Int) : PostDetailNavAction
+    data class AuthorClick(val userId: String) : PostDetailNavAction
 }
 
 class PostDetailViewModel(
@@ -62,6 +66,27 @@ class PostDetailViewModel(
     }
 
     private val _events = Channel<PostDetailAction>(Channel.UNLIMITED)
+    private var currentPostId: String? = null
+    private var currentThreadPostIds: Set<String> = emptySet()
+
+    init {
+        viewModelScope.launch {
+            postRepository.postMutations.collect { event ->
+                when (event) {
+                    is PostMutationEvent.PostCreated -> {
+                        val postId = currentPostId ?: return@collect
+                        val parentId = event.parentId ?: return@collect
+                        val affectsCurrentThread =
+                            parentId == postId || parentId in currentThreadPostIds
+
+                        if (affectsCurrentThread) {
+                            _events.trySend(PostDetailAction.Refresh(postId))
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     val uiState: StateFlow<PostDetailUiState> = viewModelScope.launchMolecule(
         mode = RecompositionMode.Immediate
@@ -70,6 +95,11 @@ class PostDetailViewModel(
     }
 
     fun onEvent(event: PostDetailAction) {
+        when (event) {
+            is PostDetailAction.Load -> currentPostId = event.postId
+            is PostDetailAction.Refresh -> currentPostId = event.postId
+            else -> Unit
+        }
         _events.trySend(event)
     }
 
@@ -99,7 +129,7 @@ class PostDetailViewModel(
         val loadingState = previousState.copy(isLoading = true, error = null)
         val postResult = postRepository.getPost(postId)
 
-        return postResult.fold(
+        val resolvedState = postResult.fold(
             ifLeft = { error ->
                 loadingState.copy(
                     isLoading = false,
@@ -128,6 +158,14 @@ class PostDetailViewModel(
                 )
             }
         )
+
+        currentThreadPostIds = buildThreadPostIds(resolvedState)
+        return resolvedState
+    }
+
+    private fun buildThreadPostIds(state: PostDetailUiState): Set<String> = buildSet {
+        state.post?.id?.let(::add)
+        state.threadReplies.forEach { add(it.post.id) }
     }
 
     private suspend fun loadReplyThread(rootPostId: String): Either<PostError, List<ThreadReplyItem>> = either {

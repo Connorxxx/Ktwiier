@@ -8,11 +8,13 @@ import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.model.CreatePostRequest
 import com.connor.kwitter.domain.post.model.MediaUploadResponse
+import com.connor.kwitter.domain.post.model.PostMutationEvent
 import com.connor.kwitter.domain.post.model.PostStats
 import kotlinx.coroutines.flow.Flow
 
 interface PostRepository {
     val timelinePaging: Flow<PagingData<Post>>
+    val postMutations: Flow<PostMutationEvent>
     suspend fun getTimeline(query: PostPageQuery = PostPageQuery()): Either<PostError, PostList>
     suspend fun getPost(postId: String): Either<PostError, Post>
     suspend fun getReplies(

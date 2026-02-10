@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.PostActionBar
 import com.connor.kwitter.core.ui.PostMediaGrid
+import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
@@ -162,6 +163,9 @@ fun PostDetailScreen(
                             },
                             onMediaClick = { index ->
                                 onAction(PostDetailNavAction.MediaClick(state.post.media, index))
+                            },
+                            onAuthorClick = {
+                                onAction(PostDetailNavAction.AuthorClick(state.post.author.id))
                             }
                         )
                     }
@@ -233,6 +237,9 @@ fun PostDetailScreen(
                                 },
                                 onMediaClick = { index ->
                                     onAction(PostDetailNavAction.MediaClick(reply.post.media, index))
+                                },
+                                onAuthorClick = {
+                                    onAction(PostDetailNavAction.AuthorClick(reply.post.author.id))
                                 }
                             )
                         }
@@ -305,7 +312,8 @@ private fun RootPostItem(
     onReplyClick: (Post) -> Unit,
     onLikeClick: () -> Unit,
     onBookmarkClick: () -> Unit,
-    onMediaClick: (Int) -> Unit
+    onMediaClick: (Int) -> Unit,
+    onAuthorClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -321,7 +329,8 @@ private fun RootPostItem(
                 MaterialTheme.colorScheme.primaryContainer,
                 MaterialTheme.colorScheme.tertiaryContainer
             ),
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            onClick = onAuthorClick
         )
 
         Column(modifier = Modifier.weight(1f)) {
@@ -395,7 +404,8 @@ private fun ReplyItem(
     onReplyClick: (Post) -> Unit,
     onLikeClick: () -> Unit,
     onBookmarkClick: () -> Unit,
-    onMediaClick: (Int) -> Unit
+    onMediaClick: (Int) -> Unit,
+    onAuthorClick: () -> Unit
 ) {
     val reply = threadReply.post
     val indentation = (threadReply.depth * 20).coerceAtMost(80).dp
@@ -415,7 +425,8 @@ private fun ReplyItem(
                 MaterialTheme.colorScheme.secondaryContainer,
                 MaterialTheme.colorScheme.tertiaryContainer
             ),
-            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            onClick = onAuthorClick
         )
 
         Column(
@@ -519,7 +530,8 @@ private fun ThreadAvatar(
     size: androidx.compose.ui.unit.Dp,
     gradient: List<Color>,
     contentColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
 
@@ -529,6 +541,10 @@ private fun ThreadAvatar(
             .background(
                 brush = Brush.linearGradient(gradient),
                 shape = CircleShape
+            )
+            .then(
+                if (onClick != null) Modifier.clickable(onClick = onClick)
+                else Modifier
             ),
         contentAlignment = Alignment.Center
     ) {
@@ -560,30 +576,6 @@ private fun RepliesBadge(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.SemiBold
         )
-    }
-}
-
-@Composable
-private fun BackArrowIcon(
-    modifier: Modifier = Modifier,
-    color: Color = Color.Unspecified
-) {
-    val resolvedColor = if (color == Color.Unspecified) {
-        MaterialTheme.colorScheme.onSurface
-    } else {
-        color
-    }
-    Canvas(modifier = modifier) {
-        val stroke = size.minDimension * 0.12f
-        val centerY = size.height * 0.5f
-        val left = size.width * 0.15f
-        val right = size.width * 0.85f
-        val arrowSize = size.width * 0.25f
-        // Horizontal line
-        drawLine(resolvedColor, Offset(left, centerY), Offset(right, centerY), stroke, cap = StrokeCap.Round)
-        // Arrow head
-        drawLine(resolvedColor, Offset(left, centerY), Offset(left + arrowSize, centerY - arrowSize), stroke, cap = StrokeCap.Round)
-        drawLine(resolvedColor, Offset(left, centerY), Offset(left + arrowSize, centerY + arrowSize), stroke, cap = StrokeCap.Round)
     }
 }
 
