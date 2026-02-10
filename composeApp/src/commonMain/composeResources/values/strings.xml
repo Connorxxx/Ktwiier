@@ -51,4 +51,8 @@
     <string name="create_post_status_ready">Ready to publish</string>
     <string name="create_post_status_need_text">Enter text to publish</string>
     <string name="create_post_status_limit">Character limit reached</string>
+
+    <string name="time_just_now">Just now</string>
+    <string name="time_minutes_ago">%1$d min ago</string>
+    <string name="time_yesterday_at">Yesterday %1$s</string>
 </resources>

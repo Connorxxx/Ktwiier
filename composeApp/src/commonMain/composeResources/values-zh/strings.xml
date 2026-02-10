@@ -21,4 +21,8 @@
     <string name="login_no_account">还没有账号？</string>
     <string name="login_register_link">去注册</string>
     <string name="login_terms">使用条款 · 隐私政策</string>
+
+    <string name="time_just_now">刚刚</string>
+    <string name="time_minutes_ago">%1$d分钟前</string>
+    <string name="time_yesterday_at">昨天 %1$s</string>
 </resources>
