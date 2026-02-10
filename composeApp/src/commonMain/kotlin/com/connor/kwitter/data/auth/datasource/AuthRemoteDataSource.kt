@@ -9,6 +9,8 @@ import com.connor.kwitter.domain.auth.model.RegisterRequest
 import com.connor.kwitter.domain.auth.model.RegisterResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -28,6 +30,7 @@ class AuthRemoteDataSource(
     private companion object {
         const val REGISTER_PATH = "/v1/auth/register"
         const val LOGIN_PATH = "/v1/auth/login"
+        const val VALIDATE_PATH = "/v1/auth/validate"
     }
 
     /**
@@ -156,4 +159,58 @@ class AuthRemoteDataSource(
 
     private val loginEndpoint: String
         get() = baseUrl.trimEnd('/') + LOGIN_PATH
+
+    /**
+     * 验证Token有效性
+     */
+    suspend fun validateToken(token: String): Either<AuthError, Boolean> = either {
+        try {
+            val response: HttpResponse = httpClient.get(validateEndpoint) {
+                bearerAuth(token)
+            }
+
+            when {
+                response.status.isSuccess() -> {
+                    true
+                }
+                response.status.value == 401 -> {
+                    // Token无效或过期
+                    false
+                }
+                response.status.value in 400..499 -> {
+                    raise(
+                        AuthError.ClientError(
+                            code = response.status.value,
+                            message = "Token validation failed: ${response.status.description}"
+                        )
+                    )
+                }
+                response.status.value in 500..599 -> {
+                    raise(
+                        AuthError.ServerError(
+                            code = response.status.value,
+                            message = "Server error: ${response.status.description}"
+                        )
+                    )
+                }
+                else -> {
+                    raise(
+                        AuthError.Unknown(
+                            message = "Unexpected status: ${response.status.value}"
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            raise(
+                AuthError.NetworkError(
+                    message = "Network request failed: ${e.message}"
+                )
+            )
+        }
+    }
+
+    private val validateEndpoint: String
+        get() = baseUrl.trimEnd('/') + VALIDATE_PATH
 }

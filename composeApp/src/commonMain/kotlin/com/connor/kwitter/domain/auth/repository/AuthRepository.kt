@@ -46,4 +46,9 @@ interface AuthRepository {
      * 清除本地令牌
      */
     suspend fun clearToken(): Either<AuthError, Unit>
+
+    /**
+     * 验证令牌有效性
+     */
+    suspend fun validateToken(token: AuthToken): Either<AuthError, Boolean>
 }
