@@ -25,4 +25,15 @@
     <string name="time_just_now">刚刚</string>
     <string name="time_minutes_ago">%1$d分钟前</string>
     <string name="time_yesterday_at">昨天 %1$s</string>
+
+    <string name="profile_posts">帖子</string>
+    <string name="profile_replies">回复</string>
+    <string name="profile_likes">喜欢</string>
+    <string name="profile_follow">关注</string>
+    <string name="profile_following">正在关注</string>
+    <string name="profile_followers">粉丝</string>
+    <string name="profile_no_posts">暂无帖子</string>
+    <string name="profile_no_replies">暂无回复</string>
+    <string name="profile_no_likes">暂无喜欢</string>
+    <string name="profile_joined">加入于 %1$s</string>
 </resources>

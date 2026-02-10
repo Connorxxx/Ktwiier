@@ -36,4 +36,7 @@ sealed interface NavigationRoute {
         val mediaJson: String,
         val initialIndex: Int
     ) : NavigationRoute
+
+    @Serializable
+    data class UserProfile(val userId: String) : NavigationRoute
 }

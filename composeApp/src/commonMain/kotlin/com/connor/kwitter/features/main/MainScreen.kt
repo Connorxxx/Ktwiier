@@ -13,9 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -49,6 +47,10 @@ import com.connor.kwitter.features.postdetail.PostDetailAction
 import com.connor.kwitter.features.postdetail.PostDetailNavAction
 import com.connor.kwitter.features.postdetail.PostDetailScreen
 import com.connor.kwitter.features.postdetail.PostDetailViewModel
+import com.connor.kwitter.features.userprofile.UserProfileAction
+import com.connor.kwitter.features.userprofile.UserProfileNavAction
+import com.connor.kwitter.features.userprofile.UserProfileScreen
+import com.connor.kwitter.features.userprofile.UserProfileViewModel
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.koin.compose.viewmodel.koinViewModel
@@ -62,7 +64,6 @@ fun MainScreen(
     mainVm: MainViewModel = koinViewModel()
 ) {
     val mainState by mainVm.state.collectAsStateWithLifecycle()
-    var pendingPostDetailRefreshPostId by remember { mutableStateOf<String?>(null) }
     val json = remember { Json { ignoreUnknownKeys = true } }
 
     val navigateToMediaViewer: (List<PostMedia>, Int) -> Unit = remember(mainState) {
@@ -215,6 +216,9 @@ fun MainScreen(
                                 is HomeNavAction.MediaClick -> navigateToMediaViewer(
                                     action.media, action.index
                                 )
+                                is HomeNavAction.AuthorClick -> mainState.onNavigate(
+                                    NavigationRoute.UserProfile(action.userId)
+                                )
                             }
                         }
                     }
@@ -227,13 +231,6 @@ fun MainScreen(
 
                 LaunchedEffect(route.postId) {
                     vm.onEvent(PostDetailAction.Load(route.postId))
-                }
-
-                LaunchedEffect(route.postId, pendingPostDetailRefreshPostId) {
-                    if (pendingPostDetailRefreshPostId == route.postId) {
-                        vm.onEvent(PostDetailAction.Refresh(route.postId))
-                        pendingPostDetailRefreshPostId = null
-                    }
                 }
 
                 PostDetailScreen(
@@ -253,6 +250,9 @@ fun MainScreen(
                                 PostDetailNavAction.BackClick -> mainState.onBack()
                                 is PostDetailNavAction.MediaClick -> navigateToMediaViewer(
                                     action.media, action.index
+                                )
+                                is PostDetailNavAction.AuthorClick -> mainState.onNavigate(
+                                    NavigationRoute.UserProfile(action.userId)
                                 )
                             }
                         }
@@ -280,10 +280,7 @@ fun MainScreen(
                         when (action) {
                             is CreatePostAction -> vm.onEvent(action)
                             is CreatePostNavAction -> when (action) {
-                                CreatePostNavAction.OnPostCreated -> {
-                                    pendingPostDetailRefreshPostId = route.returnToPostId ?: route.parentId
-                                    mainState.onBack()
-                                }
+                                CreatePostNavAction.OnPostCreated -> mainState.onBack()
                                 CreatePostNavAction.BackClick -> mainState.onBack()
                             }
                         }
@@ -293,6 +290,36 @@ fun MainScreen(
 
             entry<NavigationRoute.Splash> {
                 SplashScreen()
+            }
+
+            entry<NavigationRoute.UserProfile> { route ->
+                val vm: UserProfileViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                LaunchedEffect(route.userId) {
+                    vm.onEvent(UserProfileAction.Load(route.userId))
+                }
+
+                UserProfileScreen(
+                    state = state,
+                    onAction = { action ->
+                        when (action) {
+                            is UserProfileAction -> vm.onEvent(action)
+                            is UserProfileNavAction -> when (action) {
+                                UserProfileNavAction.BackClick -> mainState.onBack()
+                                is UserProfileNavAction.PostClick -> mainState.onNavigate(
+                                    NavigationRoute.PostDetail(action.postId)
+                                )
+                                is UserProfileNavAction.MediaClick -> navigateToMediaViewer(
+                                    action.media, action.index
+                                )
+                                is UserProfileNavAction.AuthorClick -> mainState.onNavigate(
+                                    NavigationRoute.UserProfile(action.userId)
+                                )
+                            }
+                        }
+                    }
+                )
             }
 
             entry<NavigationRoute.MediaViewer> { route ->

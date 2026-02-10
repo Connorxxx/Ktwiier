@@ -7,6 +7,7 @@ import com.connor.kwitter.features.login.LoginViewModel
 import com.connor.kwitter.features.main.MainViewModel
 import com.connor.kwitter.features.mediaviewer.MediaViewerViewModel
 import com.connor.kwitter.features.postdetail.PostDetailViewModel
+import com.connor.kwitter.features.userprofile.UserProfileViewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
@@ -22,4 +23,5 @@ val viewModelModule = module {
     viewModelOf(::PostDetailViewModel)
     viewModelOf(::CreatePostViewModel)
     viewModelOf(::MediaViewerViewModel)
+    viewModelOf(::UserProfileViewModel)
 }
