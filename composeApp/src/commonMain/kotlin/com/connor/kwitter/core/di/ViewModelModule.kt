@@ -2,6 +2,7 @@ package com.connor.kwitter.core.di
 
 import com.connor.kwitter.features.auth.RegisterViewModel
 import com.connor.kwitter.features.createpost.CreatePostViewModel
+import com.connor.kwitter.features.editprofile.EditProfileViewModel
 import com.connor.kwitter.features.home.HomeViewModel
 import com.connor.kwitter.features.login.LoginViewModel
 import com.connor.kwitter.features.main.MainViewModel
@@ -24,4 +25,5 @@ val viewModelModule = module {
     viewModelOf(::CreatePostViewModel)
     viewModelOf(::MediaViewerViewModel)
     viewModelOf(::UserProfileViewModel)
+    viewModelOf(::EditProfileViewModel)
 }

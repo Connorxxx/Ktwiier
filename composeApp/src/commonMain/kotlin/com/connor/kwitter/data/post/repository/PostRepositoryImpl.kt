@@ -11,7 +11,6 @@ import com.connor.kwitter.data.post.datasource.TimelineRemoteMediator
 import com.connor.kwitter.data.post.local.AppDatabase
 import com.connor.kwitter.data.post.local.toDomain
 import com.connor.kwitter.domain.post.model.CreatePostRequest
-import com.connor.kwitter.domain.post.model.MediaUploadResponse
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostList
@@ -82,14 +81,6 @@ class PostRepositoryImpl(
                 )
             )
         }
-    }
-
-    override suspend fun uploadMedia(
-        bytes: ByteArray,
-        fileName: String,
-        mimeType: String
-    ): Either<PostError, MediaUploadResponse> {
-        return remoteDataSource.uploadMedia(bytes, fileName, mimeType)
     }
 
     override suspend fun likePost(postId: String): Either<PostError, PostStats> {

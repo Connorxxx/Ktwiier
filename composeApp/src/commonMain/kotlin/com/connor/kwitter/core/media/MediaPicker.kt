@@ -13,4 +13,9 @@ expect fun rememberMediaPickerLauncher(
     onResult: (List<SelectedMedia>) -> Unit
 ): () -> Unit
 
+@Composable
+expect fun rememberImagePickerLauncher(
+    onResult: (SelectedMedia?) -> Unit
+): () -> Unit
+
 expect suspend fun SelectedMedia.readBytes(): ByteArray

@@ -15,9 +15,7 @@ import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.repository.PostRepository
-import com.connor.kwitter.domain.user.model.UpdateProfileRequest
 import com.connor.kwitter.domain.user.model.UserError
-import com.connor.kwitter.domain.user.model.UserProfile
 import com.connor.kwitter.domain.user.repository.UserRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +25,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 enum class ProfileTab { POSTS, REPLIES, LIKES }
 
 data class UserProfileUiState(
-    val profile: UserProfile? = null,
+    val profile: com.connor.kwitter.domain.user.model.UserProfile? = null,
     val currentUserId: String? = null,
     val selectedTab: ProfileTab = ProfileTab.POSTS,
     val posts: List<Post> = emptyList(),
@@ -40,12 +38,6 @@ data class UserProfileUiState(
     val isLoadingTab: Boolean = false,
     val isLoadingMore: Boolean = false,
     val isFollowLoading: Boolean = false,
-    val isEditingProfile: Boolean = false,
-    val isUpdatingProfile: Boolean = false,
-    val editUsername: String = "",
-    val editDisplayName: String = "",
-    val editBio: String = "",
-    val editAvatarUrl: String = "",
     val error: String? = null
 ) {
     val isOwnProfile: Boolean get() = currentUserId != null && currentUserId == profile?.id
@@ -54,20 +46,11 @@ data class UserProfileUiState(
 sealed interface UserProfileIntent
 
 sealed interface UserProfileAction : UserProfileIntent {
-    data class Load(
-        val userId: String,
-        val openInEditMode: Boolean = false
-    ) : UserProfileAction
+    data class Load(val userId: String) : UserProfileAction
+    data object Refresh : UserProfileAction
     data class SelectTab(val tab: ProfileTab) : UserProfileAction
     data object LoadMore : UserProfileAction
     data object ToggleFollow : UserProfileAction
-    data object StartEditingProfile : UserProfileAction
-    data object CancelEditingProfile : UserProfileAction
-    data class EditUsernameChanged(val value: String) : UserProfileAction
-    data class EditDisplayNameChanged(val value: String) : UserProfileAction
-    data class EditBioChanged(val value: String) : UserProfileAction
-    data class EditAvatarUrlChanged(val value: String) : UserProfileAction
-    data object SaveProfile : UserProfileAction
     data class ToggleLike(
         val postId: String,
         val isCurrentlyLiked: Boolean,
@@ -85,6 +68,7 @@ sealed interface UserProfileNavAction : UserProfileIntent {
     data class PostClick(val postId: String) : UserProfileNavAction
     data class MediaClick(val media: List<PostMedia>, val index: Int) : UserProfileNavAction
     data class AuthorClick(val userId: String) : UserProfileNavAction
+    data object EditProfileClick : UserProfileNavAction
 }
 
 class UserProfileViewModel(
@@ -118,19 +102,15 @@ class UserProfileViewModel(
                 state = when (action) {
                     is UserProfileAction.Load -> loadProfile(
                         userId = action.userId,
-                        openInEditMode = action.openInEditMode,
                         previousState = state
                     )
+                    is UserProfileAction.Refresh -> {
+                        val userId = state.profile?.id
+                        if (userId != null) loadProfile(userId, state) else state
+                    }
                     is UserProfileAction.SelectTab -> selectTab(action.tab, state)
                     is UserProfileAction.LoadMore -> loadMore(state)
                     is UserProfileAction.ToggleFollow -> toggleFollow(state)
-                    is UserProfileAction.StartEditingProfile -> startEditingProfile(state)
-                    is UserProfileAction.CancelEditingProfile -> cancelEditingProfile(state)
-                    is UserProfileAction.EditUsernameChanged -> state.copy(editUsername = action.value)
-                    is UserProfileAction.EditDisplayNameChanged -> state.copy(editDisplayName = action.value)
-                    is UserProfileAction.EditBioChanged -> state.copy(editBio = action.value)
-                    is UserProfileAction.EditAvatarUrlChanged -> state.copy(editAvatarUrl = action.value)
-                    is UserProfileAction.SaveProfile -> saveProfile(state)
                     is UserProfileAction.ToggleLike -> handleToggleLike(action, state)
                     is UserProfileAction.ToggleBookmark -> handleToggleBookmark(action, state)
                     is UserProfileAction.ErrorDismissed -> state.copy(error = null)
@@ -143,16 +123,13 @@ class UserProfileViewModel(
 
     private suspend fun loadProfile(
         userId: String,
-        openInEditMode: Boolean,
         previousState: UserProfileUiState
     ): UserProfileUiState {
         val currentUserId = authRepository.currentUserId.first()
         val loadingState = previousState.copy(
             isLoadingProfile = true,
             error = null,
-            currentUserId = currentUserId,
-            isEditingProfile = false,
-            isUpdatingProfile = false
+            currentUserId = currentUserId
         )
 
         val profileResult = userRepository.getUserProfile(userId)
@@ -173,12 +150,7 @@ class UserProfileViewModel(
                     replies = emptyList(),
                     repliesHasMore = false,
                     likes = emptyList(),
-                    likesHasMore = false,
-                    isEditingProfile = openInEditMode && currentUserId == profile.id,
-                    editUsername = profile.username,
-                    editDisplayName = profile.displayName,
-                    editBio = profile.bio,
-                    editAvatarUrl = profile.avatarUrl.orEmpty()
+                    likesHasMore = false
                 )
                 loadTabContent(ProfileTab.POSTS, userId, stateWithProfile)
             }
@@ -194,7 +166,6 @@ class UserProfileViewModel(
 
         val newState = currentState.copy(selectedTab = tab)
 
-        // Check if tab already has content loaded
         val hasContent = when (tab) {
             ProfileTab.POSTS -> newState.posts.isNotEmpty()
             ProfileTab.REPLIES -> newState.replies.isNotEmpty()
@@ -301,7 +272,6 @@ class UserProfileViewModel(
 
         val isCurrentlyFollowing = profile.isFollowedByCurrentUser == true
 
-        // Optimistic update
         val optimisticState = currentState.copy(
             profile = profile.copy(
                 isFollowedByCurrentUser = !isCurrentlyFollowing,
@@ -324,7 +294,6 @@ class UserProfileViewModel(
 
         return result.fold(
             ifLeft = { error ->
-                // Revert optimistic update
                 optimisticState.copy(
                     profile = profile,
                     isFollowLoading = false,
@@ -333,88 +302,6 @@ class UserProfileViewModel(
             },
             ifRight = {
                 optimisticState.copy(isFollowLoading = false)
-            }
-        )
-    }
-
-    private fun startEditingProfile(currentState: UserProfileUiState): UserProfileUiState {
-        val profile = currentState.profile ?: return currentState
-        if (!currentState.isOwnProfile) return currentState
-        if (currentState.isUpdatingProfile) return currentState
-
-        return currentState.copy(
-            isEditingProfile = true,
-            error = null,
-            editUsername = profile.username,
-            editDisplayName = profile.displayName,
-            editBio = profile.bio,
-            editAvatarUrl = profile.avatarUrl.orEmpty()
-        )
-    }
-
-    private fun cancelEditingProfile(currentState: UserProfileUiState): UserProfileUiState {
-        val profile = currentState.profile ?: return currentState.copy(
-            isEditingProfile = false,
-            isUpdatingProfile = false
-        )
-
-        return currentState.copy(
-            isEditingProfile = false,
-            isUpdatingProfile = false,
-            editUsername = profile.username,
-            editDisplayName = profile.displayName,
-            editBio = profile.bio,
-            editAvatarUrl = profile.avatarUrl.orEmpty()
-        )
-    }
-
-    private suspend fun saveProfile(currentState: UserProfileUiState): UserProfileUiState {
-        if (!currentState.isOwnProfile) return currentState
-        if (!currentState.isEditingProfile || currentState.isUpdatingProfile) return currentState
-
-        val username = currentState.editUsername.trim()
-        val displayName = currentState.editDisplayName.trim()
-        val bio = currentState.editBio.trim()
-        val avatarUrl = currentState.editAvatarUrl.trim().ifBlank { null }
-
-        if (username.isBlank()) {
-            return currentState.copy(error = "Username cannot be blank")
-        }
-        if (displayName.isBlank()) {
-            return currentState.copy(error = "Display name cannot be blank")
-        }
-
-        val savingState = currentState.copy(
-            isUpdatingProfile = true,
-            error = null
-        )
-
-        val result = userRepository.updateCurrentUserProfile(
-            UpdateProfileRequest(
-                username = username,
-                displayName = displayName,
-                bio = bio,
-                avatarUrl = avatarUrl
-            )
-        )
-
-        return result.fold(
-            ifLeft = { error ->
-                savingState.copy(
-                    isUpdatingProfile = false,
-                    error = formatError(error)
-                )
-            },
-            ifRight = { updatedProfile ->
-                savingState.copy(
-                    profile = updatedProfile,
-                    isEditingProfile = false,
-                    isUpdatingProfile = false,
-                    editUsername = updatedProfile.username,
-                    editDisplayName = updatedProfile.displayName,
-                    editBio = updatedProfile.bio,
-                    editAvatarUrl = updatedProfile.avatarUrl.orEmpty()
-                )
             }
         )
     }
@@ -430,7 +317,6 @@ class UserProfileViewModel(
             action.currentLikeCount + 1
         }
 
-        // Optimistic update in current tab
         val optimisticState = updatePostInState(currentState, action.postId) {
             copy(
                 isLikedByCurrentUser = newLiked,
@@ -446,7 +332,6 @@ class UserProfileViewModel(
 
         return result.fold(
             ifLeft = { error ->
-                // Revert
                 updatePostInState(optimisticState, action.postId) {
                     copy(
                         isLikedByCurrentUser = action.isCurrentlyLiked,

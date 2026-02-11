@@ -4,7 +4,6 @@ import arrow.core.Either
 import arrow.core.raise.either
 import com.connor.kwitter.domain.post.model.CreatePostRequest
 import com.connor.kwitter.domain.post.model.LikeResponse
-import com.connor.kwitter.domain.post.model.MediaUploadResponse
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostList
@@ -13,16 +12,12 @@ import com.connor.kwitter.domain.post.model.PostStats
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
-import io.ktor.client.request.forms.formData
-import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
-import io.ktor.http.Headers
-import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
@@ -34,7 +29,6 @@ class PostRemoteDataSource(
     private companion object {
         const val TIMELINE_PATH = "/v1/posts/timeline"
         const val POSTS_PATH = "/v1/posts"
-        const val MEDIA_UPLOAD_PATH = "/v1/media/upload"
     }
 
     suspend fun getTimeline(
@@ -106,28 +100,6 @@ class PostRemoteDataSource(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             raise(PostError.NetworkError("Network request failed: ${e.message}"))
-        }
-    }
-
-    suspend fun uploadMedia(
-        bytes: ByteArray,
-        fileName: String,
-        mimeType: String
-    ): Either<PostError, MediaUploadResponse> = either {
-        try {
-            val response: HttpResponse = httpClient.submitFormWithBinaryData(
-                url = endpoint(MEDIA_UPLOAD_PATH),
-                formData = formData {
-                    append("file", bytes, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
-                        append(HttpHeaders.ContentType, mimeType)
-                    })
-                }
-            )
-            handleResponse(response) { it.body() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(PostError.NetworkError("Media upload failed: ${e.message}"))
         }
     }
 

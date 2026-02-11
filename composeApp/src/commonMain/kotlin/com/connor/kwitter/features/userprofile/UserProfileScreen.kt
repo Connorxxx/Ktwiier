@@ -24,7 +24,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -47,24 +46,26 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.BackArrowIcon
+import com.connor.kwitter.core.ui.EditPenIcon
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.domain.post.model.Post
+import com.connor.kwitter.domain.post.model.PostAuthor
+import com.connor.kwitter.domain.post.model.PostStats
 import com.connor.kwitter.domain.user.model.UserProfile
+import com.connor.kwitter.domain.user.model.UserStats
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 import kwitter.composeapp.generated.resources.Res
+import kwitter.composeapp.generated.resources.profile_edit
 import kwitter.composeapp.generated.resources.profile_follow
 import kwitter.composeapp.generated.resources.profile_followers
 import kwitter.composeapp.generated.resources.profile_following
-import kwitter.composeapp.generated.resources.profile_cancel_edit
-import kwitter.composeapp.generated.resources.profile_display_name_label
-import kwitter.composeapp.generated.resources.profile_edit
-import kwitter.composeapp.generated.resources.profile_avatar_url_label
-import kwitter.composeapp.generated.resources.profile_bio_label
 import kwitter.composeapp.generated.resources.profile_joined
 import kwitter.composeapp.generated.resources.profile_likes
 import kwitter.composeapp.generated.resources.profile_no_likes
@@ -72,8 +73,6 @@ import kwitter.composeapp.generated.resources.profile_no_posts
 import kwitter.composeapp.generated.resources.profile_no_replies
 import kwitter.composeapp.generated.resources.profile_posts
 import kwitter.composeapp.generated.resources.profile_replies
-import kwitter.composeapp.generated.resources.profile_save
-import kwitter.composeapp.generated.resources.profile_username_label
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -95,7 +94,9 @@ fun UserProfileScreen(
         topBar = {
             ProfileTopBar(
                 displayName = state.profile?.displayName ?: "",
-                onBackClick = { onAction(UserProfileNavAction.BackClick) }
+                isOwnProfile = state.isOwnProfile,
+                onBackClick = { onAction(UserProfileNavAction.BackClick) },
+                onEditClick = { onAction(UserProfileNavAction.EditProfileClick) }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -126,8 +127,6 @@ fun UserProfileScreen(
                     derivedStateOf {
                         val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
                             ?: return@derivedStateOf false
-                        // header(1) + divider(1) + stats(1) + follow(1) + tabRow(1) = 5 items before posts
-                        // So total items = 5 + posts.size + maybe 1 loading
                         lastVisibleItem.index >= listState.layoutInfo.totalItemsCount - 3
                     }
                 }
@@ -153,27 +152,7 @@ fun UserProfileScreen(
                             profile = state.profile,
                             isOwnProfile = state.isOwnProfile,
                             isFollowLoading = state.isFollowLoading,
-                            isEditingProfile = state.isEditingProfile,
-                            isUpdatingProfile = state.isUpdatingProfile,
-                            editUsername = state.editUsername,
-                            editDisplayName = state.editDisplayName,
-                            editBio = state.editBio,
-                            editAvatarUrl = state.editAvatarUrl,
-                            onStartEditing = { onAction(UserProfileAction.StartEditingProfile) },
-                            onCancelEditing = { onAction(UserProfileAction.CancelEditingProfile) },
-                            onSaveProfile = { onAction(UserProfileAction.SaveProfile) },
-                            onEditUsernameChanged = {
-                                onAction(UserProfileAction.EditUsernameChanged(it))
-                            },
-                            onEditDisplayNameChanged = {
-                                onAction(UserProfileAction.EditDisplayNameChanged(it))
-                            },
-                            onEditBioChanged = {
-                                onAction(UserProfileAction.EditBioChanged(it))
-                            },
-                            onEditAvatarUrlChanged = {
-                                onAction(UserProfileAction.EditAvatarUrlChanged(it))
-                            },
+                            onEditClick = { onAction(UserProfileNavAction.EditProfileClick) },
                             onFollowClick = { onAction(UserProfileAction.ToggleFollow) }
                         )
                     }
@@ -268,7 +247,9 @@ fun UserProfileScreen(
 @Composable
 private fun ProfileTopBar(
     displayName: String,
-    onBackClick: () -> Unit
+    isOwnProfile: Boolean,
+    onBackClick: () -> Unit,
+    onEditClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         TopAppBar(
@@ -296,6 +277,23 @@ private fun ProfileTopBar(
                     )
                 }
             },
+            actions = {
+                if (isOwnProfile) {
+                    IconButton(
+                        onClick = onEditClick,
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    ) {
+                        EditPenIcon(
+                            modifier = Modifier.size(18.dp),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(
                 containerColor = MaterialTheme.colorScheme.background,
                 scrolledContainerColor = MaterialTheme.colorScheme.background
@@ -316,27 +314,9 @@ private fun ProfileHeader(
     profile: UserProfile,
     isOwnProfile: Boolean,
     isFollowLoading: Boolean,
-    isEditingProfile: Boolean,
-    isUpdatingProfile: Boolean,
-    editUsername: String,
-    editDisplayName: String,
-    editBio: String,
-    editAvatarUrl: String,
-    onStartEditing: () -> Unit,
-    onCancelEditing: () -> Unit,
-    onSaveProfile: () -> Unit,
-    onEditUsernameChanged: (String) -> Unit,
-    onEditDisplayNameChanged: (String) -> Unit,
-    onEditBioChanged: (String) -> Unit,
-    onEditAvatarUrlChanged: (String) -> Unit,
+    onEditClick: () -> Unit,
     onFollowClick: () -> Unit
 ) {
-    val avatarUrl = if (isOwnProfile && isEditingProfile) {
-        editAvatarUrl.trim().ifBlank { null }
-    } else {
-        profile.avatarUrl
-    }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -344,82 +324,35 @@ private fun ProfileHeader(
     ) {
         // Avatar
         ProfileAvatar(
-            name = if (isOwnProfile && isEditingProfile) editDisplayName else profile.displayName,
-            avatarUrl = avatarUrl,
+            name = profile.displayName,
+            avatarUrl = profile.avatarUrl,
             modifier = Modifier.size(80.dp)
         )
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        if (isOwnProfile && isEditingProfile) {
+        // Display name
+        Text(
+            text = profile.displayName,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+
+        // @username
+        Text(
+            text = "@${profile.username}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        // Bio
+        if (profile.bio.isNotBlank()) {
             Spacer(modifier = Modifier.height(10.dp))
-
-            OutlinedTextField(
-                value = editDisplayName,
-                onValueChange = onEditDisplayNameChanged,
-                label = { Text(stringResource(Res.string.profile_display_name_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isUpdatingProfile,
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            OutlinedTextField(
-                value = editUsername,
-                onValueChange = onEditUsernameChanged,
-                label = { Text(stringResource(Res.string.profile_username_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isUpdatingProfile,
-                singleLine = true
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            OutlinedTextField(
-                value = editBio,
-                onValueChange = onEditBioChanged,
-                label = { Text(stringResource(Res.string.profile_bio_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isUpdatingProfile,
-                minLines = 3,
-                maxLines = 5
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            OutlinedTextField(
-                value = editAvatarUrl,
-                onValueChange = onEditAvatarUrlChanged,
-                label = { Text(stringResource(Res.string.profile_avatar_url_label)) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isUpdatingProfile,
-                singleLine = true
-            )
-        } else {
-            // Display name
             Text(
-                text = profile.displayName,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                text = profile.bio,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
             )
-
-            // @username
-            Text(
-                text = "@${profile.username}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            // Bio
-            if (profile.bio.isNotBlank()) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = profile.bio,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
         }
 
         // Join date
@@ -456,54 +389,15 @@ private fun ProfileHeader(
 
         if (isOwnProfile) {
             Spacer(modifier = Modifier.height(16.dp))
-
-            if (isEditingProfile) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onCancelEditing,
-                        enabled = !isUpdatingProfile,
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = stringResource(Res.string.profile_cancel_edit),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    Button(
-                        onClick = onSaveProfile,
-                        enabled = !isUpdatingProfile,
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        if (isUpdatingProfile) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text(
-                                text = stringResource(Res.string.profile_save),
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                }
-            } else {
-                OutlinedButton(
-                    onClick = onStartEditing,
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = stringResource(Res.string.profile_edit),
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+            OutlinedButton(
+                onClick = onEditClick,
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = stringResource(Res.string.profile_edit),
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         } else {
             // Follow/Unfollow button
@@ -707,4 +601,91 @@ private fun formatJoinDate(timestamp: Long): String {
         .toLocalDateTime(TimeZone.currentSystemDefault()).date
     val month = date.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)
     return "$month ${date.year}"
+}
+
+private val previewProfile = UserProfile(
+    id = "user_1",
+    username = "connor",
+    displayName = "Connor",
+    bio = "Building Ktwiier with Kotlin Multiplatform and Compose.",
+    avatarUrl = null,
+    createdAt = 1700000000000L,
+    stats = UserStats(
+        followingCount = 128,
+        followersCount = 342,
+        postsCount = 57
+    ),
+    isFollowedByCurrentUser = true
+)
+
+private val previewPosts = listOf(
+    Post(
+        id = "post_1",
+        content = "Finished the user profile screen polish today. The tab interactions feel much better now.",
+        createdAt = 1700001000000L,
+        updatedAt = 1700001000000L,
+        author = PostAuthor(
+            id = "user_1",
+            displayName = "Connor",
+            avatarUrl = null
+        ),
+        stats = PostStats(
+            replyCount = 4,
+            likeCount = 19,
+            viewCount = 210
+        ),
+        isLikedByCurrentUser = true,
+        isBookmarkedByCurrentUser = false
+    ),
+    Post(
+        id = "post_2",
+        content = "Anyone else using Molecule for MVI? Curious how you structure reducers across features.",
+        createdAt = 1700002000000L,
+        updatedAt = 1700002000000L,
+        author = PostAuthor(
+            id = "user_1",
+            displayName = "Connor",
+            avatarUrl = null
+        ),
+        stats = PostStats(
+            replyCount = 2,
+            likeCount = 8,
+            viewCount = 96
+        ),
+        isLikedByCurrentUser = false,
+        isBookmarkedByCurrentUser = true
+    )
+)
+
+@Preview
+@Composable
+private fun UserProfileScreenPreview() {
+    KwitterTheme(darkTheme = false) {
+        UserProfileScreen(
+            state = UserProfileUiState(
+                profile = previewProfile,
+                currentUserId = "viewer_1",
+                posts = previewPosts,
+                postsHasMore = true
+            ),
+            onAction = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun UserProfileScreenOwnPreview() {
+    val ownProfile = previewProfile.copy(id = "viewer_1", isFollowedByCurrentUser = null)
+
+    KwitterTheme(darkTheme = true) {
+        UserProfileScreen(
+            state = UserProfileUiState(
+                profile = ownProfile,
+                currentUserId = "viewer_1",
+                posts = previewPosts
+            ),
+            onAction = {}
+        )
+    }
 }

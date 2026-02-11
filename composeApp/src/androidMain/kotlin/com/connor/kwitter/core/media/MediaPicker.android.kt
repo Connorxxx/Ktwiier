@@ -41,6 +41,43 @@ actual fun rememberMediaPickerLauncher(
     }
 }
 
+@Composable
+actual fun rememberImagePickerLauncher(
+    onResult: (SelectedMedia?) -> Unit
+): () -> Unit {
+    val context = LocalContext.current
+
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri == null) {
+            onResult(null)
+            return@rememberLauncherForActivityResult
+        }
+        val mimeType = context.contentResolver.getType(uri)
+        if (mimeType == null || !mimeType.startsWith("image/")) {
+            onResult(null)
+            return@rememberLauncherForActivityResult
+        }
+        val name = queryFileName(context, uri) ?: "avatar"
+        onResult(
+            SelectedMedia(
+                platformData = uri,
+                name = name,
+                mimeType = mimeType
+            )
+        )
+    }
+
+    return remember(launcher) {
+        {
+            launcher.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            )
+        }
+    }
+}
+
 private fun queryFileName(context: Context, uri: Uri): String? {
     return context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
         val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)

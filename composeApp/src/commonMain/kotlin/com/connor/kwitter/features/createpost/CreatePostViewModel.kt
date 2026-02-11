@@ -12,6 +12,8 @@ import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import com.connor.kwitter.core.media.SelectedMedia
 import com.connor.kwitter.core.media.readBytes
+import com.connor.kwitter.domain.media.model.MediaError
+import com.connor.kwitter.domain.media.repository.MediaRepository
 import com.connor.kwitter.domain.post.model.CreatePostRequest
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostMedia
@@ -56,7 +58,8 @@ sealed interface CreatePostNavAction : CreatePostIntent {
 }
 
 class CreatePostViewModel(
-    private val postRepository: PostRepository
+    private val postRepository: PostRepository,
+    private val mediaRepository: MediaRepository
 ) : ViewModel() {
 
     private val _events = Channel<CreatePostAction>(Channel.UNLIMITED)
@@ -99,7 +102,7 @@ class CreatePostViewModel(
                             newMedia.forEach { media ->
                                 viewModelScope.launch {
                                     val bytes = media.readBytes()
-                                    val result = postRepository.uploadMedia(
+                                    val result = mediaRepository.uploadMedia(
                                         bytes = bytes,
                                         fileName = media.name,
                                         mimeType = media.mimeType
@@ -107,7 +110,7 @@ class CreatePostViewModel(
                                     result.fold(
                                         ifLeft = { error ->
                                             state = state.copy(
-                                                error = formatError(error),
+                                                error = formatMediaError(error),
                                                 selectedMedia = state.selectedMedia - media,
                                                 isUploading = state.selectedMedia.size > state.uploadedMedia.size + 1
                                             )
@@ -178,5 +181,14 @@ class CreatePostViewModel(
         is PostError.Unauthorized -> "Authentication required"
         is PostError.NotFound -> "Not found"
         is PostError.Unknown -> "Unknown error: ${error.message}"
+    }
+
+    private fun formatMediaError(error: MediaError): String = when (error) {
+        is MediaError.NetworkError -> "Upload failed: ${error.message}"
+        is MediaError.ServerError -> "Upload failed (${error.code}): ${error.message}"
+        is MediaError.ClientError -> "Upload failed (${error.code}): ${error.message}"
+        is MediaError.Unauthorized -> "Authentication required"
+        is MediaError.NotFound -> "Upload endpoint not found"
+        is MediaError.Unknown -> "Upload failed: ${error.message}"
     }
 }

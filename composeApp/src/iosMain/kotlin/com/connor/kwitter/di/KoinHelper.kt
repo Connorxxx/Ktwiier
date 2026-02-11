@@ -1,6 +1,7 @@
 package com.connor.kwitter.di
 
 import com.connor.kwitter.core.di.authModule
+import com.connor.kwitter.core.di.mediaModule
 import com.connor.kwitter.core.di.networkModule
 import com.connor.kwitter.core.di.platformModule
 import com.connor.kwitter.core.di.postModule
@@ -14,6 +15,7 @@ fun initKoin() {
             platformModule,
             networkModule,
             authModule,
+            mediaModule,
             postModule,
             userModule,
             viewModelModule

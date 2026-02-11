@@ -11,6 +11,8 @@ import com.connor.kwitter.domain.user.model.UserStats as DomainUserStats
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.delete
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.patch
@@ -18,6 +20,8 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
@@ -58,6 +62,28 @@ class UserRemoteDataSource(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             raise(UserError.NetworkError("Network request failed: ${e.message}"))
+        }
+    }
+
+    suspend fun uploadAvatar(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String
+    ): Either<UserError, String> = either {
+        try {
+            val response: HttpResponse = httpClient.submitFormWithBinaryData(
+                url = endpoint("$USERS_PATH/me/avatar"),
+                formData = formData {
+                    append("avatar", bytes, Headers.build {
+                        append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                        append(HttpHeaders.ContentType, mimeType)
+                    })
+                }
+            )
+            handleResponse(response) { it.body<AvatarUploadResponseDto>().avatarUrl }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            raise(UserError.NetworkError("Avatar upload failed: ${e.message}"))
         }
     }
 
@@ -188,6 +214,11 @@ private data class UserStatsDto(
     val followingCount: Int,
     val followersCount: Int,
     val postsCount: Int
+)
+
+@Serializable
+private data class AvatarUploadResponseDto(
+    val avatarUrl: String
 )
 
 private fun UserProfileResponseDto.toDomain(): UserProfile {

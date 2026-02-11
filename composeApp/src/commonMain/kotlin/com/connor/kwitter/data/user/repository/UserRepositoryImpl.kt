@@ -23,6 +23,14 @@ class UserRepositoryImpl(
         return remoteDataSource.updateCurrentUserProfile(request)
     }
 
+    override suspend fun uploadAvatar(
+        bytes: ByteArray,
+        fileName: String,
+        mimeType: String
+    ): Either<UserError, String> {
+        return remoteDataSource.uploadAvatar(bytes, fileName, mimeType)
+    }
+
     override suspend fun followUser(userId: String): Either<UserError, Unit> {
         return remoteDataSource.followUser(userId)
     }

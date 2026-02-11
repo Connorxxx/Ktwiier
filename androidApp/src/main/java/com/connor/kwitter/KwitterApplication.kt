@@ -2,6 +2,7 @@ package com.connor.kwitter
 
 import android.app.Application
 import com.connor.kwitter.core.di.authModule
+import com.connor.kwitter.core.di.mediaModule
 import com.connor.kwitter.core.di.networkModule
 import com.connor.kwitter.core.di.platformModule
 import com.connor.kwitter.core.di.postModule
@@ -27,6 +28,7 @@ class KwitterApplication : Application() {
                 platformModule,  // 平台特定模块（DataStore, Database）
                 networkModule,   // 网络模块（HttpClient）
                 authModule,      // 认证模块（Repository, DataSource）
+                mediaModule,     // 媒体模块（MediaRepository）
                 postModule,      // 帖子模块（Repository, DataSource）
                 userModule,      // 用户模块（Repository, DataSource）
                 viewModelModule  // ViewModel 模块

@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
@@ -27,6 +28,10 @@ import com.connor.kwitter.features.createpost.CreatePostAction
 import com.connor.kwitter.features.createpost.CreatePostNavAction
 import com.connor.kwitter.features.createpost.CreatePostScreen
 import com.connor.kwitter.features.createpost.CreatePostViewModel
+import com.connor.kwitter.features.editprofile.EditProfileAction
+import com.connor.kwitter.features.editprofile.EditProfileNavAction
+import com.connor.kwitter.features.editprofile.EditProfileScreen
+import com.connor.kwitter.features.editprofile.EditProfileViewModel
 import com.connor.kwitter.features.home.HomeAction
 import com.connor.kwitter.features.home.HomeNavAction
 import com.connor.kwitter.features.home.HomeScreen
@@ -65,6 +70,9 @@ fun MainScreen(
 ) {
     val mainState by mainVm.state.collectAsStateWithLifecycle()
     val json = remember { Json { ignoreUnknownKeys = true } }
+
+    // Counter to trigger profile refresh after edit
+    val profileRefreshKey = remember { mutableIntStateOf(0) }
 
     val navigateToMediaViewer: (List<PostMedia>, Int) -> Unit = remember(mainState) {
         { media, index ->
@@ -217,10 +225,7 @@ fun MainScreen(
                                     action.media, action.index
                                 )
                                 is HomeNavAction.AuthorClick -> mainState.onNavigate(
-                                    NavigationRoute.UserProfile(
-                                        userId = action.userId,
-                                        openInEditMode = action.userId == state.currentUserId
-                                    )
+                                    NavigationRoute.UserProfile(userId = action.userId)
                                 )
                             }
                         }
@@ -299,13 +304,15 @@ fun MainScreen(
                 val vm: UserProfileViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
 
-                LaunchedEffect(route.userId, route.openInEditMode) {
-                    vm.onEvent(
-                        UserProfileAction.Load(
-                            userId = route.userId,
-                            openInEditMode = route.openInEditMode
-                        )
-                    )
+                LaunchedEffect(route.userId) {
+                    vm.onEvent(UserProfileAction.Load(userId = route.userId))
+                }
+
+                // Refresh profile data when returning from EditProfile
+                LaunchedEffect(profileRefreshKey.intValue) {
+                    if (profileRefreshKey.intValue > 0) {
+                        vm.onEvent(UserProfileAction.Refresh)
+                    }
                 }
 
                 UserProfileScreen(
@@ -322,11 +329,36 @@ fun MainScreen(
                                     action.media, action.index
                                 )
                                 is UserProfileNavAction.AuthorClick -> mainState.onNavigate(
-                                    NavigationRoute.UserProfile(
-                                        userId = action.userId,
-                                        openInEditMode = action.userId == state.currentUserId
-                                    )
+                                    NavigationRoute.UserProfile(userId = action.userId)
                                 )
+                                UserProfileNavAction.EditProfileClick -> mainState.onNavigate(
+                                    NavigationRoute.EditProfile(userId = route.userId)
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+
+            entry<NavigationRoute.EditProfile> { route ->
+                val vm: EditProfileViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                LaunchedEffect(route.userId) {
+                    vm.onEvent(EditProfileAction.Load(route.userId))
+                }
+
+                EditProfileScreen(
+                    state = state,
+                    onAction = { action ->
+                        when (action) {
+                            is EditProfileAction -> vm.onEvent(action)
+                            is EditProfileNavAction -> when (action) {
+                                EditProfileNavAction.BackClick -> mainState.onBack()
+                                EditProfileNavAction.SaveSuccess -> {
+                                    profileRefreshKey.intValue++
+                                    mainState.onBack()
+                                }
                             }
                         }
                     }

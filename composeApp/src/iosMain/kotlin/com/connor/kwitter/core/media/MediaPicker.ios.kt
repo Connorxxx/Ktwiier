@@ -19,7 +19,7 @@ import platform.darwin.NSObject
 import platform.posix.memcpy
 
 private object PickerDelegateHolder {
-    var activeDelegate: PickerDelegate? = null
+    var activeDelegate: NSObject? = null
 }
 
 @Composable
@@ -39,7 +39,7 @@ actual fun rememberMediaPickerLauncher(
                 )
             }
 
-            val delegate = PickerDelegate(onResult)
+            val delegate = MultiMediaPickerDelegate(onResult)
             val picker = PHPickerViewController(configuration = config)
 
             val rootViewController = UIApplication.sharedApplication.keyWindow?.rootViewController
@@ -55,7 +55,34 @@ actual fun rememberMediaPickerLauncher(
     }
 }
 
-private class PickerDelegate(
+@Composable
+actual fun rememberImagePickerLauncher(
+    onResult: (SelectedMedia?) -> Unit
+): () -> Unit {
+    return remember {
+        {
+            val config = PHPickerConfiguration().apply {
+                selectionLimit = 1
+                filter = PHPickerFilter.imagesFilter
+            }
+
+            val delegate = SingleImagePickerDelegate(onResult)
+            val picker = PHPickerViewController(configuration = config)
+
+            val rootViewController = UIApplication.sharedApplication.keyWindow?.rootViewController
+            if (rootViewController != null) {
+                PickerDelegateHolder.activeDelegate = delegate
+                picker.delegate = delegate
+                rootViewController.presentViewController(picker, animated = true, completion = null)
+            } else {
+                PickerDelegateHolder.activeDelegate = null
+                onResult(null)
+            }
+        }
+    }
+}
+
+private class MultiMediaPickerDelegate(
     private val onResult: (List<SelectedMedia>) -> Unit
 ) : NSObject(), PHPickerViewControllerDelegateProtocol {
 
@@ -107,6 +134,43 @@ private class PickerDelegate(
                 if (remaining == 0) {
                     onResult(media.toList())
                 }
+            }
+        }
+    }
+}
+
+private class SingleImagePickerDelegate(
+    private val onResult: (SelectedMedia?) -> Unit
+) : NSObject(), PHPickerViewControllerDelegateProtocol {
+
+    override fun picker(picker: PHPickerViewController, didFinishPicking: List<*>) {
+        PickerDelegateHolder.activeDelegate = null
+        picker.dismissViewControllerAnimated(true, completion = null)
+
+        val result = didFinishPicking.filterIsInstance<PHPickerResult>().firstOrNull()
+        if (result == null) {
+            onResult(null)
+            return
+        }
+
+        val provider = result.itemProvider
+        if (!provider.hasItemConformingToTypeIdentifier(UTTypeImage.identifier)) {
+            onResult(null)
+            return
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        provider.loadDataRepresentationForTypeIdentifier(UTTypeImage.identifier) { data, _ ->
+            if (data != null) {
+                onResult(
+                    SelectedMedia(
+                        platformData = data,
+                        name = provider.suggestedName ?: "avatar",
+                        mimeType = "image/jpeg"
+                    )
+                )
+            } else {
+                onResult(null)
             }
         }
     }
