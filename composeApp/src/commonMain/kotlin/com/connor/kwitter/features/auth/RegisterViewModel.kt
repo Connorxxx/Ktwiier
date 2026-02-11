@@ -11,53 +11,35 @@ import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import com.connor.kwitter.domain.auth.model.AuthError
-import com.connor.kwitter.domain.auth.model.AuthToken
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 
-/**
- * 注册界面的状态
- */
 data class RegisterUiState(
     val email: String = "",
     val name: String = "",
     val password: String = "",
     val isLoading: Boolean = false,
     val error: String? = null,
-    val registeredToken: AuthToken? = null
+    val registerSuccess: Boolean = false
 )
 
-/**
- * 注册界面的 Intent 基础接口
- */
 sealed interface RegisterIntent
 
-/**
- * 注册界面的事件 - UI 交互
- */
 sealed interface RegisterAction : RegisterIntent {
     data class EmailChanged(val email: String) : RegisterAction
     data class NameChanged(val name: String) : RegisterAction
     data class PasswordChanged(val password: String) : RegisterAction
     data object RegisterClicked : RegisterAction
     data object ErrorDismissed : RegisterAction
-
 }
 
-/**
- * 注册导航事件
- */
 sealed interface RegisterNavAction : RegisterIntent {
     data object OnRegisterSuccess : RegisterNavAction
     data object LoginClick : RegisterNavAction
 }
 
-/**
- * 注册 ViewModel
- * 使用 Molecule 进行状态管理
- */
 class RegisterViewModel(
     private val authRepository: AuthRepository
 ) : ViewModel() {
@@ -98,8 +80,8 @@ class RegisterViewModel(
                             ifLeft = { error ->
                                 loading.copy(isLoading = false, error = formatError(error))
                             },
-                            ifRight = { token ->
-                                loading.copy(isLoading = false, registeredToken = token)
+                            ifRight = {
+                                loading.copy(isLoading = false, registerSuccess = true)
                             }
                         )
                     }
@@ -118,5 +100,6 @@ class RegisterViewModel(
         is AuthError.InvalidCredentials -> "无效凭证: ${error.message}"
         is AuthError.StorageError -> "存储错误: ${error.message}"
         is AuthError.Unknown -> "未知错误: ${error.message}"
+        is AuthError.SessionRevoked -> "会话已撤销: ${error.message}"
     }
 }

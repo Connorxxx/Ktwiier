@@ -16,8 +16,7 @@ private const val PAGE_SIZE = 20
 @OptIn(ExperimentalPagingApi::class)
 class TimelineRemoteMediator(
     private val remoteDataSource: PostRemoteDataSource,
-    private val database: AppDatabase,
-    private val getToken: suspend () -> String?
+    private val database: AppDatabase
 ) : RemoteMediator<Int, PostEntity>() {
 
     private val postDao = database.postDao()
@@ -39,10 +38,8 @@ class TimelineRemoteMediator(
         }
 
         return try {
-            val token = getToken()
             val result = remoteDataSource.getTimeline(
-                query = PostPageQuery(limit = PAGE_SIZE, offset = offset),
-                token = token
+                query = PostPageQuery(limit = PAGE_SIZE, offset = offset)
             )
 
             result.fold(

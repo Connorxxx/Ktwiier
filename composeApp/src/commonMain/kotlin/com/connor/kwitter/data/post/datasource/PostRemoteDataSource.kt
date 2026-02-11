@@ -12,7 +12,6 @@ import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.model.PostStats
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitFormWithBinaryData
@@ -39,14 +38,12 @@ class PostRemoteDataSource(
     }
 
     suspend fun getTimeline(
-        query: PostPageQuery,
-        token: String? = null
+        query: PostPageQuery
     ): Either<PostError, PostList> = either {
         try {
             val response: HttpResponse = httpClient.get(endpoint(TIMELINE_PATH)) {
                 parameter("limit", query.limit)
                 parameter("offset", query.offset)
-                token?.let { bearerAuth(it) }
             }
             handleResponse(response) { it.body() }
         } catch (e: Exception) {
@@ -55,11 +52,9 @@ class PostRemoteDataSource(
         }
     }
 
-    suspend fun getPost(postId: String, token: String? = null): Either<PostError, Post> = either {
+    suspend fun getPost(postId: String): Either<PostError, Post> = either {
         try {
-            val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId")) {
-                token?.let { bearerAuth(it) }
-            }
+            val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId"))
             handleResponse(response) { it.body() }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -69,14 +64,12 @@ class PostRemoteDataSource(
 
     suspend fun getReplies(
         postId: String,
-        query: PostPageQuery,
-        token: String? = null
+        query: PostPageQuery
     ): Either<PostError, PostList> = either {
         try {
             val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId/replies")) {
                 parameter("limit", query.limit)
                 parameter("offset", query.offset)
-                token?.let { bearerAuth(it) }
             }
             handleResponse(response) { it.body() }
         } catch (e: Exception) {
@@ -102,13 +95,11 @@ class PostRemoteDataSource(
     }
 
     suspend fun createPost(
-        token: String,
         request: CreatePostRequest
     ): Either<PostError, Post> = either {
         try {
             val response: HttpResponse = httpClient.post(endpoint(POSTS_PATH)) {
                 contentType(ContentType.Application.Json)
-                bearerAuth(token)
                 setBody(request)
             }
             handleResponse(response) { it.body() }
@@ -119,7 +110,6 @@ class PostRemoteDataSource(
     }
 
     suspend fun uploadMedia(
-        token: String,
         bytes: ByteArray,
         fileName: String,
         mimeType: String
@@ -133,9 +123,7 @@ class PostRemoteDataSource(
                         append(HttpHeaders.ContentType, mimeType)
                     })
                 }
-            ) {
-                bearerAuth(token)
-            }
+            )
             handleResponse(response) { it.body() }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -143,11 +131,9 @@ class PostRemoteDataSource(
         }
     }
 
-    suspend fun likePost(token: String, postId: String): Either<PostError, PostStats> = either {
+    suspend fun likePost(postId: String): Either<PostError, PostStats> = either {
         try {
-            val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/like")) {
-                bearerAuth(token)
-            }
+            val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/like"))
             handleResponse<LikeResponse>(response) { it.body() }.stats
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -155,11 +141,9 @@ class PostRemoteDataSource(
         }
     }
 
-    suspend fun unlikePost(token: String, postId: String): Either<PostError, PostStats> = either {
+    suspend fun unlikePost(postId: String): Either<PostError, PostStats> = either {
         try {
-            val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/like")) {
-                bearerAuth(token)
-            }
+            val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/like"))
             handleResponse<LikeResponse>(response) { it.body() }.stats
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -167,11 +151,9 @@ class PostRemoteDataSource(
         }
     }
 
-    suspend fun bookmarkPost(token: String, postId: String): Either<PostError, Unit> = either {
+    suspend fun bookmarkPost(postId: String): Either<PostError, Unit> = either {
         try {
-            val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/bookmark")) {
-                bearerAuth(token)
-            }
+            val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/bookmark"))
             handleResponse(response) { }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -179,11 +161,9 @@ class PostRemoteDataSource(
         }
     }
 
-    suspend fun unbookmarkPost(token: String, postId: String): Either<PostError, Unit> = either {
+    suspend fun unbookmarkPost(postId: String): Either<PostError, Unit> = either {
         try {
-            val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/bookmark")) {
-                bearerAuth(token)
-            }
+            val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/bookmark"))
             handleResponse(response) { }
         } catch (e: Exception) {
             if (e is CancellationException) throw e

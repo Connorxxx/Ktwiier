@@ -87,7 +87,7 @@ class HomeViewModel(
                         val current = state.copy(error = null)
                         state = current
 
-                        val logoutResult = authRepository.clearToken()
+                        val logoutResult = authRepository.logout()
                         logoutResult.fold(
                             ifLeft = { error ->
                                 current.copy(error = formatAuthError(error))
@@ -172,5 +172,6 @@ class HomeViewModel(
         is AuthError.InvalidCredentials -> "Logout failed: invalid credentials (${error.message})"
         is AuthError.StorageError -> "Logout failed: storage error (${error.message})"
         is AuthError.Unknown -> "Logout failed: unknown error (${error.message})"
+        is AuthError.SessionRevoked -> "Session revoked: ${error.message}"
     }
 }

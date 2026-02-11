@@ -2,11 +2,9 @@ package com.connor.kwitter.domain.auth.model
 
 import kotlinx.serialization.Serializable
 
-/**
- * 注册接口响应
- */
 @Serializable
-data class RegisterResponse(
+data class TokenResponse(
     val token: String,
-    val id: String? = null
+    val refreshToken: String,
+    val expiresIn: Long
 )

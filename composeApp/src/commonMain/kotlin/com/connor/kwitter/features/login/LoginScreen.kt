@@ -78,8 +78,8 @@ fun LoginScreen(
     val textMuted = colors.onSurfaceVariant.copy(alpha = 0.7f)
 
     // 监听登录成功
-    LaunchedEffect(state.loggedInToken) {
-        state.loggedInToken?.let {
+    LaunchedEffect(state.loginSuccess) {
+        if (state.loginSuccess) {
             onAction(LoginNavAction.OnLoginSuccess)
         }
     }

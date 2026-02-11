@@ -10,11 +10,10 @@ import com.connor.kwitter.domain.user.model.UserProfile
 import com.connor.kwitter.domain.user.model.UserStats as DomainUserStats
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.request.bearerAuth
-import io.ktor.client.request.patch
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -33,13 +32,10 @@ class UserRemoteDataSource(
     }
 
     suspend fun getUserProfile(
-        userId: String,
-        token: String? = null
+        userId: String
     ): Either<UserError, UserProfile> = either {
         try {
-            val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId")) {
-                token?.let { bearerAuth(it) }
-            }
+            val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId"))
             handleResponse(response) {
                 it.body<UserProfileResponseDto>().toDomain()
             }
@@ -50,17 +46,15 @@ class UserRemoteDataSource(
     }
 
     suspend fun updateCurrentUserProfile(
-        request: UpdateProfileRequest,
-        token: String
+        request: UpdateProfileRequest
     ): Either<UserError, UserProfile> = either {
         try {
             val response: HttpResponse = httpClient.patch(endpoint("$USERS_PATH/me")) {
-                bearerAuth(token)
                 contentType(ContentType.Application.Json)
                 setBody(request)
             }
             val updatedUser = handleResponse(response) { it.body<UserDto>() }
-            getUserProfile(updatedUser.id, token).bind()
+            getUserProfile(updatedUser.id).bind()
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             raise(UserError.NetworkError("Network request failed: ${e.message}"))
@@ -68,13 +62,10 @@ class UserRemoteDataSource(
     }
 
     suspend fun followUser(
-        userId: String,
-        token: String
+        userId: String
     ): Either<UserError, Unit> = either {
         try {
-            val response: HttpResponse = httpClient.post(endpoint("$USERS_PATH/$userId/follow")) {
-                bearerAuth(token)
-            }
+            val response: HttpResponse = httpClient.post(endpoint("$USERS_PATH/$userId/follow"))
             handleResponse(response) { }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -83,13 +74,10 @@ class UserRemoteDataSource(
     }
 
     suspend fun unfollowUser(
-        userId: String,
-        token: String
+        userId: String
     ): Either<UserError, Unit> = either {
         try {
-            val response: HttpResponse = httpClient.delete(endpoint("$USERS_PATH/$userId/follow")) {
-                bearerAuth(token)
-            }
+            val response: HttpResponse = httpClient.delete(endpoint("$USERS_PATH/$userId/follow"))
             handleResponse(response) { }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -99,14 +87,12 @@ class UserRemoteDataSource(
 
     suspend fun getUserPosts(
         userId: String,
-        query: PostPageQuery,
-        token: String? = null
+        query: PostPageQuery
     ): Either<UserError, PostList> = either {
         try {
             val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/posts")) {
                 parameter("limit", query.limit)
                 parameter("offset", query.offset)
-                token?.let { bearerAuth(it) }
             }
             handleResponse(response) { it.body() }
         } catch (e: Exception) {
@@ -117,14 +103,12 @@ class UserRemoteDataSource(
 
     suspend fun getUserReplies(
         userId: String,
-        query: PostPageQuery,
-        token: String? = null
+        query: PostPageQuery
     ): Either<UserError, PostList> = either {
         try {
             val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/replies")) {
                 parameter("limit", query.limit)
                 parameter("offset", query.offset)
-                token?.let { bearerAuth(it) }
             }
             handleResponse(response) { it.body() }
         } catch (e: Exception) {
@@ -135,14 +119,12 @@ class UserRemoteDataSource(
 
     suspend fun getUserLikes(
         userId: String,
-        query: PostPageQuery,
-        token: String? = null
+        query: PostPageQuery
     ): Either<UserError, PostList> = either {
         try {
             val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/likes")) {
                 parameter("limit", query.limit)
                 parameter("offset", query.offset)
-                token?.let { bearerAuth(it) }
             }
             handleResponse(response) { it.body() }
         } catch (e: Exception) {

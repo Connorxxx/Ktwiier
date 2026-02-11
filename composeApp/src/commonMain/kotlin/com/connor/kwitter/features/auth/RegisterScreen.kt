@@ -78,8 +78,8 @@ fun RegisterScreen(
     val textMuted = colors.onSurfaceVariant.copy(alpha = 0.7f)
 
     // 监听注册成功
-    LaunchedEffect(state.registeredToken) {
-        state.registeredToken?.let {
+    LaunchedEffect(state.registerSuccess) {
+        if (state.registerSuccess) {
             onAction(RegisterNavAction.OnRegisterSuccess)
         }
     }

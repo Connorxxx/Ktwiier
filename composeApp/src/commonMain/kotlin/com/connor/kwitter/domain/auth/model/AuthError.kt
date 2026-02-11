@@ -34,4 +34,6 @@ sealed class AuthError {
      * 未知错误
      */
     data class Unknown(val message: String) : AuthError()
+
+    data class SessionRevoked(val message: String) : AuthError()
 }

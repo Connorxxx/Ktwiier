@@ -3,14 +3,11 @@ package com.connor.kwitter.data.auth.datasource
 import arrow.core.Either
 import arrow.core.raise.either
 import com.connor.kwitter.domain.auth.model.AuthError
+import com.connor.kwitter.domain.auth.model.AuthResponse
 import com.connor.kwitter.domain.auth.model.LoginRequest
-import com.connor.kwitter.domain.auth.model.LoginResponse
 import com.connor.kwitter.domain.auth.model.RegisterRequest
-import com.connor.kwitter.domain.auth.model.RegisterResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.request.bearerAuth
-import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -18,12 +15,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.Serializable
 
-/**
- * 认证远程数据源
- * 负责处理与认证相关的 HTTP 请求
- */
 class AuthRemoteDataSource(
     private val httpClient: HttpClient,
     private val baseUrl: String
@@ -31,17 +23,13 @@ class AuthRemoteDataSource(
     private companion object {
         const val REGISTER_PATH = "/v1/auth/register"
         const val LOGIN_PATH = "/v1/auth/login"
-        const val VALIDATE_PATH = "/v1/auth/validate"
     }
 
-    /**
-     * 用户注册
-     */
     suspend fun register(
         email: String,
         name: String,
         password: String
-    ): Either<AuthError, RegisterResponse> = either {
+    ): Either<AuthError, AuthResponse> = either {
         try {
             val request = RegisterRequest(
                 email = email,
@@ -49,184 +37,66 @@ class AuthRemoteDataSource(
                 password = password
             )
 
-            val response: HttpResponse = httpClient.post(registerEndpoint) {
+            val response: HttpResponse = httpClient.post(endpoint(REGISTER_PATH)) {
                 contentType(ContentType.Application.Json)
                 setBody(request)
             }
 
-            when {
-                response.status.isSuccess() -> {
-                    response.body<RegisterResponse>()
-                }
-                response.status.value in 400..499 -> {
-                    raise(
-                        AuthError.ClientError(
-                            code = response.status.value,
-                            message = "Registration failed: ${response.status.description}"
-                        )
-                    )
-                }
-                response.status.value in 500..599 -> {
-                    raise(
-                        AuthError.ServerError(
-                            code = response.status.value,
-                            message = "Server error: ${response.status.description}"
-                        )
-                    )
-                }
-                else -> {
-                    raise(
-                        AuthError.Unknown(
-                            message = "Unexpected status: ${response.status.value}"
-                        )
-                    )
-                }
-            }
+            handleResponse(response) { it.body() }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            raise(
-                AuthError.NetworkError(
-                    message = "Network request failed: ${e.message}"
-                )
-            )
+            raise(AuthError.NetworkError("Network request failed: ${e.message}"))
         }
     }
 
-    private val registerEndpoint: String
-        get() = baseUrl.trimEnd('/') + REGISTER_PATH
-
-    /**
-     * 用户登录
-     */
     suspend fun login(
         email: String,
         password: String
-    ): Either<AuthError, LoginResponse> = either {
+    ): Either<AuthError, AuthResponse> = either {
         try {
             val request = LoginRequest(
                 email = email,
                 password = password
             )
 
-            val response: HttpResponse = httpClient.post(loginEndpoint) {
+            val response: HttpResponse = httpClient.post(endpoint(LOGIN_PATH)) {
                 contentType(ContentType.Application.Json)
                 setBody(request)
             }
 
-            when {
-                response.status.isSuccess() -> {
-                    response.body<LoginResponse>()
-                }
-                response.status.value == 401 -> {
-                    raise(
-                        AuthError.InvalidCredentials(
-                            message = "邮箱或密码错误"
-                        )
-                    )
-                }
-                response.status.value in 400..499 -> {
-                    raise(
-                        AuthError.ClientError(
-                            code = response.status.value,
-                            message = "Login failed: ${response.status.description}"
-                        )
-                    )
-                }
-                response.status.value in 500..599 -> {
-                    raise(
-                        AuthError.ServerError(
-                            code = response.status.value,
-                            message = "Server error: ${response.status.description}"
-                        )
-                    )
-                }
-                else -> {
-                    raise(
-                        AuthError.Unknown(
-                            message = "Unexpected status: ${response.status.value}"
-                        )
-                    )
-                }
-            }
+            handleResponse(response) { it.body() }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            raise(
-                AuthError.NetworkError(
-                    message = "Network request failed: ${e.message}"
+            raise(AuthError.NetworkError("Network request failed: ${e.message}"))
+        }
+    }
+
+    private suspend fun <T> arrow.core.raise.Raise<AuthError>.handleResponse(
+        response: HttpResponse,
+        onSuccess: suspend (HttpResponse) -> T
+    ): T {
+        return when {
+            response.status.isSuccess() -> onSuccess(response)
+            response.status.value == 401 -> raise(
+                AuthError.InvalidCredentials("邮箱或密码错误")
+            )
+            response.status.value in 400..499 -> raise(
+                AuthError.ClientError(
+                    code = response.status.value,
+                    message = "Request failed: ${response.status.description}"
                 )
+            )
+            response.status.value in 500..599 -> raise(
+                AuthError.ServerError(
+                    code = response.status.value,
+                    message = "Server error: ${response.status.description}"
+                )
+            )
+            else -> raise(
+                AuthError.Unknown("Unexpected status: ${response.status.value}")
             )
         }
     }
 
-    private val loginEndpoint: String
-        get() = baseUrl.trimEnd('/') + LOGIN_PATH
-
-    /**
-     * 验证Token有效性
-     */
-    suspend fun validateToken(token: String): Either<AuthError, TokenValidationResult> = either {
-        try {
-            val response: HttpResponse = httpClient.get(validateEndpoint) {
-                bearerAuth(token)
-            }
-
-            when {
-                response.status.isSuccess() -> {
-                    val body = response.body<ValidateTokenResponse>()
-                    TokenValidationResult(
-                        isValid = body.valid,
-                        userId = body.userId
-                    )
-                }
-                response.status.value == 401 -> {
-                    // Token无效或过期
-                    TokenValidationResult(isValid = false)
-                }
-                response.status.value in 400..499 -> {
-                    raise(
-                        AuthError.ClientError(
-                            code = response.status.value,
-                            message = "Token validation failed: ${response.status.description}"
-                        )
-                    )
-                }
-                response.status.value in 500..599 -> {
-                    raise(
-                        AuthError.ServerError(
-                            code = response.status.value,
-                            message = "Server error: ${response.status.description}"
-                        )
-                    )
-                }
-                else -> {
-                    raise(
-                        AuthError.Unknown(
-                            message = "Unexpected status: ${response.status.value}"
-                        )
-                    )
-                }
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(
-                AuthError.NetworkError(
-                    message = "Network request failed: ${e.message}"
-                )
-            )
-        }
-    }
-
-    private val validateEndpoint: String
-        get() = baseUrl.trimEnd('/') + VALIDATE_PATH
+    private fun endpoint(path: String): String = baseUrl.trimEnd('/') + path
 }
-
-data class TokenValidationResult(
-    val isValid: Boolean,
-    val userId: String? = null
-)
-
-@Serializable
-private data class ValidateTokenResponse(
-    val valid: Boolean = true,
-    val userId: String? = null
-)

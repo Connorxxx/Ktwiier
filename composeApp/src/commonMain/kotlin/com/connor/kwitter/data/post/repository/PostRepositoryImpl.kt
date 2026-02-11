@@ -6,8 +6,6 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
 import arrow.core.Either
-import arrow.core.raise.either
-import com.connor.kwitter.data.auth.datasource.TokenDataSource
 import com.connor.kwitter.data.post.datasource.PostRemoteDataSource
 import com.connor.kwitter.data.post.datasource.TimelineRemoteMediator
 import com.connor.kwitter.data.post.local.AppDatabase
@@ -21,18 +19,17 @@ import com.connor.kwitter.domain.post.model.PostMutationEvent
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.model.PostStats
 import com.connor.kwitter.domain.post.repository.PostRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
 class PostRepositoryImpl(
     private val remoteDataSource: PostRemoteDataSource,
-    private val tokenDataSource: TokenDataSource,
     private val database: AppDatabase
 ) : PostRepository {
 
@@ -41,34 +38,31 @@ class PostRepositoryImpl(
     private val _postMutations = MutableSharedFlow<PostMutationEvent>(extraBufferCapacity = 1)
     override val postMutations: Flow<PostMutationEvent> = _postMutations.asSharedFlow()
 
-    private suspend fun getToken(): String? = tokenDataSource.token.first()?.token
-
-    @OptIn(ExperimentalPagingApi::class)
+    @OptIn(ExperimentalPagingApi::class, ExperimentalCoroutinesApi::class)
     override val timelinePaging: Flow<PagingData<Post>> = timelineRefreshTrigger.flatMapLatest {
         Pager(
             config = PagingConfig(pageSize = 20, enablePlaceholders = false),
             remoteMediator = TimelineRemoteMediator(
                 remoteDataSource = remoteDataSource,
-                database = database,
-                getToken = { getToken() }
+                database = database
             ),
             pagingSourceFactory = { postDao.getTimelinePagingSource() }
         ).flow.map { pagingData -> pagingData.map { it.toDomain() } }
     }
 
     override suspend fun getTimeline(query: PostPageQuery): Either<PostError, PostList> {
-        return remoteDataSource.getTimeline(query, token = getToken())
+        return remoteDataSource.getTimeline(query)
     }
 
     override suspend fun getPost(postId: String): Either<PostError, Post> {
-        return remoteDataSource.getPost(postId, token = getToken())
+        return remoteDataSource.getPost(postId)
     }
 
     override suspend fun getReplies(
         postId: String,
         query: PostPageQuery
     ): Either<PostError, PostList> {
-        return remoteDataSource.getReplies(postId, query, token = getToken())
+        return remoteDataSource.getReplies(postId, query)
     }
 
     override suspend fun getUserPosts(
@@ -78,60 +72,40 @@ class PostRepositoryImpl(
         return remoteDataSource.getUserPosts(userId, query)
     }
 
-    override suspend fun createPost(request: CreatePostRequest): Either<PostError, Post> = either {
-        val token = tokenDataSource.token.first()
-            ?: raise(PostError.Unauthorized("Not authenticated"))
-        val post = remoteDataSource.createPost(
-            token = token.token,
-            request = request
-        ).bind()
-        timelineRefreshTrigger.update { it + 1 }
-        _postMutations.emit(
-            PostMutationEvent.PostCreated(
-                postId = post.id,
-                parentId = post.parentId
+    override suspend fun createPost(request: CreatePostRequest): Either<PostError, Post> {
+        return remoteDataSource.createPost(request).onRight { post ->
+            timelineRefreshTrigger.update { it + 1 }
+            _postMutations.emit(
+                PostMutationEvent.PostCreated(
+                    postId = post.id,
+                    parentId = post.parentId
+                )
             )
-        )
-        post
+        }
     }
 
     override suspend fun uploadMedia(
         bytes: ByteArray,
         fileName: String,
         mimeType: String
-    ): Either<PostError, MediaUploadResponse> = either {
-        val token = tokenDataSource.token.first()
-            ?: raise(PostError.Unauthorized("Not authenticated"))
-        remoteDataSource.uploadMedia(
-            token = token.token,
-            bytes = bytes,
-            fileName = fileName,
-            mimeType = mimeType
-        ).bind()
+    ): Either<PostError, MediaUploadResponse> {
+        return remoteDataSource.uploadMedia(bytes, fileName, mimeType)
     }
 
-    override suspend fun likePost(postId: String): Either<PostError, PostStats> = either {
-        val token = tokenDataSource.token.first()
-            ?: raise(PostError.Unauthorized("Not authenticated"))
-        remoteDataSource.likePost(token.token, postId).bind()
+    override suspend fun likePost(postId: String): Either<PostError, PostStats> {
+        return remoteDataSource.likePost(postId)
     }
 
-    override suspend fun unlikePost(postId: String): Either<PostError, PostStats> = either {
-        val token = tokenDataSource.token.first()
-            ?: raise(PostError.Unauthorized("Not authenticated"))
-        remoteDataSource.unlikePost(token.token, postId).bind()
+    override suspend fun unlikePost(postId: String): Either<PostError, PostStats> {
+        return remoteDataSource.unlikePost(postId)
     }
 
-    override suspend fun bookmarkPost(postId: String): Either<PostError, Unit> = either {
-        val token = tokenDataSource.token.first()
-            ?: raise(PostError.Unauthorized("Not authenticated"))
-        remoteDataSource.bookmarkPost(token.token, postId).bind()
+    override suspend fun bookmarkPost(postId: String): Either<PostError, Unit> {
+        return remoteDataSource.bookmarkPost(postId)
     }
 
-    override suspend fun unbookmarkPost(postId: String): Either<PostError, Unit> = either {
-        val token = tokenDataSource.token.first()
-            ?: raise(PostError.Unauthorized("Not authenticated"))
-        remoteDataSource.unbookmarkPost(token.token, postId).bind()
+    override suspend fun unbookmarkPost(postId: String): Either<PostError, Unit> {
+        return remoteDataSource.unbookmarkPost(postId)
     }
 
     override suspend fun updateLocalLikeState(postId: String, isLiked: Boolean, likeCount: Int) {
