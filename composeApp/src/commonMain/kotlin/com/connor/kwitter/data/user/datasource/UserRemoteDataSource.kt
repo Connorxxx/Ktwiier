@@ -6,6 +6,7 @@ import com.connor.kwitter.domain.post.model.PostList
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.user.model.UserError
 import com.connor.kwitter.domain.user.model.UserProfile
+import com.connor.kwitter.domain.user.model.UserStats as DomainUserStats
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
@@ -16,6 +17,7 @@ import io.ktor.client.request.post
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.Serializable
 
 class UserRemoteDataSource(
     private val httpClient: HttpClient,
@@ -33,7 +35,9 @@ class UserRemoteDataSource(
             val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId")) {
                 token?.let { bearerAuth(it) }
             }
-            handleResponse(response) { it.body() }
+            handleResponse(response) {
+                it.body<UserProfileResponseDto>().toDomain()
+            }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             raise(UserError.NetworkError("Network request failed: ${e.message}"))
@@ -155,4 +159,45 @@ class UserRemoteDataSource(
     }
 
     private fun endpoint(path: String): String = baseUrl.trimEnd('/') + path
+}
+
+@Serializable
+private data class UserProfileResponseDto(
+    val user: UserDto,
+    val stats: UserStatsDto,
+    val isFollowedByCurrentUser: Boolean? = null
+)
+
+@Serializable
+private data class UserDto(
+    val id: String,
+    val username: String,
+    val displayName: String,
+    val bio: String,
+    val avatarUrl: String?,
+    val createdAt: Long
+)
+
+@Serializable
+private data class UserStatsDto(
+    val followingCount: Int,
+    val followersCount: Int,
+    val postsCount: Int
+)
+
+private fun UserProfileResponseDto.toDomain(): UserProfile {
+    return UserProfile(
+        id = user.id,
+        username = user.username,
+        displayName = user.displayName,
+        bio = user.bio,
+        avatarUrl = user.avatarUrl,
+        createdAt = user.createdAt,
+        stats = DomainUserStats(
+            followingCount = stats.followingCount,
+            followersCount = stats.followersCount,
+            postsCount = stats.postsCount
+        ),
+        isFollowedByCurrentUser = isFollowedByCurrentUser
+    )
 }
