@@ -217,7 +217,10 @@ fun MainScreen(
                                     action.media, action.index
                                 )
                                 is HomeNavAction.AuthorClick -> mainState.onNavigate(
-                                    NavigationRoute.UserProfile(action.userId)
+                                    NavigationRoute.UserProfile(
+                                        userId = action.userId,
+                                        openInEditMode = action.userId == state.currentUserId
+                                    )
                                 )
                             }
                         }
@@ -296,8 +299,13 @@ fun MainScreen(
                 val vm: UserProfileViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
 
-                LaunchedEffect(route.userId) {
-                    vm.onEvent(UserProfileAction.Load(route.userId))
+                LaunchedEffect(route.userId, route.openInEditMode) {
+                    vm.onEvent(
+                        UserProfileAction.Load(
+                            userId = route.userId,
+                            openInEditMode = route.openInEditMode
+                        )
+                    )
                 }
 
                 UserProfileScreen(
@@ -314,7 +322,10 @@ fun MainScreen(
                                     action.media, action.index
                                 )
                                 is UserProfileNavAction.AuthorClick -> mainState.onNavigate(
-                                    NavigationRoute.UserProfile(action.userId)
+                                    NavigationRoute.UserProfile(
+                                        userId = action.userId,
+                                        openInEditMode = action.userId == state.currentUserId
+                                    )
                                 )
                             }
                         }

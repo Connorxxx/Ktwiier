@@ -53,13 +53,20 @@ class AuthRepositoryImpl(
                     // - Right(true): token有效，保持登录态
                     // - Right(false): token明确无效(401)，清除并登出
                     // - Left(error): 校验请求失败(网络/服务异常)，保留本地登录态，避免误登出
-                    validateToken(token).fold(
+                    remoteDataSource.validateToken(token.token).fold(
                         ifLeft = {
                             _sessionState.value = SessionState.Authenticated(token)
                         },
-                        ifRight = { isValid ->
-                            if (isValid) {
-                                _sessionState.value = SessionState.Authenticated(token)
+                        ifRight = { validation ->
+                            if (validation.isValid) {
+                                val sessionToken = if (token.userId == null && validation.userId != null) {
+                                    val hydratedToken = token.copy(userId = validation.userId)
+                                    tokenDataSource.saveToken(hydratedToken)
+                                    hydratedToken
+                                } else {
+                                    token
+                                }
+                                _sessionState.value = SessionState.Authenticated(sessionToken)
                             } else {
                                 tokenDataSource.clearToken()
                                 _sessionState.value = SessionState.Unauthenticated
@@ -77,7 +84,7 @@ class AuthRepositoryImpl(
     ): Either<AuthError, AuthToken> {
         // 调用远程接口注册
         return remoteDataSource.register(email, name, password)
-            .map { response -> AuthToken(response.token) }
+            .map { response -> AuthToken(token = response.token, userId = response.id) }
             .flatMap { token ->
                 // 注册成功后自动保存 token
                 tokenDataSource.saveToken(token).map { token }
@@ -111,7 +118,7 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun validateToken(token: AuthToken): Either<AuthError, Boolean> {
-        return remoteDataSource.validateToken(token.token)
+        return remoteDataSource.validateToken(token.token).map { it.isValid }
     }
 
     override val currentUserId: Flow<String?> = tokenDataSource.currentUserId

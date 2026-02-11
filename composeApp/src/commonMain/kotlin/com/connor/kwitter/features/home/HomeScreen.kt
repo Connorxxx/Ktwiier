@@ -88,7 +88,14 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            HomeTopBar(onLogoutClick = { onAction(HomeAction.LogoutClick) })
+            HomeTopBar(
+                onProfileClick = state.currentUserId?.let { userId ->
+                    {
+                        onAction(HomeNavAction.AuthorClick(userId))
+                    }
+                },
+                onLogoutClick = { onAction(HomeAction.LogoutClick) }
+            )
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -196,6 +203,7 @@ fun HomeScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeTopBar(
+    onProfileClick: (() -> Unit)?,
     onLogoutClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -208,7 +216,7 @@ private fun HomeTopBar(
             },
             navigationIcon = {
                 Box(modifier = Modifier.padding(start = 12.dp)) {
-                    ProfilePlaceholder()
+                    ProfilePlaceholder(onClick = onProfileClick)
                 }
             },
             actions = {
@@ -312,7 +320,8 @@ private fun TimelineLoadErrorState(
 
 @Composable
 private fun ProfilePlaceholder(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     Box(
         modifier = modifier
@@ -330,6 +339,10 @@ private fun ProfilePlaceholder(
                 width = 1.dp,
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
                 shape = CircleShape
+            )
+            .then(
+                if (onClick != null) Modifier.clickable(onClick = onClick)
+                else Modifier
             ),
         contentAlignment = Alignment.Center
     ) {

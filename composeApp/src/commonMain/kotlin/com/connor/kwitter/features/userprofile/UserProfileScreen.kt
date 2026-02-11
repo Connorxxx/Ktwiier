@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -25,6 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -44,9 +44,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.domain.post.model.Post
@@ -58,6 +60,11 @@ import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_follow
 import kwitter.composeapp.generated.resources.profile_followers
 import kwitter.composeapp.generated.resources.profile_following
+import kwitter.composeapp.generated.resources.profile_cancel_edit
+import kwitter.composeapp.generated.resources.profile_display_name_label
+import kwitter.composeapp.generated.resources.profile_edit
+import kwitter.composeapp.generated.resources.profile_avatar_url_label
+import kwitter.composeapp.generated.resources.profile_bio_label
 import kwitter.composeapp.generated.resources.profile_joined
 import kwitter.composeapp.generated.resources.profile_likes
 import kwitter.composeapp.generated.resources.profile_no_likes
@@ -65,6 +72,8 @@ import kwitter.composeapp.generated.resources.profile_no_posts
 import kwitter.composeapp.generated.resources.profile_no_replies
 import kwitter.composeapp.generated.resources.profile_posts
 import kwitter.composeapp.generated.resources.profile_replies
+import kwitter.composeapp.generated.resources.profile_save
+import kwitter.composeapp.generated.resources.profile_username_label
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -144,6 +153,27 @@ fun UserProfileScreen(
                             profile = state.profile,
                             isOwnProfile = state.isOwnProfile,
                             isFollowLoading = state.isFollowLoading,
+                            isEditingProfile = state.isEditingProfile,
+                            isUpdatingProfile = state.isUpdatingProfile,
+                            editUsername = state.editUsername,
+                            editDisplayName = state.editDisplayName,
+                            editBio = state.editBio,
+                            editAvatarUrl = state.editAvatarUrl,
+                            onStartEditing = { onAction(UserProfileAction.StartEditingProfile) },
+                            onCancelEditing = { onAction(UserProfileAction.CancelEditingProfile) },
+                            onSaveProfile = { onAction(UserProfileAction.SaveProfile) },
+                            onEditUsernameChanged = {
+                                onAction(UserProfileAction.EditUsernameChanged(it))
+                            },
+                            onEditDisplayNameChanged = {
+                                onAction(UserProfileAction.EditDisplayNameChanged(it))
+                            },
+                            onEditBioChanged = {
+                                onAction(UserProfileAction.EditBioChanged(it))
+                            },
+                            onEditAvatarUrlChanged = {
+                                onAction(UserProfileAction.EditAvatarUrlChanged(it))
+                            },
                             onFollowClick = { onAction(UserProfileAction.ToggleFollow) }
                         )
                     }
@@ -286,8 +316,27 @@ private fun ProfileHeader(
     profile: UserProfile,
     isOwnProfile: Boolean,
     isFollowLoading: Boolean,
+    isEditingProfile: Boolean,
+    isUpdatingProfile: Boolean,
+    editUsername: String,
+    editDisplayName: String,
+    editBio: String,
+    editAvatarUrl: String,
+    onStartEditing: () -> Unit,
+    onCancelEditing: () -> Unit,
+    onSaveProfile: () -> Unit,
+    onEditUsernameChanged: (String) -> Unit,
+    onEditDisplayNameChanged: (String) -> Unit,
+    onEditBioChanged: (String) -> Unit,
+    onEditAvatarUrlChanged: (String) -> Unit,
     onFollowClick: () -> Unit
 ) {
+    val avatarUrl = if (isOwnProfile && isEditingProfile) {
+        editAvatarUrl.trim().ifBlank { null }
+    } else {
+        profile.avatarUrl
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -295,34 +344,82 @@ private fun ProfileHeader(
     ) {
         // Avatar
         ProfileAvatar(
-            name = profile.displayName,
+            name = if (isOwnProfile && isEditingProfile) editDisplayName else profile.displayName,
+            avatarUrl = avatarUrl,
             modifier = Modifier.size(80.dp)
         )
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Display name
-        Text(
-            text = profile.displayName,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
-
-        // @username
-        Text(
-            text = "@${profile.username}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        // Bio
-        if (profile.bio.isNotBlank()) {
+        if (isOwnProfile && isEditingProfile) {
             Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = profile.bio,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
+
+            OutlinedTextField(
+                value = editDisplayName,
+                onValueChange = onEditDisplayNameChanged,
+                label = { Text(stringResource(Res.string.profile_display_name_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isUpdatingProfile,
+                singleLine = true
             )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = editUsername,
+                onValueChange = onEditUsernameChanged,
+                label = { Text(stringResource(Res.string.profile_username_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isUpdatingProfile,
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = editBio,
+                onValueChange = onEditBioChanged,
+                label = { Text(stringResource(Res.string.profile_bio_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isUpdatingProfile,
+                minLines = 3,
+                maxLines = 5
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = editAvatarUrl,
+                onValueChange = onEditAvatarUrlChanged,
+                label = { Text(stringResource(Res.string.profile_avatar_url_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isUpdatingProfile,
+                singleLine = true
+            )
+        } else {
+            // Display name
+            Text(
+                text = profile.displayName,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+
+            // @username
+            Text(
+                text = "@${profile.username}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Bio
+            if (profile.bio.isNotBlank()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = profile.bio,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
 
         // Join date
@@ -357,8 +454,59 @@ private fun ProfileHeader(
             )
         }
 
-        // Follow/Unfollow button
-        if (!isOwnProfile) {
+        if (isOwnProfile) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (isEditingProfile) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onCancelEditing,
+                        enabled = !isUpdatingProfile,
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = stringResource(Res.string.profile_cancel_edit),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Button(
+                        onClick = onSaveProfile,
+                        enabled = !isUpdatingProfile,
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isUpdatingProfile) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = stringResource(Res.string.profile_save),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+            } else {
+                OutlinedButton(
+                    onClick = onStartEditing,
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = stringResource(Res.string.profile_edit),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        } else {
+            // Follow/Unfollow button
             Spacer(modifier = Modifier.height(16.dp))
             val isFollowing = profile.isFollowedByCurrentUser == true
             if (isFollowing) {
@@ -393,6 +541,7 @@ private fun ProfileHeader(
 @Composable
 private fun ProfileAvatar(
     name: String,
+    avatarUrl: String?,
     modifier: Modifier = Modifier
 ) {
     val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
@@ -401,20 +550,31 @@ private fun ProfileAvatar(
         MaterialTheme.colorScheme.tertiaryContainer
     )
 
-    Box(
-        modifier = modifier
-            .background(
-                brush = Brush.linearGradient(gradient),
-                shape = CircleShape
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = initial,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+    if (!avatarUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = avatarUrl,
+            contentDescription = name,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         )
+    } else {
+        Box(
+            modifier = modifier
+                .background(
+                    brush = Brush.linearGradient(gradient),
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
     }
 }
 

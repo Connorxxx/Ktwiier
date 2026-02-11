@@ -12,6 +12,11 @@ import com.connor.kwitter.domain.auth.model.AuthToken
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlin.io.encoding.Base64
 
 /**
  * Token 数据源
@@ -25,6 +30,9 @@ class TokenDataSource(
         val USER_ID_KEY = stringPreferencesKey("user_id")
     }
 
+    private val json = Json { ignoreUnknownKeys = true }
+    private val jwtPayloadDecoder = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT_OPTIONAL)
+
     /**
      * 获取存储的令牌
      */
@@ -32,7 +40,12 @@ class TokenDataSource(
         .map { preferences ->
             val token = preferences[TOKEN_KEY]
             val userId = preferences[USER_ID_KEY]
-            token?.let { AuthToken(it, userId) }
+            token?.let {
+                AuthToken(
+                    token = it,
+                    userId = userId ?: extractUserIdFromJwt(it)
+                )
+            }
         }
         .catch { emit(null) }
 
@@ -40,7 +53,9 @@ class TokenDataSource(
      * 获取当前用户ID
      */
     val currentUserId: Flow<String?> = dataStore.data
-        .map { preferences -> preferences[USER_ID_KEY] }
+        .map { preferences ->
+            preferences[USER_ID_KEY] ?: preferences[TOKEN_KEY]?.let(::extractUserIdFromJwt)
+        }
         .catch { emit(null) }
 
     /**
@@ -54,8 +69,13 @@ class TokenDataSource(
 
             dataStore.edit { preferences ->
                 preferences[TOKEN_KEY] = token.token
-                if (token.userId != null) {
-                    preferences[USER_ID_KEY] = token.userId
+                val resolvedUserId = token.userId
+                    ?.takeIf { it.isNotBlank() }
+                    ?: extractUserIdFromJwt(token.token)
+                if (resolvedUserId != null) {
+                    preferences[USER_ID_KEY] = resolvedUserId
+                } else {
+                    preferences.remove(USER_ID_KEY)
                 }
             }
         } catch (e: Exception) {
@@ -75,5 +95,20 @@ class TokenDataSource(
         } catch (e: Exception) {
             raise(AuthError.StorageError("Failed to clear token: ${e.message}"))
         }
+    }
+
+    private fun extractUserIdFromJwt(token: String): String? {
+        val payloadSegment = token.split('.').getOrNull(1) ?: return null
+        val payload = runCatching {
+            jwtPayloadDecoder.decode(payloadSegment).decodeToString()
+        }.getOrNull() ?: return null
+
+        return runCatching {
+            json.parseToJsonElement(payload)
+                .jsonObject["id"]
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?.takeIf { it.isNotBlank() }
+        }.getOrNull()
     }
 }

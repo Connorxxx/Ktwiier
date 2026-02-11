@@ -38,5 +38,8 @@ sealed interface NavigationRoute {
     ) : NavigationRoute
 
     @Serializable
-    data class UserProfile(val userId: String) : NavigationRoute
+    data class UserProfile(
+        val userId: String,
+        val openInEditMode: Boolean = false
+    ) : NavigationRoute
 }

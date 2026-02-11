@@ -18,6 +18,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.Serializable
 
 /**
  * 认证远程数据源
@@ -163,7 +164,7 @@ class AuthRemoteDataSource(
     /**
      * 验证Token有效性
      */
-    suspend fun validateToken(token: String): Either<AuthError, Boolean> = either {
+    suspend fun validateToken(token: String): Either<AuthError, TokenValidationResult> = either {
         try {
             val response: HttpResponse = httpClient.get(validateEndpoint) {
                 bearerAuth(token)
@@ -171,11 +172,15 @@ class AuthRemoteDataSource(
 
             when {
                 response.status.isSuccess() -> {
-                    true
+                    val body = response.body<ValidateTokenResponse>()
+                    TokenValidationResult(
+                        isValid = body.valid,
+                        userId = body.userId
+                    )
                 }
                 response.status.value == 401 -> {
                     // Token无效或过期
-                    false
+                    TokenValidationResult(isValid = false)
                 }
                 response.status.value in 400..499 -> {
                     raise(
@@ -214,3 +219,14 @@ class AuthRemoteDataSource(
     private val validateEndpoint: String
         get() = baseUrl.trimEnd('/') + VALIDATE_PATH
 }
+
+data class TokenValidationResult(
+    val isValid: Boolean,
+    val userId: String? = null
+)
+
+@Serializable
+private data class ValidateTokenResponse(
+    val valid: Boolean = true,
+    val userId: String? = null
+)

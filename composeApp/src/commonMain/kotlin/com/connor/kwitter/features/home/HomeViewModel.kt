@@ -2,6 +2,7 @@ package com.connor.kwitter.features.home
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,9 +23,9 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.launch
 
 data class HomeUiState(
+    val currentUserId: String? = null,
     val isRefreshing: Boolean = false,
     val error: String? = null
 )
@@ -77,6 +78,7 @@ class HomeViewModel(
     @Composable
     private fun HomePresenter(): HomeUiState {
         var state by remember { mutableStateOf(HomeUiState()) }
+        val currentUserId by authRepository.currentUserId.collectAsState(initial = null)
 
         LaunchedEffect(Unit) {
             _events.receiveAsFlow().collect { action ->
@@ -151,7 +153,7 @@ class HomeViewModel(
             }
         }
 
-        return state
+        return state.copy(currentUserId = currentUserId)
     }
 
     private fun formatError(error: PostError): String = when (error) {

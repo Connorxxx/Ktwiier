@@ -62,6 +62,13 @@
     <string name="profile_follow">Follow</string>
     <string name="profile_following">Following</string>
     <string name="profile_followers">Followers</string>
+    <string name="profile_edit">Edit profile</string>
+    <string name="profile_save">Save</string>
+    <string name="profile_cancel_edit">Cancel</string>
+    <string name="profile_display_name_label">Display name</string>
+    <string name="profile_username_label">Username</string>
+    <string name="profile_bio_label">Bio</string>
+    <string name="profile_avatar_url_label">Avatar URL</string>
     <string name="profile_no_posts">No posts yet</string>
     <string name="profile_no_replies">No replies yet</string>
     <string name="profile_no_likes">No likes yet</string>

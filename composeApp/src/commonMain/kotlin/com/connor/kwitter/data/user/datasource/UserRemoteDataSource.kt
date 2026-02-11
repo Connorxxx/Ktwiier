@@ -4,17 +4,22 @@ import arrow.core.Either
 import arrow.core.raise.either
 import com.connor.kwitter.domain.post.model.PostList
 import com.connor.kwitter.domain.post.model.PostPageQuery
+import com.connor.kwitter.domain.user.model.UpdateProfileRequest
 import com.connor.kwitter.domain.user.model.UserError
 import com.connor.kwitter.domain.user.model.UserProfile
 import com.connor.kwitter.domain.user.model.UserStats as DomainUserStats
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.bearerAuth
+import io.ktor.client.request.patch
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
@@ -38,6 +43,24 @@ class UserRemoteDataSource(
             handleResponse(response) {
                 it.body<UserProfileResponseDto>().toDomain()
             }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            raise(UserError.NetworkError("Network request failed: ${e.message}"))
+        }
+    }
+
+    suspend fun updateCurrentUserProfile(
+        request: UpdateProfileRequest,
+        token: String
+    ): Either<UserError, UserProfile> = either {
+        try {
+            val response: HttpResponse = httpClient.patch(endpoint("$USERS_PATH/me")) {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody(request)
+            }
+            val updatedUser = handleResponse(response) { it.body<UserDto>() }
+            getUserProfile(updatedUser.id, token).bind()
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             raise(UserError.NetworkError("Network request failed: ${e.message}"))

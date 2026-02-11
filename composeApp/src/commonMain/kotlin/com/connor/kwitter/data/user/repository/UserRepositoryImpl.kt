@@ -8,6 +8,7 @@ import com.connor.kwitter.domain.post.model.PostList
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.user.model.UserError
 import com.connor.kwitter.domain.user.model.UserProfile
+import com.connor.kwitter.domain.user.model.UpdateProfileRequest
 import com.connor.kwitter.domain.user.repository.UserRepository
 import kotlinx.coroutines.flow.first
 
@@ -25,6 +26,13 @@ class UserRepositoryImpl(
 
     override suspend fun getUserProfile(userId: String): Either<UserError, UserProfile> {
         return remoteDataSource.getUserProfile(userId, token = getToken())
+    }
+
+    override suspend fun updateCurrentUserProfile(
+        request: UpdateProfileRequest
+    ): Either<UserError, UserProfile> = either {
+        val token = requireToken().bind()
+        remoteDataSource.updateCurrentUserProfile(request, token).bind()
     }
 
     override suspend fun followUser(userId: String): Either<UserError, Unit> = either {
