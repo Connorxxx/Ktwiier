@@ -6,9 +6,9 @@ import androidx.paging.PagingState
 import androidx.paging.RemoteMediator
 import com.connor.kwitter.data.post.local.AppDatabase
 import com.connor.kwitter.data.post.local.PostEntity
-import com.connor.kwitter.data.post.local.RemoteKeyEntity
 import com.connor.kwitter.data.post.local.toEntity
 import com.connor.kwitter.domain.post.model.PostPageQuery
+import kotlinx.coroutines.CancellationException
 
 private const val TIMELINE_LABEL = "timeline"
 private const val PAGE_SIZE = 20
@@ -21,7 +21,8 @@ class TimelineRemoteMediator(
 ) : RemoteMediator<Int, PostEntity>() {
 
     private val postDao = database.postDao()
-    private val remoteKeyDao = database.remoteKeyDao()
+
+    override suspend fun initialize(): InitializeAction = InitializeAction.LAUNCH_INITIAL_REFRESH
 
     override suspend fun load(
         loadType: LoadType,
@@ -31,7 +32,7 @@ class TimelineRemoteMediator(
             LoadType.REFRESH -> 0
             LoadType.PREPEND -> return MediatorResult.Success(endOfPaginationReached = true)
             LoadType.APPEND -> {
-                val remoteKey = remoteKeyDao.getByLabel(TIMELINE_LABEL)
+                val remoteKey = postDao.getRemoteKeyByLabel(TIMELINE_LABEL)
                     ?: return MediatorResult.Success(endOfPaginationReached = true)
                 remoteKey.nextOffset
             }
@@ -49,34 +50,38 @@ class TimelineRemoteMediator(
                     MediatorResult.Error(Exception(error.toString()))
                 },
                 ifRight = { postList ->
-                    val baseIndex = if (loadType == LoadType.REFRESH) 0 else {
-                        val key = remoteKeyDao.getByLabel(TIMELINE_LABEL)
-                        key?.nextOffset ?: 0
-                    }
+                    val baseIndex = offset
 
                     val entities = postList.posts.mapIndexed { index, post ->
                         post.toEntity(timelineIndex = baseIndex + index)
                     }
 
-                    if (loadType == LoadType.REFRESH) {
-                        postDao.clearAll()
-                        remoteKeyDao.deleteByLabel(TIMELINE_LABEL)
-                    }
-
-                    postDao.insertAll(entities)
-
-                    val nextOffset = offset + postList.posts.size
-                    if (postList.hasMore) {
-                        remoteKeyDao.insertOrReplace(
-                            RemoteKeyEntity(label = TIMELINE_LABEL, nextOffset = nextOffset)
-                        )
+                    val endReached = postList.posts.isEmpty() || !postList.hasMore
+                    val nextOffset = if (endReached) {
+                        null
                     } else {
-                        remoteKeyDao.deleteByLabel(TIMELINE_LABEL)
+                        offset + postList.posts.size
                     }
 
-                    MediatorResult.Success(endOfPaginationReached = !postList.hasMore)
+                    when (loadType) {
+                        LoadType.REFRESH -> postDao.replaceTimeline(
+                            label = TIMELINE_LABEL,
+                            posts = entities,
+                            nextOffset = nextOffset
+                        )
+                        LoadType.APPEND -> postDao.appendTimeline(
+                            label = TIMELINE_LABEL,
+                            posts = entities,
+                            nextOffset = nextOffset
+                        )
+                        LoadType.PREPEND -> Unit
+                    }
+
+                    MediatorResult.Success(endOfPaginationReached = endReached)
                 }
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             MediatorResult.Error(e)
         }

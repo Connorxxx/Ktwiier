@@ -27,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -41,21 +42,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
-import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.connor.kwitter.core.theme.KwitterTheme
-import com.connor.kwitter.core.ui.PostActionBar
-import com.connor.kwitter.core.ui.PostMediaGrid
 import com.connor.kwitter.core.ui.PostItem
-import com.connor.kwitter.core.ui.AuthorAvatar
-import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
@@ -82,6 +77,15 @@ fun HomeScreen(
         }
     }
 
+    LaunchedEffect(lazyPagingItems.loadState.refresh) {
+        val refreshState = lazyPagingItems.loadState.refresh
+        if (refreshState is LoadState.Error && lazyPagingItems.itemCount > 0) {
+            snackbarHostState.showSnackbar(
+                refreshState.error.message ?: "Failed to refresh timeline"
+            )
+        }
+    }
+
     Scaffold(
         topBar = {
             HomeTopBar(onLogoutClick = { onAction(HomeAction.LogoutClick) })
@@ -103,7 +107,7 @@ fun HomeScreen(
         val refreshState = lazyPagingItems.loadState.refresh
 
         PullToRefreshBox(
-            isRefreshing = refreshState is LoadState.Loading && lazyPagingItems.itemCount > 0,
+            isRefreshing = refreshState is LoadState.Loading,
             onRefresh = { lazyPagingItems.refresh() },
             modifier = Modifier
                 .fillMaxSize()
@@ -120,7 +124,10 @@ fun HomeScreen(
                 }
 
                 refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
-                    EmptyTimelineState()
+                    TimelineLoadErrorState(
+                        message = refreshState.error.message ?: "Failed to load timeline",
+                        onRetry = { lazyPagingItems.refresh() }
+                    )
                 }
 
                 refreshState is LoadState.NotLoading && lazyPagingItems.itemCount == 0 -> {
@@ -130,7 +137,8 @@ fun HomeScreen(
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        overscrollEffect = null
                     ) {
                         items(
                             count = lazyPagingItems.itemCount,
@@ -265,6 +273,39 @@ private fun EmptyTimelineState() {
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 32.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun TimelineLoadErrorState(
+    message: String,
+    onRetry: () -> Unit
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "Timeline load failed",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            TextButton(onClick = onRetry) {
+                Text("Retry")
+            }
         }
     }
 }
