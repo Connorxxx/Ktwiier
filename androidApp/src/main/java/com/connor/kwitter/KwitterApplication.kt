@@ -3,6 +3,7 @@ package com.connor.kwitter
 import android.app.Application
 import com.connor.kwitter.core.di.authModule
 import com.connor.kwitter.core.di.mediaModule
+import com.connor.kwitter.core.di.messagingModule
 import com.connor.kwitter.core.di.networkModule
 import com.connor.kwitter.core.di.notificationModule
 import com.connor.kwitter.core.di.platformModule
@@ -35,6 +36,7 @@ class KwitterApplication : Application() {
                 postModule,           // 帖子模块（Repository, DataSource）
                 userModule,           // 用户模块（Repository, DataSource）
                 searchModule,         // 搜索模块（Repository, DataSource）
+                messagingModule,      // 私信模块（Repository, DataSource）
                 viewModelModule       // ViewModel 模块
             )
         }

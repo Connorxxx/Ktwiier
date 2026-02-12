@@ -108,6 +108,7 @@ fun HomeScreen(
                         onAction(HomeNavAction.AuthorClick(userId))
                     }
                 },
+                onMessagesClick = { onAction(HomeNavAction.MessagesClick) },
                 onSearchClick = { onAction(HomeNavAction.SearchClick) },
                 onLogoutClick = { onAction(HomeAction.LogoutClick) }
             )
@@ -264,6 +265,7 @@ private fun NewPostsBanner(
 @Composable
 private fun HomeTopBar(
     onProfileClick: (() -> Unit)?,
+    onMessagesClick: () -> Unit,
     onSearchClick: () -> Unit,
     onLogoutClick: () -> Unit
 ) {
@@ -281,6 +283,19 @@ private fun HomeTopBar(
                 }
             },
             actions = {
+                IconButton(
+                    onClick = onMessagesClick,
+                    modifier = Modifier
+                        .padding(end = 2.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                ) {
+                    EnvelopeIcon(
+                        modifier = Modifier.size(18.dp),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 IconButton(
                     onClick = onSearchClick,
                     modifier = Modifier
@@ -501,6 +516,35 @@ private fun LogoutIcon(
             stroke,
             cap = StrokeCap.Round
         )
+    }
+}
+
+@Composable
+private fun EnvelopeIcon(
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified
+) {
+    val resolvedColor = if (color == Color.Unspecified) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        color
+    }
+    Canvas(modifier = modifier) {
+        val stroke = size.minDimension * 0.1f
+        val left = size.width * 0.1f
+        val right = size.width * 0.9f
+        val top = size.height * 0.2f
+        val bottom = size.height * 0.8f
+        val centerX = size.width * 0.5f
+        val peakY = size.height * 0.5f
+        // Envelope body
+        drawLine(resolvedColor, Offset(left, top), Offset(right, top), stroke, cap = StrokeCap.Round)
+        drawLine(resolvedColor, Offset(right, top), Offset(right, bottom), stroke, cap = StrokeCap.Round)
+        drawLine(resolvedColor, Offset(right, bottom), Offset(left, bottom), stroke, cap = StrokeCap.Round)
+        drawLine(resolvedColor, Offset(left, bottom), Offset(left, top), stroke, cap = StrokeCap.Round)
+        // Envelope flap (V shape)
+        drawLine(resolvedColor, Offset(left, top), Offset(centerX, peakY), stroke, cap = StrokeCap.Round)
+        drawLine(resolvedColor, Offset(centerX, peakY), Offset(right, top), stroke, cap = StrokeCap.Round)
     }
 }
 

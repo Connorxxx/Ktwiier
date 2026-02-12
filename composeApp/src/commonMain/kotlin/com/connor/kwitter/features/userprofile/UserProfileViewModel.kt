@@ -71,6 +71,7 @@ sealed interface UserProfileNavAction : UserProfileIntent {
     data object EditProfileClick : UserProfileNavAction
     data object FollowingClick : UserProfileNavAction
     data object FollowersClick : UserProfileNavAction
+    data class MessageClick(val userId: String, val displayName: String) : UserProfileNavAction
 }
 
 class UserProfileViewModel(

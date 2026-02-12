@@ -1,6 +1,8 @@
 package com.connor.kwitter.core.di
 
 import com.connor.kwitter.features.auth.RegisterViewModel
+import com.connor.kwitter.features.chat.ChatViewModel
+import com.connor.kwitter.features.conversationlist.ConversationListViewModel
 import com.connor.kwitter.features.createpost.CreatePostViewModel
 import com.connor.kwitter.features.editprofile.EditProfileViewModel
 import com.connor.kwitter.features.home.HomeViewModel
@@ -30,4 +32,6 @@ val viewModelModule = module {
     viewModelOf(::EditProfileViewModel)
     viewModelOf(::UserListViewModel)
     viewModelOf(::SearchViewModel)
+    viewModelOf(::ConversationListViewModel)
+    viewModelOf(::ChatViewModel)
 }

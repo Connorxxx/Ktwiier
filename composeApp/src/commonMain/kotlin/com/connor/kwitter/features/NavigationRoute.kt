@@ -56,4 +56,14 @@ sealed interface NavigationRoute {
 
     @Serializable
     data object Search : NavigationRoute
+
+    @Serializable
+    data object ConversationList : NavigationRoute
+
+    @Serializable
+    data class Chat(
+        val conversationId: String? = null,
+        val otherUserId: String,
+        val otherUserDisplayName: String
+    ) : NavigationRoute
 }

@@ -24,6 +24,14 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.connor.kwitter.features.NavigationRoute
 import com.connor.kwitter.domain.post.model.PostMedia
+import com.connor.kwitter.features.chat.ChatAction
+import com.connor.kwitter.features.chat.ChatNavAction
+import com.connor.kwitter.features.chat.ChatScreen
+import com.connor.kwitter.features.chat.ChatViewModel
+import com.connor.kwitter.features.conversationlist.ConversationListAction
+import com.connor.kwitter.features.conversationlist.ConversationListNavAction
+import com.connor.kwitter.features.conversationlist.ConversationListScreen
+import com.connor.kwitter.features.conversationlist.ConversationListViewModel
 import com.connor.kwitter.features.createpost.CreatePostAction
 import com.connor.kwitter.features.createpost.CreatePostNavAction
 import com.connor.kwitter.features.createpost.CreatePostScreen
@@ -239,6 +247,9 @@ fun MainScreen(
                                 HomeNavAction.SearchClick -> mainState.onNavigate(
                                     NavigationRoute.Search
                                 )
+                                HomeNavAction.MessagesClick -> mainState.onNavigate(
+                                    NavigationRoute.ConversationList
+                                )
                             }
                         }
                     }
@@ -366,6 +377,13 @@ fun MainScreen(
                                         )
                                     )
                                 }
+                                is UserProfileNavAction.MessageClick -> mainState.onNavigate(
+                                    NavigationRoute.Chat(
+                                        conversationId = null,
+                                        otherUserId = action.userId,
+                                        otherUserDisplayName = action.displayName
+                                    )
+                                )
                             }
                         }
                     }
@@ -476,6 +494,61 @@ fun MainScreen(
                                 is SearchNavAction.UserClick -> mainState.onNavigate(
                                     NavigationRoute.UserProfile(userId = action.userId)
                                 )
+                            }
+                        }
+                    }
+                )
+            }
+
+            entry<NavigationRoute.ConversationList> {
+                val vm: ConversationListViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                LaunchedEffect(Unit) {
+                    vm.onEvent(ConversationListAction.Load)
+                }
+
+                ConversationListScreen(
+                    state = state,
+                    onAction = { action ->
+                        when (action) {
+                            is ConversationListAction -> vm.onEvent(action)
+                            is ConversationListNavAction -> when (action) {
+                                ConversationListNavAction.BackClick -> mainState.onBack()
+                                is ConversationListNavAction.ConversationClick -> mainState.onNavigate(
+                                    NavigationRoute.Chat(
+                                        conversationId = action.conversationId,
+                                        otherUserId = action.otherUserId,
+                                        otherUserDisplayName = action.otherUserDisplayName
+                                    )
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+
+            entry<NavigationRoute.Chat> { route ->
+                val vm: ChatViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                LaunchedEffect(route.conversationId, route.otherUserId) {
+                    vm.onEvent(
+                        ChatAction.Load(
+                            conversationId = route.conversationId,
+                            otherUserId = route.otherUserId,
+                            otherUserDisplayName = route.otherUserDisplayName
+                        )
+                    )
+                }
+
+                ChatScreen(
+                    state = state,
+                    onAction = { action ->
+                        when (action) {
+                            is ChatAction -> vm.onEvent(action)
+                            is ChatNavAction -> when (action) {
+                                ChatNavAction.BackClick -> mainState.onBack()
                             }
                         }
                     }

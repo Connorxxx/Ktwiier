@@ -156,7 +156,15 @@ fun UserProfileScreen(
                             onEditClick = { onAction(UserProfileNavAction.EditProfileClick) },
                             onFollowClick = { onAction(UserProfileAction.ToggleFollow) },
                             onFollowingClick = { onAction(UserProfileNavAction.FollowingClick) },
-                            onFollowersClick = { onAction(UserProfileNavAction.FollowersClick) }
+                            onFollowersClick = { onAction(UserProfileNavAction.FollowersClick) },
+                            onMessageClick = {
+                                onAction(
+                                    UserProfileNavAction.MessageClick(
+                                        userId = state.profile.id,
+                                        displayName = state.profile.displayName
+                                    )
+                                )
+                            }
                         )
                     }
 
@@ -320,7 +328,8 @@ private fun ProfileHeader(
     onEditClick: () -> Unit,
     onFollowClick: () -> Unit,
     onFollowingClick: () -> Unit,
-    onFollowersClick: () -> Unit
+    onFollowersClick: () -> Unit,
+    onMessageClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -407,30 +416,46 @@ private fun ProfileHeader(
                 )
             }
         } else {
-            // Follow/Unfollow button
+            // Follow/Unfollow + Message buttons
             Spacer(modifier = Modifier.height(16.dp))
-            val isFollowing = profile.isFollowedByCurrentUser == true
-            if (isFollowing) {
-                OutlinedButton(
-                    onClick = onFollowClick,
-                    enabled = !isFollowLoading,
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = stringResource(Res.string.profile_following),
-                        fontWeight = FontWeight.SemiBold
-                    )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val isFollowing = profile.isFollowedByCurrentUser == true
+                if (isFollowing) {
+                    OutlinedButton(
+                        onClick = onFollowClick,
+                        enabled = !isFollowLoading,
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = stringResource(Res.string.profile_following),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = onFollowClick,
+                        enabled = !isFollowLoading,
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = stringResource(Res.string.profile_follow),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
-            } else {
-                Button(
-                    onClick = onFollowClick,
-                    enabled = !isFollowLoading,
+
+                OutlinedButton(
+                    onClick = onMessageClick,
                     shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = stringResource(Res.string.profile_follow),
+                        text = "Message",
                         fontWeight = FontWeight.SemiBold
                     )
                 }

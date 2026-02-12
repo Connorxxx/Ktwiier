@@ -138,6 +138,8 @@ class NotificationService(
         when (type) {
             "new_post" -> parseNewPost(jsonObject)?.let { _notificationEvents.emit(it) }
             "post_liked" -> parsePostLiked(jsonObject)?.let { _notificationEvents.emit(it) }
+            "new_message" -> parseNewMessage(jsonObject)?.let { _notificationEvents.emit(it) }
+            "messages_read" -> parseMessagesRead(jsonObject)?.let { _notificationEvents.emit(it) }
             "error" -> { /* Log or ignore server errors for now */ }
             "connected", "subscribed", "unsubscribed", "pong" -> { /* Acknowledged, no action */ }
         }
@@ -156,6 +158,24 @@ class NotificationService(
         val data = jsonObject["data"] ?: return null
         return try {
             json.decodeFromJsonElement(NotificationEvent.PostLiked.serializer(), data)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseNewMessage(jsonObject: JsonObject): NotificationEvent.NewMessage? {
+        val data = jsonObject["data"] ?: return null
+        return try {
+            json.decodeFromJsonElement(NotificationEvent.NewMessage.serializer(), data)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseMessagesRead(jsonObject: JsonObject): NotificationEvent.MessagesRead? {
+        val data = jsonObject["data"] ?: return null
+        return try {
+            json.decodeFromJsonElement(NotificationEvent.MessagesRead.serializer(), data)
         } catch (_: Exception) {
             null
         }
