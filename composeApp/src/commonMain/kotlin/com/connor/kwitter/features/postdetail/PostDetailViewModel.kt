@@ -109,16 +109,10 @@ class PostDetailViewModel(
     private fun PostDetailPresenter(): PostDetailUiState {
         var state by remember { mutableStateOf(PostDetailUiState()) }
 
-        // Subscribe to post notifications when postId changes
+        // Collect = auto subscribe, cancel = auto unsubscribe
         LaunchedEffect(currentPostId) {
             val postId = currentPostId ?: return@LaunchedEffect
-            notificationRepository.subscribeToPost(postId)
-        }
-
-        // Observe real-time like updates for the current post
-        LaunchedEffect(Unit) {
-            notificationRepository.postLikedEvents.collect { event ->
-                val postId = currentPostId ?: return@collect
+            notificationRepository.observePostLikedEvents(postId).collect { event ->
                 if (event.postId == postId || event.postId in currentThreadPostIds) {
                     state = updatePostInState(state, event.postId) {
                         copy(stats = stats.copy(likeCount = event.newLikeCount))
@@ -140,16 +134,6 @@ class PostDetailViewModel(
         }
 
         return state
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        currentPostId?.let { postId ->
-            // Fire-and-forget unsubscribe; scope is about to be cancelled anyway
-            viewModelScope.launch {
-                notificationRepository.unsubscribeFromPost(postId)
-            }
-        }
     }
 
     private suspend fun loadPostDetail(
