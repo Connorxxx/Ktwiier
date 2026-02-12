@@ -2,6 +2,7 @@ package com.connor.kwitter.features.userprofile
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -153,7 +154,9 @@ fun UserProfileScreen(
                             isOwnProfile = state.isOwnProfile,
                             isFollowLoading = state.isFollowLoading,
                             onEditClick = { onAction(UserProfileNavAction.EditProfileClick) },
-                            onFollowClick = { onAction(UserProfileAction.ToggleFollow) }
+                            onFollowClick = { onAction(UserProfileAction.ToggleFollow) },
+                            onFollowingClick = { onAction(UserProfileNavAction.FollowingClick) },
+                            onFollowersClick = { onAction(UserProfileNavAction.FollowersClick) }
                         )
                     }
 
@@ -315,7 +318,9 @@ private fun ProfileHeader(
     isOwnProfile: Boolean,
     isFollowLoading: Boolean,
     onEditClick: () -> Unit,
-    onFollowClick: () -> Unit
+    onFollowClick: () -> Unit,
+    onFollowingClick: () -> Unit,
+    onFollowersClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -379,11 +384,13 @@ private fun ProfileHeader(
         ) {
             StatItem(
                 count = profile.stats.followingCount,
-                label = stringResource(Res.string.profile_following)
+                label = stringResource(Res.string.profile_following),
+                onClick = onFollowingClick
             )
             StatItem(
                 count = profile.stats.followersCount,
-                label = stringResource(Res.string.profile_followers)
+                label = stringResource(Res.string.profile_followers),
+                onClick = onFollowersClick
             )
         }
 
@@ -475,9 +482,13 @@ private fun ProfileAvatar(
 @Composable
 private fun StatItem(
     count: Int,
-    label: String
+    label: String,
+    onClick: () -> Unit = {}
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
         Text(
             text = count.toString(),
             style = MaterialTheme.typography.titleSmall,

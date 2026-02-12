@@ -46,4 +46,11 @@ sealed interface NavigationRoute {
     data class EditProfile(
         val userId: String
     ) : NavigationRoute
+
+    @Serializable
+    data class UserFollowList(
+        val userId: String,
+        val displayName: String,
+        val listType: String // "following" or "followers"
+    ) : NavigationRoute
 }

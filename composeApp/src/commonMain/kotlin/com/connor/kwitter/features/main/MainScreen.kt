@@ -56,6 +56,11 @@ import com.connor.kwitter.features.userprofile.UserProfileAction
 import com.connor.kwitter.features.userprofile.UserProfileNavAction
 import com.connor.kwitter.features.userprofile.UserProfileScreen
 import com.connor.kwitter.features.userprofile.UserProfileViewModel
+import com.connor.kwitter.features.userlist.UserListAction
+import com.connor.kwitter.features.userlist.UserListNavAction
+import com.connor.kwitter.features.userlist.UserListScreen
+import com.connor.kwitter.features.userlist.UserListType
+import com.connor.kwitter.features.userlist.UserListViewModel
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.koin.compose.viewmodel.koinViewModel
@@ -334,6 +339,26 @@ fun MainScreen(
                                 UserProfileNavAction.EditProfileClick -> mainState.onNavigate(
                                     NavigationRoute.EditProfile(userId = route.userId)
                                 )
+                                UserProfileNavAction.FollowingClick -> {
+                                    val displayName = state.profile?.displayName ?: ""
+                                    mainState.onNavigate(
+                                        NavigationRoute.UserFollowList(
+                                            userId = route.userId,
+                                            displayName = displayName,
+                                            listType = "following"
+                                        )
+                                    )
+                                }
+                                UserProfileNavAction.FollowersClick -> {
+                                    val displayName = state.profile?.displayName ?: ""
+                                    mainState.onNavigate(
+                                        NavigationRoute.UserFollowList(
+                                            userId = route.userId,
+                                            displayName = displayName,
+                                            listType = "followers"
+                                        )
+                                    )
+                                }
                             }
                         }
                     }
@@ -359,6 +384,40 @@ fun MainScreen(
                                     profileRefreshKey.intValue++
                                     mainState.onBack()
                                 }
+                            }
+                        }
+                    }
+                )
+            }
+
+            entry<NavigationRoute.UserFollowList> { route ->
+                val vm: UserListViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+                val listType = when (route.listType) {
+                    "followers" -> UserListType.FOLLOWERS
+                    else -> UserListType.FOLLOWING
+                }
+
+                LaunchedEffect(route.userId, route.listType) {
+                    vm.onEvent(
+                        UserListAction.Load(
+                            userId = route.userId,
+                            displayName = route.displayName,
+                            listType = listType
+                        )
+                    )
+                }
+
+                UserListScreen(
+                    state = state,
+                    onAction = { action ->
+                        when (action) {
+                            is UserListAction -> vm.onEvent(action)
+                            is UserListNavAction -> when (action) {
+                                UserListNavAction.BackClick -> mainState.onBack()
+                                is UserListNavAction.UserClick -> mainState.onNavigate(
+                                    NavigationRoute.UserProfile(userId = action.userId)
+                                )
                             }
                         }
                     }

@@ -69,6 +69,8 @@ sealed interface UserProfileNavAction : UserProfileIntent {
     data class MediaClick(val media: List<PostMedia>, val index: Int) : UserProfileNavAction
     data class AuthorClick(val userId: String) : UserProfileNavAction
     data object EditProfileClick : UserProfileNavAction
+    data object FollowingClick : UserProfileNavAction
+    data object FollowersClick : UserProfileNavAction
 }
 
 class UserProfileViewModel(

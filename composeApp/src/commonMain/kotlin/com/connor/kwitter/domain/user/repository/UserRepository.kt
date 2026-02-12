@@ -4,6 +4,7 @@ import arrow.core.Either
 import com.connor.kwitter.domain.post.model.PostList
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.user.model.UserError
+import com.connor.kwitter.domain.user.model.UserList
 import com.connor.kwitter.domain.user.model.UserProfile
 import com.connor.kwitter.domain.user.model.UpdateProfileRequest
 
@@ -20,4 +21,6 @@ interface UserRepository {
     suspend fun getUserPosts(userId: String, query: PostPageQuery): Either<UserError, PostList>
     suspend fun getUserReplies(userId: String, query: PostPageQuery): Either<UserError, PostList>
     suspend fun getUserLikes(userId: String, query: PostPageQuery): Either<UserError, PostList>
+    suspend fun getUserFollowing(userId: String, limit: Int = 20, offset: Int = 0): Either<UserError, UserList>
+    suspend fun getUserFollowers(userId: String, limit: Int = 20, offset: Int = 0): Either<UserError, UserList>
 }

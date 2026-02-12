@@ -5,6 +5,7 @@ import com.connor.kwitter.data.user.datasource.UserRemoteDataSource
 import com.connor.kwitter.domain.post.model.PostList
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.user.model.UserError
+import com.connor.kwitter.domain.user.model.UserList
 import com.connor.kwitter.domain.user.model.UserProfile
 import com.connor.kwitter.domain.user.model.UpdateProfileRequest
 import com.connor.kwitter.domain.user.repository.UserRepository
@@ -58,5 +59,21 @@ class UserRepositoryImpl(
         query: PostPageQuery
     ): Either<UserError, PostList> {
         return remoteDataSource.getUserLikes(userId, query)
+    }
+
+    override suspend fun getUserFollowing(
+        userId: String,
+        limit: Int,
+        offset: Int
+    ): Either<UserError, UserList> {
+        return remoteDataSource.getUserFollowing(userId, limit, offset)
+    }
+
+    override suspend fun getUserFollowers(
+        userId: String,
+        limit: Int,
+        offset: Int
+    ): Either<UserError, UserList> {
+        return remoteDataSource.getUserFollowers(userId, limit, offset)
     }
 }

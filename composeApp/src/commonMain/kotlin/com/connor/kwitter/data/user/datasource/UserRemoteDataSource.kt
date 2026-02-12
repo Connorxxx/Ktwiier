@@ -6,6 +6,8 @@ import com.connor.kwitter.domain.post.model.PostList
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.user.model.UpdateProfileRequest
 import com.connor.kwitter.domain.user.model.UserError
+import com.connor.kwitter.domain.user.model.UserList
+import com.connor.kwitter.domain.user.model.UserListItem
 import com.connor.kwitter.domain.user.model.UserProfile
 import com.connor.kwitter.domain.user.model.UserStats as DomainUserStats
 import io.ktor.client.HttpClient
@@ -159,6 +161,40 @@ class UserRemoteDataSource(
         }
     }
 
+    suspend fun getUserFollowing(
+        userId: String,
+        limit: Int,
+        offset: Int
+    ): Either<UserError, UserList> = either {
+        try {
+            val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/following")) {
+                parameter("limit", limit)
+                parameter("offset", offset)
+            }
+            handleResponse(response) { it.body<UserListResponseDto>().toDomain() }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            raise(UserError.NetworkError("Network request failed: ${e.message}"))
+        }
+    }
+
+    suspend fun getUserFollowers(
+        userId: String,
+        limit: Int,
+        offset: Int
+    ): Either<UserError, UserList> = either {
+        try {
+            val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/followers")) {
+                parameter("limit", limit)
+                parameter("offset", offset)
+            }
+            handleResponse(response) { it.body<UserListResponseDto>().toDomain() }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            raise(UserError.NetworkError("Network request failed: ${e.message}"))
+        }
+    }
+
     private suspend fun <T> arrow.core.raise.Raise<UserError>.handleResponse(
         response: HttpResponse,
         onSuccess: suspend (HttpResponse) -> T
@@ -235,5 +271,33 @@ private fun UserProfileResponseDto.toDomain(): UserProfile {
             postsCount = stats.postsCount
         ),
         isFollowedByCurrentUser = isFollowedByCurrentUser
+    )
+}
+
+@Serializable
+private data class UserListItemDto(
+    val user: UserDto,
+    val isFollowedByCurrentUser: Boolean? = null
+)
+
+@Serializable
+private data class UserListResponseDto(
+    val users: List<UserListItemDto>,
+    val hasMore: Boolean = false
+)
+
+private fun UserListResponseDto.toDomain(): UserList {
+    return UserList(
+        users = users.map { item ->
+            UserListItem(
+                id = item.user.id,
+                username = item.user.username,
+                displayName = item.user.displayName,
+                bio = item.user.bio,
+                avatarUrl = item.user.avatarUrl,
+                isFollowedByCurrentUser = item.isFollowedByCurrentUser
+            )
+        },
+        hasMore = hasMore
     )
 }

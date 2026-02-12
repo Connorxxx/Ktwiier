@@ -1,0 +1,357 @@
+package com.connor.kwitter.features.userlist
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import com.connor.kwitter.core.ui.BackArrowIcon
+import com.connor.kwitter.domain.user.model.UserListItem
+import kwitter.composeapp.generated.resources.Res
+import kwitter.composeapp.generated.resources.profile_follow
+import kwitter.composeapp.generated.resources.profile_followers
+import kwitter.composeapp.generated.resources.profile_following
+import org.jetbrains.compose.resources.stringResource
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun UserListScreen(
+    state: UserListUiState,
+    onAction: (UserListIntent) -> Unit
+) {
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.error) {
+        state.error?.let { error ->
+            snackbarHostState.showSnackbar(error)
+            onAction(UserListAction.ErrorDismissed)
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            UserListTopBar(
+                displayName = state.displayName,
+                listType = state.listType,
+                onBackClick = { onAction(UserListNavAction.BackClick) }
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        when {
+            state.isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            state.users.isEmpty() && !state.isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val emptyText = when (state.listType) {
+                        UserListType.FOLLOWING -> "Not following anyone yet"
+                        UserListType.FOLLOWERS -> "No followers yet"
+                    }
+                    Text(
+                        text = emptyText,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            else -> {
+                val listState = rememberLazyListState()
+
+                val shouldLoadMore = remember {
+                    derivedStateOf {
+                        val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
+                            ?: return@derivedStateOf false
+                        lastVisibleItem.index >= listState.layoutInfo.totalItemsCount - 3
+                    }
+                }
+
+                LaunchedEffect(Unit) {
+                    snapshotFlow { shouldLoadMore.value }
+                        .collect { shouldLoad ->
+                            if (shouldLoad && !state.isLoadingMore && state.hasMore) {
+                                onAction(UserListAction.LoadMore)
+                            }
+                        }
+                }
+
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(state.users, key = { it.id }) { user ->
+                        UserListItemRow(
+                            user = user,
+                            onClick = { onAction(UserListNavAction.UserClick(user.id)) },
+                            onFollowClick = {
+                                onAction(
+                                    UserListAction.ToggleFollow(
+                                        targetUserId = user.id,
+                                        isCurrentlyFollowing = user.isFollowedByCurrentUser == true
+                                    )
+                                )
+                            }
+                        )
+                    }
+
+                    if (state.isLoadingMore) {
+                        item(key = "loading_more") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UserListTopBar(
+    displayName: String,
+    listType: UserListType,
+    onBackClick: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        TopAppBar(
+            title = {
+                Column {
+                    Text(
+                        text = displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = when (listType) {
+                            UserListType.FOLLOWING -> stringResource(Res.string.profile_following)
+                            UserListType.FOLLOWERS -> stringResource(Res.string.profile_followers)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            navigationIcon = {
+                IconButton(
+                    onClick = onBackClick,
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                ) {
+                    BackArrowIcon(
+                        modifier = Modifier.size(18.dp),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.background,
+                scrolledContainerColor = MaterialTheme.colorScheme.background
+            )
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+        )
+    }
+}
+
+@Composable
+private fun UserListItemRow(
+    user: UserListItem,
+    onClick: () -> Unit,
+    onFollowClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Avatar
+        UserAvatar(
+            name = user.displayName,
+            avatarUrl = user.avatarUrl,
+            modifier = Modifier.size(48.dp)
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        // Name + username + bio
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = user.displayName,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "@${user.username}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (user.bio.isNotBlank()) {
+                Text(
+                    text = user.bio,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // Follow button (only if isFollowedByCurrentUser is not null — means we're authenticated and it's not ourself)
+        if (user.isFollowedByCurrentUser != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            val isFollowing = user.isFollowedByCurrentUser == true
+            if (isFollowing) {
+                OutlinedButton(
+                    onClick = onFollowClick,
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Text(
+                        text = stringResource(Res.string.profile_following),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            } else {
+                Button(
+                    onClick = onFollowClick,
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    modifier = Modifier.height(34.dp)
+                ) {
+                    Text(
+                        text = stringResource(Res.string.profile_follow),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserAvatar(
+    name: String,
+    avatarUrl: String?,
+    modifier: Modifier = Modifier
+) {
+    val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    val gradient = listOf(
+        MaterialTheme.colorScheme.primaryContainer,
+        MaterialTheme.colorScheme.tertiaryContainer
+    )
+
+    if (!avatarUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = avatarUrl,
+            contentDescription = name,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .background(
+                    brush = Brush.linearGradient(gradient),
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+    }
+}
