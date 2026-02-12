@@ -28,7 +28,6 @@ import com.connor.kwitter.features.chat.ChatAction
 import com.connor.kwitter.features.chat.ChatNavAction
 import com.connor.kwitter.features.chat.ChatScreen
 import com.connor.kwitter.features.chat.ChatViewModel
-import com.connor.kwitter.features.conversationlist.ConversationListAction
 import com.connor.kwitter.features.conversationlist.ConversationListNavAction
 import com.connor.kwitter.features.conversationlist.ConversationListScreen
 import com.connor.kwitter.features.conversationlist.ConversationListViewModel
@@ -73,7 +72,6 @@ import com.connor.kwitter.features.userlist.UserListNavAction
 import com.connor.kwitter.features.userlist.UserListScreen
 import com.connor.kwitter.features.userlist.UserListType
 import com.connor.kwitter.features.userlist.UserListViewModel
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -502,17 +500,11 @@ fun MainScreen(
 
             entry<NavigationRoute.ConversationList> {
                 val vm: ConversationListViewModel = koinViewModel()
-                val state by vm.uiState.collectAsStateWithLifecycle()
-
-                LaunchedEffect(Unit) {
-                    vm.onEvent(ConversationListAction.Load)
-                }
 
                 ConversationListScreen(
-                    state = state,
+                    pagingFlow = vm.pagingFlow,
                     onAction = { action ->
                         when (action) {
-                            is ConversationListAction -> vm.onEvent(action)
                             is ConversationListNavAction -> when (action) {
                                 ConversationListNavAction.BackClick -> mainState.onBack()
                                 is ConversationListNavAction.ConversationClick -> mainState.onNavigate(
@@ -544,6 +536,7 @@ fun MainScreen(
 
                 ChatScreen(
                     state = state,
+                    pagingFlow = vm.pagingFlow,
                     onAction = { action ->
                         when (action) {
                             is ChatAction -> vm.onEvent(action)

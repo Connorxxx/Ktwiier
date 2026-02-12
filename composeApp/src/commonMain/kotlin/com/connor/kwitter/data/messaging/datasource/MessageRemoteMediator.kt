@@ -1,0 +1,89 @@
+package com.connor.kwitter.data.messaging.datasource
+
+import androidx.paging.ExperimentalPagingApi
+import androidx.paging.LoadType
+import androidx.paging.PagingState
+import androidx.paging.RemoteMediator
+import com.connor.kwitter.data.messaging.local.MessageDao
+import com.connor.kwitter.data.messaging.local.MessageEntity
+import com.connor.kwitter.data.messaging.local.toEntity
+import kotlinx.coroutines.CancellationException
+
+private const val PAGE_SIZE = 50
+
+internal fun messagesLabel(conversationId: String): String = "messages_$conversationId"
+
+@OptIn(ExperimentalPagingApi::class)
+class MessageRemoteMediator(
+    private val conversationId: String,
+    private val remoteDataSource: MessagingRemoteDataSource,
+    private val messageDao: MessageDao
+) : RemoteMediator<Int, MessageEntity>() {
+
+    private val label = messagesLabel(conversationId)
+
+    override suspend fun initialize(): InitializeAction = InitializeAction.LAUNCH_INITIAL_REFRESH
+
+    override suspend fun load(
+        loadType: LoadType,
+        state: PagingState<Int, MessageEntity>
+    ): MediatorResult {
+        val offset = when (loadType) {
+            LoadType.REFRESH -> 0
+            LoadType.PREPEND -> return MediatorResult.Success(endOfPaginationReached = true)
+            LoadType.APPEND -> {
+                val remoteKey = messageDao.getRemoteKeyByLabel(label)
+                    ?: return MediatorResult.Success(endOfPaginationReached = true)
+                remoteKey.nextOffset
+            }
+        }
+
+        return try {
+            val result = remoteDataSource.getMessages(
+                conversationId = conversationId,
+                limit = PAGE_SIZE,
+                offset = offset
+            )
+
+            result.fold(
+                ifLeft = { error ->
+                    MediatorResult.Error(Exception(error.toString()))
+                },
+                ifRight = { messageList ->
+                    // API returns DESC (newest first). We store with orderIndex where
+                    // lower index = newer message. With reversed LazyColumn,
+                    // ORDER BY orderIndex ASC puts newest (index 0) at bottom.
+                    val baseIndex = offset
+
+                    val entities = messageList.messages.mapIndexed { index, message ->
+                        message.toEntity(orderIndex = baseIndex + index)
+                    }
+
+                    val endReached = messageList.messages.isEmpty() || !messageList.hasMore
+                    val nextOffset = if (endReached) null else offset + messageList.messages.size
+
+                    when (loadType) {
+                        LoadType.REFRESH -> messageDao.replaceMessages(
+                            conversationId = conversationId,
+                            label = label,
+                            messages = entities,
+                            nextOffset = nextOffset
+                        )
+                        LoadType.APPEND -> messageDao.appendMessages(
+                            label = label,
+                            messages = entities,
+                            nextOffset = nextOffset
+                        )
+                        LoadType.PREPEND -> Unit
+                    }
+
+                    MediatorResult.Success(endOfPaginationReached = endReached)
+                }
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            MediatorResult.Error(e)
+        }
+    }
+}

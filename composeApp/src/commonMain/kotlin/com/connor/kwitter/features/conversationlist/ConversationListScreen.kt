@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,9 +29,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,23 +38,31 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.paging.LoadState
+import androidx.paging.PagingData
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.messaging.model.Conversation
+import kotlinx.coroutines.flow.Flow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationListScreen(
-    state: ConversationListUiState,
+    pagingFlow: Flow<PagingData<Conversation>>,
     onAction: (ConversationListIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
 
-    LaunchedEffect(state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            onAction(ConversationListAction.ErrorDismissed)
+    LaunchedEffect(lazyPagingItems.loadState.refresh) {
+        val refreshState = lazyPagingItems.loadState.refresh
+        if (refreshState is LoadState.Error && lazyPagingItems.itemCount > 0) {
+            snackbarHostState.showSnackbar(
+                refreshState.error.message ?: "Failed to load conversations"
+            )
         }
     }
 
@@ -71,66 +75,61 @@ fun ConversationListScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        when {
-            state.isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
+        val refreshState = lazyPagingItems.loadState.refresh
 
-            state.conversations.isEmpty() && !state.isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "No messages yet",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            else -> {
-                val listState = rememberLazyListState()
-
-                val shouldLoadMore = remember {
-                    derivedStateOf {
-                        val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
-                            ?: return@derivedStateOf false
-                        lastVisibleItem.index >= listState.layoutInfo.totalItemsCount - 3
+        PullToRefreshBox(
+            isRefreshing = refreshState is LoadState.Loading && lazyPagingItems.itemCount > 0,
+            onRefresh = { lazyPagingItems.refresh() },
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            when {
+                refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
                     }
                 }
 
-                LaunchedEffect(Unit) {
-                    snapshotFlow { shouldLoadMore.value }
-                        .collect { shouldLoad ->
-                            if (shouldLoad && !state.isLoadingMore && state.hasMore) {
-                                onAction(ConversationListAction.LoadMore)
-                            }
-                        }
+                refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Failed to load conversations",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
-                PullToRefreshBox(
-                    isRefreshing = state.isRefreshing,
-                    onRefresh = { onAction(ConversationListAction.Refresh) },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                ) {
+                refreshState is LoadState.NotLoading && lazyPagingItems.itemCount == 0 -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No messages yet",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                else -> {
                     LazyColumn(
-                        state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
-                        items(state.conversations, key = { it.id }) { conversation ->
+                        items(
+                            count = lazyPagingItems.itemCount,
+                            key = lazyPagingItems.itemKey { it.id }
+                        ) { index ->
+                            val conversation = lazyPagingItems[index] ?: return@items
                             ConversationItemRow(
                                 conversation = conversation,
                                 onClick = {
@@ -145,7 +144,7 @@ fun ConversationListScreen(
                             )
                         }
 
-                        if (state.isLoadingMore) {
+                        if (lazyPagingItems.loadState.append is LoadState.Loading) {
                             item(key = "loading_more") {
                                 Box(
                                     modifier = Modifier

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,9 +34,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,17 +44,24 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.paging.LoadState
+import androidx.paging.PagingData
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.messaging.model.Message
+import kotlinx.coroutines.flow.Flow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     state: ChatUiState,
+    pagingFlow: Flow<PagingData<Message>>,
     onAction: (ChatIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
 
     LaunchedEffect(state.error) {
@@ -68,28 +72,19 @@ fun ChatScreen(
     }
 
     // Scroll to bottom when new messages arrive
-    LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) {
+    LaunchedEffect(lazyPagingItems.itemCount) {
+        if (lazyPagingItems.itemCount > 0) {
             listState.animateScrollToItem(0)
         }
     }
 
-    // Load more when scrolling to top (high index in reversed layout)
-    val shouldLoadMore = remember {
-        derivedStateOf {
-            val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
-                ?: return@derivedStateOf false
-            lastVisibleItem.index >= listState.layoutInfo.totalItemsCount - 3
+    LaunchedEffect(lazyPagingItems.loadState.refresh) {
+        val refreshState = lazyPagingItems.loadState.refresh
+        if (refreshState is LoadState.Error && lazyPagingItems.itemCount > 0) {
+            snackbarHostState.showSnackbar(
+                refreshState.error.message ?: "Failed to load messages"
+            )
         }
-    }
-
-    LaunchedEffect(Unit) {
-        snapshotFlow { shouldLoadMore.value }
-            .collect { shouldLoad ->
-                if (shouldLoad && !state.isLoadingMore && state.hasMore) {
-                    onAction(ChatAction.LoadMore)
-                }
-            }
     }
 
     Scaffold(
@@ -110,8 +105,10 @@ fun ChatScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
+        val refreshState = lazyPagingItems.loadState.refresh
+
         when {
-            state.isLoading -> {
+            refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -122,7 +119,7 @@ fun ChatScreen(
                 }
             }
 
-            state.messages.isEmpty() && !state.isLoading -> {
+            lazyPagingItems.itemCount == 0 && refreshState !is LoadState.Loading -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -147,11 +144,11 @@ fun ChatScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    // Reversed layout: newest at index 0
                     items(
-                        items = state.messages.reversed(),
-                        key = { it.id }
-                    ) { message ->
+                        count = lazyPagingItems.itemCount,
+                        key = lazyPagingItems.itemKey { it.id }
+                    ) { index ->
+                        val message = lazyPagingItems[index] ?: return@items
                         val isSentByMe = message.senderId == state.currentUserId
                         MessageBubble(
                             message = message,
@@ -159,7 +156,7 @@ fun ChatScreen(
                         )
                     }
 
-                    if (state.isLoadingMore) {
+                    if (lazyPagingItems.loadState.append is LoadState.Loading) {
                         item(key = "loading_more") {
                             Box(
                                 modifier = Modifier
