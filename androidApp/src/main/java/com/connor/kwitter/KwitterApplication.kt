@@ -4,6 +4,7 @@ import android.app.Application
 import com.connor.kwitter.core.di.authModule
 import com.connor.kwitter.core.di.mediaModule
 import com.connor.kwitter.core.di.networkModule
+import com.connor.kwitter.core.di.notificationModule
 import com.connor.kwitter.core.di.platformModule
 import com.connor.kwitter.core.di.postModule
 import com.connor.kwitter.core.di.userModule
@@ -25,13 +26,14 @@ class KwitterApplication : Application() {
 
             // 加载模块
             modules(
-                platformModule,  // 平台特定模块（DataStore, Database）
-                networkModule,   // 网络模块（HttpClient）
-                authModule,      // 认证模块（Repository, DataSource）
-                mediaModule,     // 媒体模块（MediaRepository）
-                postModule,      // 帖子模块（Repository, DataSource）
-                userModule,      // 用户模块（Repository, DataSource）
-                viewModelModule  // ViewModel 模块
+                platformModule,       // 平台特定模块（DataStore, Database）
+                networkModule,        // 网络模块（HttpClient）
+                notificationModule,   // 通知模块（WebSocket, NotificationRepository）
+                authModule,           // 认证模块（Repository, DataSource）
+                mediaModule,          // 媒体模块（MediaRepository）
+                postModule,           // 帖子模块（Repository, DataSource）
+                userModule,           // 用户模块（Repository, DataSource）
+                viewModelModule       // ViewModel 模块
             )
         }
     }

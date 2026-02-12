@@ -2,9 +2,9 @@ package com.connor.kwitter.data.auth.repository
 
 import arrow.core.Either
 import arrow.core.raise.either
-import com.connor.kwitter.data.auth.datasource.AuthEventSource
 import com.connor.kwitter.data.auth.datasource.AuthRemoteDataSource
 import com.connor.kwitter.data.auth.datasource.TokenDataSource
+import com.connor.kwitter.data.notification.NotificationService
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.model.AuthEvent
 import com.connor.kwitter.domain.auth.model.AuthToken
@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 class AuthRepositoryImpl(
     private val remoteDataSource: AuthRemoteDataSource,
     private val tokenDataSource: TokenDataSource,
-    private val authEventSource: AuthEventSource
+    private val notificationService: NotificationService
 ) : AuthRepository {
 
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -40,7 +40,7 @@ class AuthRepositoryImpl(
 
     override val session: Flow<SessionState> = _session
 
-    override val authEvents: Flow<AuthEvent> = authEventSource.events
+    override val authEvents: Flow<AuthEvent> = notificationService.authEvents
 
     override val currentUserId: Flow<String?> = tokenDataSource.currentUserId
 
@@ -49,8 +49,8 @@ class AuthRepositoryImpl(
         repositoryScope.launch {
             _session.collect { state ->
                 when (state) {
-                    is SessionState.Authenticated -> authEventSource.connect(repositoryScope)
-                    is SessionState.Unauthenticated -> authEventSource.disconnect()
+                    is SessionState.Authenticated -> notificationService.connect(repositoryScope)
+                    is SessionState.Unauthenticated -> notificationService.disconnect()
                     is SessionState.Bootstrapping -> Unit
                 }
             }
@@ -58,7 +58,7 @@ class AuthRepositoryImpl(
 
         // Observe force logout events → clear tokens
         repositoryScope.launch {
-            authEventSource.events.collect { event ->
+            notificationService.authEvents.collect { event ->
                 when (event) {
                     is AuthEvent.ForceLogout -> tokenDataSource.clearTokens()
                 }
@@ -92,7 +92,7 @@ class AuthRepositoryImpl(
     }
 
     override suspend fun logout(): Either<AuthError, Unit> {
-        authEventSource.disconnect()
+        notificationService.disconnect()
         return tokenDataSource.clearTokens()
     }
 }

@@ -12,6 +12,7 @@ import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import arrow.core.Either
 import arrow.core.raise.either
+import com.connor.kwitter.domain.notification.repository.NotificationRepository
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
@@ -19,8 +20,8 @@ import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.post.model.PostMutationEvent
 import com.connor.kwitter.domain.post.repository.PostRepository
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.StateFlow
+
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
@@ -58,7 +59,8 @@ sealed interface PostDetailNavAction : PostDetailIntent {
 }
 
 class PostDetailViewModel(
-    private val postRepository: PostRepository
+    private val postRepository: PostRepository,
+    private val notificationRepository: NotificationRepository
 ) : ViewModel() {
 
     private companion object {
@@ -107,6 +109,24 @@ class PostDetailViewModel(
     private fun PostDetailPresenter(): PostDetailUiState {
         var state by remember { mutableStateOf(PostDetailUiState()) }
 
+        // Subscribe to post notifications when postId changes
+        LaunchedEffect(currentPostId) {
+            val postId = currentPostId ?: return@LaunchedEffect
+            notificationRepository.subscribeToPost(postId)
+        }
+
+        // Observe real-time like updates for the current post
+        LaunchedEffect(Unit) {
+            notificationRepository.postLikedEvents.collect { event ->
+                val postId = currentPostId ?: return@collect
+                if (event.postId == postId || event.postId in currentThreadPostIds) {
+                    state = updatePostInState(state, event.postId) {
+                        copy(stats = stats.copy(likeCount = event.newLikeCount))
+                    }
+                }
+            }
+        }
+
         LaunchedEffect(Unit) {
             _events.receiveAsFlow().collect { action ->
                 state = when (action) {
@@ -120,6 +140,16 @@ class PostDetailViewModel(
         }
 
         return state
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        currentPostId?.let { postId ->
+            // Fire-and-forget unsubscribe; scope is about to be cancelled anyway
+            viewModelScope.launch {
+                notificationRepository.unsubscribeFromPost(postId)
+            }
+        }
     }
 
     private suspend fun loadPostDetail(
