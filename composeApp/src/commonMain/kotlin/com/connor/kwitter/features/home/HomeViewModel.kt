@@ -57,6 +57,7 @@ sealed interface HomeNavAction : HomeIntent {
     data object CreatePostClick : HomeNavAction
     data class MediaClick(val media: List<PostMedia>, val index: Int) : HomeNavAction
     data class AuthorClick(val userId: String) : HomeNavAction
+    data object SearchClick : HomeNavAction
 }
 
 class HomeViewModel(

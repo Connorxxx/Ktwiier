@@ -10,6 +10,7 @@ import com.connor.kwitter.features.mediaviewer.MediaViewerViewModel
 import com.connor.kwitter.features.postdetail.PostDetailViewModel
 import com.connor.kwitter.features.userprofile.UserProfileViewModel
 import com.connor.kwitter.features.userlist.UserListViewModel
+import com.connor.kwitter.features.search.SearchViewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
@@ -28,4 +29,5 @@ val viewModelModule = module {
     viewModelOf(::UserProfileViewModel)
     viewModelOf(::EditProfileViewModel)
     viewModelOf(::UserListViewModel)
+    viewModelOf(::SearchViewModel)
 }

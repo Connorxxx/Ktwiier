@@ -73,4 +73,13 @@
     <string name="profile_no_replies">No replies yet</string>
     <string name="profile_no_likes">No likes yet</string>
     <string name="profile_joined">Joined %1$s</string>
+
+    <string name="search_placeholder">Search posts, replies, users</string>
+    <string name="search_posts">Posts</string>
+    <string name="search_replies">Replies</string>
+    <string name="search_users">Users</string>
+    <string name="search_no_results">No results found</string>
+    <string name="search_empty_hint">Search for posts, replies, or users</string>
+    <string name="search_sort_best_match">Best match</string>
+    <string name="search_sort_latest">Latest</string>
 </resources>

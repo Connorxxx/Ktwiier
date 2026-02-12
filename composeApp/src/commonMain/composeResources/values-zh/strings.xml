@@ -43,4 +43,13 @@
     <string name="profile_no_replies">暂无回复</string>
     <string name="profile_no_likes">暂无喜欢</string>
     <string name="profile_joined">加入于 %1$s</string>
+
+    <string name="search_placeholder">搜索帖子、回复、用户</string>
+    <string name="search_posts">帖子</string>
+    <string name="search_replies">回复</string>
+    <string name="search_users">用户</string>
+    <string name="search_no_results">没有找到结果</string>
+    <string name="search_empty_hint">搜索帖子、回复或用户</string>
+    <string name="search_sort_best_match">最佳匹配</string>
+    <string name="search_sort_latest">最新</string>
 </resources>

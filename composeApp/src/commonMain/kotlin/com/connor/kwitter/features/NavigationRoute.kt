@@ -53,4 +53,7 @@ sealed interface NavigationRoute {
         val displayName: String,
         val listType: String // "following" or "followers"
     ) : NavigationRoute
+
+    @Serializable
+    data object Search : NavigationRoute
 }

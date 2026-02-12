@@ -36,6 +36,10 @@ import com.connor.kwitter.features.home.HomeAction
 import com.connor.kwitter.features.home.HomeNavAction
 import com.connor.kwitter.features.home.HomeScreen
 import com.connor.kwitter.features.home.HomeViewModel
+import com.connor.kwitter.features.search.SearchAction
+import com.connor.kwitter.features.search.SearchNavAction
+import com.connor.kwitter.features.search.SearchScreen
+import com.connor.kwitter.features.search.SearchViewModel
 import com.connor.kwitter.features.login.LoginAction
 import com.connor.kwitter.features.login.LoginNavAction
 import com.connor.kwitter.features.login.LoginScreen
@@ -231,6 +235,9 @@ fun MainScreen(
                                 )
                                 is HomeNavAction.AuthorClick -> mainState.onNavigate(
                                     NavigationRoute.UserProfile(userId = action.userId)
+                                )
+                                HomeNavAction.SearchClick -> mainState.onNavigate(
+                                    NavigationRoute.Search
                                 )
                             }
                         }
@@ -440,6 +447,35 @@ fun MainScreen(
                             is MediaViewerAction -> vm.onEvent(action)
                             is MediaViewerNavAction -> when (action) {
                                 MediaViewerNavAction.BackClick -> mainState.onBack()
+                            }
+                        }
+                    }
+                )
+            }
+
+            entry<NavigationRoute.Search> {
+                val vm: SearchViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                SearchScreen(
+                    state = state,
+                    onAction = { action ->
+                        when (action) {
+                            is SearchAction -> vm.onEvent(action)
+                            is SearchNavAction -> when (action) {
+                                SearchNavAction.BackClick -> mainState.onBack()
+                                is SearchNavAction.PostClick -> mainState.onNavigate(
+                                    NavigationRoute.PostDetail(action.postId)
+                                )
+                                is SearchNavAction.MediaClick -> navigateToMediaViewer(
+                                    action.media, action.index
+                                )
+                                is SearchNavAction.AuthorClick -> mainState.onNavigate(
+                                    NavigationRoute.UserProfile(userId = action.userId)
+                                )
+                                is SearchNavAction.UserClick -> mainState.onNavigate(
+                                    NavigationRoute.UserProfile(userId = action.userId)
+                                )
                             }
                         }
                     }

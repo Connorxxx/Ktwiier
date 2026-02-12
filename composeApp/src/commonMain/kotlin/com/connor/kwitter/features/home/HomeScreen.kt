@@ -67,6 +67,7 @@ import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import com.connor.kwitter.features.search.SearchIcon
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.home_empty
 import org.jetbrains.compose.resources.stringResource
@@ -107,6 +108,7 @@ fun HomeScreen(
                         onAction(HomeNavAction.AuthorClick(userId))
                     }
                 },
+                onSearchClick = { onAction(HomeNavAction.SearchClick) },
                 onLogoutClick = { onAction(HomeAction.LogoutClick) }
             )
         },
@@ -262,6 +264,7 @@ private fun NewPostsBanner(
 @Composable
 private fun HomeTopBar(
     onProfileClick: (() -> Unit)?,
+    onSearchClick: () -> Unit,
     onLogoutClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -278,6 +281,19 @@ private fun HomeTopBar(
                 }
             },
             actions = {
+                IconButton(
+                    onClick = onSearchClick,
+                    modifier = Modifier
+                        .padding(end = 2.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                ) {
+                    SearchIcon(
+                        modifier = Modifier.size(18.dp),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 IconButton(
                     onClick = onLogoutClick,
                     modifier = Modifier

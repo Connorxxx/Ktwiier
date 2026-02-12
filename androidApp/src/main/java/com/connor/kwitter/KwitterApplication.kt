@@ -7,6 +7,7 @@ import com.connor.kwitter.core.di.networkModule
 import com.connor.kwitter.core.di.notificationModule
 import com.connor.kwitter.core.di.platformModule
 import com.connor.kwitter.core.di.postModule
+import com.connor.kwitter.core.di.searchModule
 import com.connor.kwitter.core.di.userModule
 import com.connor.kwitter.core.di.viewModelModule
 import org.koin.android.ext.koin.androidContext
@@ -33,6 +34,7 @@ class KwitterApplication : Application() {
                 mediaModule,          // 媒体模块（MediaRepository）
                 postModule,           // 帖子模块（Repository, DataSource）
                 userModule,           // 用户模块（Repository, DataSource）
+                searchModule,         // 搜索模块（Repository, DataSource）
                 viewModelModule       // ViewModel 模块
             )
         }
