@@ -475,6 +475,9 @@ fun MainScreen(
 
                 SearchScreen(
                     state = state,
+                    postsPaging = vm.postsPaging,
+                    repliesPaging = vm.repliesPaging,
+                    usersPaging = vm.usersPaging,
                     onAction = { action ->
                         when (action) {
                             is SearchAction -> vm.onEvent(action)

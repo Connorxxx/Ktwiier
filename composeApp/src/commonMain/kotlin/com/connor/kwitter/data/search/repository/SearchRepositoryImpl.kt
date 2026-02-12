@@ -1,39 +1,47 @@
 package com.connor.kwitter.data.search.repository
 
-import arrow.core.Either
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import com.connor.kwitter.data.search.datasource.SearchPagingSource
 import com.connor.kwitter.data.search.datasource.SearchRemoteDataSource
-import com.connor.kwitter.domain.post.model.PostList
-import com.connor.kwitter.domain.search.model.SearchError
+import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.search.repository.SearchRepository
-import com.connor.kwitter.domain.user.model.UserList
+import com.connor.kwitter.domain.user.model.UserListItem
+import kotlinx.coroutines.flow.Flow
 
 class SearchRepositoryImpl(
     private val remoteDataSource: SearchRemoteDataSource
 ) : SearchRepository {
 
-    override suspend fun searchPosts(
-        query: String,
-        sort: String,
-        limit: Int,
-        offset: Int
-    ): Either<SearchError, PostList> {
-        return remoteDataSource.searchPosts(query, sort, limit, offset)
+    private companion object {
+        const val PAGE_SIZE = 20
     }
 
-    override suspend fun searchReplies(
-        query: String,
-        sort: String,
-        limit: Int,
-        offset: Int
-    ): Either<SearchError, PostList> {
-        return remoteDataSource.searchReplies(query, sort, limit, offset)
-    }
+    override fun searchPostsPaging(query: String, sort: String): Flow<PagingData<Post>> = Pager(
+        config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
+    ) {
+        SearchPagingSource { limit, offset ->
+            remoteDataSource.searchPosts(query, sort, limit, offset)
+                .map { it.posts to it.hasMore }
+        }
+    }.flow
 
-    override suspend fun searchUsers(
-        query: String,
-        limit: Int,
-        offset: Int
-    ): Either<SearchError, UserList> {
-        return remoteDataSource.searchUsers(query, limit, offset)
-    }
+    override fun searchRepliesPaging(query: String, sort: String): Flow<PagingData<Post>> = Pager(
+        config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
+    ) {
+        SearchPagingSource { limit, offset ->
+            remoteDataSource.searchReplies(query, sort, limit, offset)
+                .map { it.posts to it.hasMore }
+        }
+    }.flow
+
+    override fun searchUsersPaging(query: String): Flow<PagingData<UserListItem>> = Pager(
+        config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
+    ) {
+        SearchPagingSource { limit, offset ->
+            remoteDataSource.searchUsers(query, limit, offset)
+                .map { it.users to it.hasMore }
+        }
+    }.flow
 }

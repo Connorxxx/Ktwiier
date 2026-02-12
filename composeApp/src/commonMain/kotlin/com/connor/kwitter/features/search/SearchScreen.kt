@@ -16,14 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -42,13 +39,11 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,10 +58,17 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.paging.LoadState
+import androidx.paging.PagingData
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.ui.PostItem
+import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.user.model.UserListItem
+import kotlinx.coroutines.flow.Flow
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_follow
 import kwitter.composeapp.generated.resources.profile_following
@@ -84,6 +86,9 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun SearchScreen(
     state: SearchUiState,
+    postsPaging: Flow<PagingData<Post>>,
+    repliesPaging: Flow<PagingData<Post>>,
+    usersPaging: Flow<PagingData<UserListItem>>,
     onAction: (SearchIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -132,10 +137,20 @@ fun SearchScreen(
                     )
                 }
 
-                SearchContent(
-                    state = state,
-                    onAction = onAction
-                )
+                when (state.selectedTab) {
+                    SearchTab.POSTS -> PostPagingList(
+                        pagingFlow = postsPaging,
+                        onAction = onAction
+                    )
+                    SearchTab.REPLIES -> PostPagingList(
+                        pagingFlow = repliesPaging,
+                        onAction = onAction
+                    )
+                    SearchTab.USERS -> UserPagingList(
+                        pagingFlow = usersPaging,
+                        onAction = onAction
+                    )
+                }
             } else {
                 SearchEmptyHint()
             }
@@ -280,12 +295,15 @@ private fun SortChips(
 }
 
 @Composable
-private fun SearchContent(
-    state: SearchUiState,
+private fun PostPagingList(
+    pagingFlow: Flow<PagingData<Post>>,
     onAction: (SearchIntent) -> Unit
 ) {
+    val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
+    val refreshState = lazyPagingItems.loadState.refresh
+
     when {
-        state.isSearching || state.isLoadingTab -> {
+        refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -294,68 +312,45 @@ private fun SearchContent(
             }
         }
 
-        else -> {
-            when (state.selectedTab) {
-                SearchTab.POSTS -> PostResultsList(
-                    posts = state.posts,
-                    isLoadingMore = state.isLoadingMore,
-                    hasMore = state.postsHasMore,
-                    onAction = onAction
-                )
-                SearchTab.REPLIES -> PostResultsList(
-                    posts = state.replies,
-                    isLoadingMore = state.isLoadingMore,
-                    hasMore = state.repliesHasMore,
-                    onAction = onAction
-                )
-                SearchTab.USERS -> UserResultsList(
-                    users = state.users,
-                    isLoadingMore = state.isLoadingMore,
-                    hasMore = state.usersHasMore,
-                    onAction = onAction
+        refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = refreshState.error.message ?: "Search failed",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp)
                 )
             }
+        }
+
+        refreshState is LoadState.NotLoading && lazyPagingItems.itemCount == 0 -> {
+            SearchNoResults()
+        }
+
+        else -> {
+            PostPagingContent(lazyPagingItems, onAction)
         }
     }
 }
 
 @Composable
-private fun PostResultsList(
-    posts: List<com.connor.kwitter.domain.post.model.Post>,
-    isLoadingMore: Boolean,
-    hasMore: Boolean,
+private fun PostPagingContent(
+    lazyPagingItems: LazyPagingItems<Post>,
     onAction: (SearchIntent) -> Unit
 ) {
-    if (posts.isEmpty()) {
-        SearchNoResults()
-        return
-    }
-
-    val listState = rememberLazyListState()
-
-    val shouldLoadMore = remember {
-        derivedStateOf {
-            val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
-                ?: return@derivedStateOf false
-            lastVisibleItem.index >= listState.layoutInfo.totalItemsCount - 3
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        snapshotFlow { shouldLoadMore.value }
-            .collect { shouldLoad ->
-                if (shouldLoad && !isLoadingMore && hasMore) {
-                    onAction(SearchAction.LoadMore)
-                }
-            }
-    }
-
     LazyColumn(
-        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp)
     ) {
-        items(posts, key = { it.id }) { post ->
+        items(
+            count = lazyPagingItems.itemCount,
+            key = lazyPagingItems.itemKey { it.id }
+        ) { index ->
+            val post = lazyPagingItems[index] ?: return@items
             PostItem(
                 post = post,
                 onClick = { onAction(SearchNavAction.PostClick(post.id)) },
@@ -385,7 +380,7 @@ private fun PostResultsList(
             )
         }
 
-        if (isLoadingMore) {
+        if (lazyPagingItems.loadState.append is LoadState.Loading) {
             item(key = "loading_more") {
                 Box(
                     modifier = Modifier
@@ -405,42 +400,62 @@ private fun PostResultsList(
 }
 
 @Composable
-private fun UserResultsList(
-    users: List<UserListItem>,
-    isLoadingMore: Boolean,
-    hasMore: Boolean,
+private fun UserPagingList(
+    pagingFlow: Flow<PagingData<UserListItem>>,
     onAction: (SearchIntent) -> Unit
 ) {
-    if (users.isEmpty()) {
-        SearchNoResults()
-        return
-    }
+    val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
+    val refreshState = lazyPagingItems.loadState.refresh
 
-    val listState = rememberLazyListState()
+    when {
+        refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        }
 
-    val shouldLoadMore = remember {
-        derivedStateOf {
-            val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
-                ?: return@derivedStateOf false
-            lastVisibleItem.index >= listState.layoutInfo.totalItemsCount - 3
+        refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = refreshState.error.message ?: "Search failed",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                )
+            }
+        }
+
+        refreshState is LoadState.NotLoading && lazyPagingItems.itemCount == 0 -> {
+            SearchNoResults()
+        }
+
+        else -> {
+            UserPagingContent(lazyPagingItems, onAction)
         }
     }
+}
 
-    LaunchedEffect(Unit) {
-        snapshotFlow { shouldLoadMore.value }
-            .collect { shouldLoad ->
-                if (shouldLoad && !isLoadingMore && hasMore) {
-                    onAction(SearchAction.LoadMore)
-                }
-            }
-    }
-
+@Composable
+private fun UserPagingContent(
+    lazyPagingItems: LazyPagingItems<UserListItem>,
+    onAction: (SearchIntent) -> Unit
+) {
     LazyColumn(
-        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 8.dp)
     ) {
-        items(users, key = { it.id }) { user ->
+        items(
+            count = lazyPagingItems.itemCount,
+            key = lazyPagingItems.itemKey { it.id }
+        ) { index ->
+            val user = lazyPagingItems[index] ?: return@items
             SearchUserRow(
                 user = user,
                 onClick = { onAction(SearchNavAction.UserClick(user.id)) },
@@ -455,7 +470,7 @@ private fun UserResultsList(
             )
         }
 
-        if (isLoadingMore) {
+        if (lazyPagingItems.loadState.append is LoadState.Loading) {
             item(key = "loading_more") {
                 Box(
                     modifier = Modifier
