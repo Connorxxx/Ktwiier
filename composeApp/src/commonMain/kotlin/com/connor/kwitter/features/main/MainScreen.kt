@@ -48,6 +48,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
 import com.connor.kwitter.features.NavigationRoute
 import com.connor.kwitter.domain.post.model.PostMedia
@@ -109,9 +110,14 @@ import org.koin.compose.viewmodel.koinViewModel
 private val MainBottomElementBottomPadding = 26.dp
 private val MainBottomHorizontalPadding = 22.dp
 private val MainBottomBarHeight = 62.dp
+private const val MainTabSceneMetadataKey = "main.tab.scene"
+private val mainTabSceneMetadata = mapOf(MainTabSceneMetadataKey to true)
 
 private fun shouldShowMainBottomBar(route: NavigationRoute?): Boolean =
     route?.toBottomTabOrNull() != null
+
+private fun Scene<NavigationRoute>.isMainTabScene(): Boolean =
+    metadata[MainTabSceneMetadataKey] == true
 
 @Composable
 fun MainScreen(
@@ -181,77 +187,92 @@ fun MainScreen(
             onBack = mainState.onBack,
 
         transitionSpec = {
-            (slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth / 3 },
-                animationSpec = tween(400)
-            ) + fadeIn(
-                animationSpec = tween(400)
-            ) + scaleIn(
-                initialScale = 0.92f,
-                transformOrigin = TransformOrigin(0.5f, 0.5f),
-                animationSpec = tween(400)
-            )) togetherWith (
-                slideOutHorizontally(
-                    targetOffsetX = { fullWidth -> -fullWidth / 4 },
+            if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
+                fadeIn(animationSpec = tween(220)) togetherWith
+                    fadeOut(animationSpec = tween(180))
+            } else {
+                (slideInHorizontally(
+                    initialOffsetX = { fullWidth -> fullWidth / 3 },
                     animationSpec = tween(400)
-                ) + fadeOut(
-                    animationSpec = tween(300)
-                ) + scaleOut(
-                    targetScale = 0.95f,
+                ) + fadeIn(
+                    animationSpec = tween(400)
+                ) + scaleIn(
+                    initialScale = 0.92f,
                     transformOrigin = TransformOrigin(0.5f, 0.5f),
                     animationSpec = tween(400)
+                )) togetherWith (
+                    slideOutHorizontally(
+                        targetOffsetX = { fullWidth -> -fullWidth / 4 },
+                        animationSpec = tween(400)
+                    ) + fadeOut(
+                        animationSpec = tween(300)
+                    ) + scaleOut(
+                        targetScale = 0.95f,
+                        transformOrigin = TransformOrigin(0.5f, 0.5f),
+                        animationSpec = tween(400)
+                    )
                 )
-            )
+            }
         },
 
         popTransitionSpec = {
-            (slideInHorizontally(
-                initialOffsetX = { fullWidth -> -fullWidth / 4 },
-                animationSpec = tween(400)
-            ) + fadeIn(
-                animationSpec = tween(400)
-            ) + scaleIn(
-                initialScale = 0.95f,
-                transformOrigin = TransformOrigin(0.5f, 0.5f),
-                animationSpec = tween(400)
-            )) togetherWith (
-                slideOutHorizontally(
-                    targetOffsetX = { fullWidth -> fullWidth / 3 },
+            if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
+                fadeIn(animationSpec = tween(220)) togetherWith
+                    fadeOut(animationSpec = tween(180))
+            } else {
+                (slideInHorizontally(
+                    initialOffsetX = { fullWidth -> -fullWidth / 4 },
                     animationSpec = tween(400)
-                ) + fadeOut(
-                    animationSpec = tween(300)
-                ) + scaleOut(
-                    targetScale = 0.92f,
+                ) + fadeIn(
+                    animationSpec = tween(400)
+                ) + scaleIn(
+                    initialScale = 0.95f,
                     transformOrigin = TransformOrigin(0.5f, 0.5f),
                     animationSpec = tween(400)
+                )) togetherWith (
+                    slideOutHorizontally(
+                        targetOffsetX = { fullWidth -> fullWidth / 3 },
+                        animationSpec = tween(400)
+                    ) + fadeOut(
+                        animationSpec = tween(300)
+                    ) + scaleOut(
+                        targetScale = 0.92f,
+                        transformOrigin = TransformOrigin(0.5f, 0.5f),
+                        animationSpec = tween(400)
+                    )
                 )
-            )
+            }
         },
 
         predictivePopTransitionSpec = {
-            (slideInHorizontally(
-                initialOffsetX = { fullWidth -> -fullWidth / 4 },
-                animationSpec = tween(400)
-            ) + fadeIn(
-                animationSpec = tween(400)
-            ) + scaleIn(
-                initialScale = 0.95f,
-                animationSpec = tween(400)
-            )) togetherWith (
-                slideOutHorizontally(
-                    targetOffsetX = { fullWidth -> fullWidth / 3 },
+            if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
+                fadeIn(animationSpec = tween(220)) togetherWith
+                    fadeOut(animationSpec = tween(180))
+            } else {
+                (slideInHorizontally(
+                    initialOffsetX = { fullWidth -> -fullWidth / 4 },
                     animationSpec = tween(400)
-                ) + fadeOut(
-                    animationSpec = tween(300)
-                ) + scaleOut(
-                    targetScale = 0.92f,
+                ) + fadeIn(
                     animationSpec = tween(400)
+                ) + scaleIn(
+                    initialScale = 0.95f,
+                    animationSpec = tween(400)
+                )) togetherWith (
+                    slideOutHorizontally(
+                        targetOffsetX = { fullWidth -> fullWidth / 3 },
+                        animationSpec = tween(400)
+                    ) + fadeOut(
+                        animationSpec = tween(300)
+                    ) + scaleOut(
+                        targetScale = 0.92f,
+                        animationSpec = tween(400)
+                    )
                 )
-            )
+            }
         },
 
         entryProvider = entryProvider {
-            entry<NavigationRoute.Home> {
+            entry<NavigationRoute.Home>(metadata = mainTabSceneMetadata) {
                 val vm: HomeViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
 
@@ -534,7 +555,7 @@ fun MainScreen(
                 )
             }
 
-            entry<NavigationRoute.Search> {
+            entry<NavigationRoute.Search>(metadata = mainTabSceneMetadata) {
                 val vm: SearchViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
 
@@ -566,7 +587,7 @@ fun MainScreen(
                 )
             }
 
-            entry<NavigationRoute.Settings> {
+            entry<NavigationRoute.Settings>(metadata = mainTabSceneMetadata) {
                 val vm: SettingsViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
 
@@ -580,7 +601,7 @@ fun MainScreen(
                 )
             }
 
-            entry<NavigationRoute.ConversationList> {
+            entry<NavigationRoute.ConversationList>(metadata = mainTabSceneMetadata) {
                 val vm: ConversationListViewModel = koinViewModel()
 
                 ConversationListScreen(

@@ -51,6 +51,26 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
                 selectedImage: UIImage(systemName: "gearshape.fill")
             )
         ]
+
+        let appearance = nativeTabBar.standardAppearance
+        let titleOffset = UIOffset(horizontal: 0.0, vertical: 0.0)
+        let itemAppearances = [
+            appearance.stackedLayoutAppearance,
+            appearance.inlineLayoutAppearance,
+            appearance.compactInlineLayoutAppearance
+        ]
+        itemAppearances.forEach { itemAppearance in
+            itemAppearance.normal.titlePositionAdjustment = titleOffset
+            itemAppearance.selected.titlePositionAdjustment = titleOffset
+        }
+        nativeTabBar.standardAppearance = appearance
+        if #available(iOS 15.0, *) {
+            nativeTabBar.scrollEdgeAppearance = appearance
+        }
+
+        tabItems.forEach { item in
+            item.imageInsets = .zero
+        }
         nativeTabBar.setItems(tabItems, animated: false)
         nativeTabBar.selectedItem = tabItems.first
         nativeTabBar.delegate = self
@@ -67,14 +87,11 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
         let fittedHeight = nativeTabBar.sizeThatFits(
             CGSize(width: view.bounds.width, height: 0.0)
         ).height
-        let safeBottom = view.safeAreaInsets.bottom
-        let totalHeight = fittedHeight + safeBottom
-
         nativeTabBar.frame = CGRect(
             x: 0.0,
-            y: view.bounds.height - totalHeight,
+            y: view.bounds.height - fittedHeight,
             width: view.bounds.width,
-            height: totalHeight
+            height: fittedHeight
         )
         view.bringSubviewToFront(nativeTabBar)
     }
