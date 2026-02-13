@@ -9,27 +9,24 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -50,27 +47,46 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.theme.LocalIsDarkTheme
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
-import com.connor.kwitter.features.search.SearchIcon
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.home_empty
 import org.jetbrains.compose.resources.stringResource
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+@Suppress("UNUSED_PARAMETER")
+fun HomeScreen(
+    state: HomeUiState,
+    pagingFlow: Flow<PagingData<Post>>,
+    hazeState: HazeState,
+    onAction: (HomeIntent) -> Unit
+) {
+    HomeScreen(
+        state = state,
+        pagingFlow = pagingFlow,
+        onAction = onAction
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,6 +99,7 @@ fun HomeScreen(
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val hazeState = rememberHazeState()
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -103,41 +120,34 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             HomeTopBar(
+                hazeState = hazeState,
+                onCreatePostClick = {
+                    onAction(HomeNavAction.CreatePostClick)
+                },
                 onProfileClick = state.currentUserId?.let { userId ->
                     {
                         onAction(HomeNavAction.AuthorClick(userId))
                     }
-                },
-                onMessagesClick = { onAction(HomeNavAction.MessagesClick) },
-                onSearchClick = { onAction(HomeNavAction.SearchClick) },
-                onLogoutClick = { onAction(HomeAction.LogoutClick) }
+                }
             )
         },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { onAction(HomeNavAction.CreatePostClick) },
-                containerColor = MaterialTheme.colorScheme.primary
-            ) {
-                PlusIcon(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            }
-        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
         val refreshState = lazyPagingItems.loadState.refresh
+        val topOverlayPadding = paddingValues.calculateTopPadding()
+        val bottomInsetPadding = paddingValues.calculateBottomPadding()
 
         PullToRefreshBox(
             isRefreshing = refreshState is LoadState.Loading,
             onRefresh = { lazyPagingItems.refresh() },
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(bottom = bottomInsetPadding)
         ) {
-            when {
-                refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
+            when (refreshState) {
+                is LoadState.Loading if lazyPagingItems.itemCount == 0 -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -146,14 +156,14 @@ fun HomeScreen(
                     }
                 }
 
-                refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
+                is LoadState.Error if lazyPagingItems.itemCount == 0 -> {
                     TimelineLoadErrorState(
                         message = refreshState.error.message ?: "Failed to load timeline",
                         onRetry = { lazyPagingItems.refresh() }
                     )
                 }
 
-                refreshState is LoadState.NotLoading && lazyPagingItems.itemCount == 0 -> {
+                is LoadState.NotLoading if lazyPagingItems.itemCount == 0 -> {
                     EmptyTimelineState()
                 }
 
@@ -162,74 +172,131 @@ fun HomeScreen(
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             state = listState,
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            contentPadding = PaddingValues(
+                                start = 16.dp,
+                                top = topOverlayPadding + 8.dp,
+                                end = 16.dp,
+                                bottom = bottomInsetPadding + 8.dp
+                            ),
                             overscrollEffect = null
                         ) {
                             items(
-                            count = lazyPagingItems.itemCount,
-                            key = lazyPagingItems.itemKey { it.id }
-                        ) { index ->
-                            val post = lazyPagingItems[index] ?: return@items
-                            PostItem(
-                                post = post,
-                                onClick = { onAction(HomeNavAction.PostClick(post.id)) },
-                                onLikeClick = {
-                                    onAction(
-                                        HomeAction.ToggleLike(
-                                            postId = post.id,
-                                            isCurrentlyLiked = post.isLikedByCurrentUser == true,
-                                            currentLikeCount = post.stats.likeCount
-                                        )
-                                    )
-                                },
-                                onBookmarkClick = {
-                                    onAction(
-                                        HomeAction.ToggleBookmark(
-                                            postId = post.id,
-                                            isCurrentlyBookmarked = post.isBookmarkedByCurrentUser == true
-                                        )
-                                    )
-                                },
-                                onMediaClick = { index ->
-                                    onAction(HomeNavAction.MediaClick(post.media, index))
-                                },
-                                onAuthorClick = {
-                                    onAction(HomeNavAction.AuthorClick(post.author.id))
-                                }
-                            )
-                        }
-
-                        if (lazyPagingItems.loadState.append is LoadState.Loading) {
-                            item {
+                                count = lazyPagingItems.itemCount,
+                                key = lazyPagingItems.itemKey { it.id }
+                            ) { index ->
+                                val post = lazyPagingItems[index] ?: return@items
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
+                                        .hazeSource(
+                                            state = hazeState,
+                                            zIndex = 0f,
+                                            key = "home_post_item"
+                                        )
                                 ) {
-                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                    PostItem(
+                                        post = post,
+                                        onClick = { onAction(HomeNavAction.PostClick(post.id)) },
+                                        onLikeClick = {
+                                            onAction(
+                                                HomeAction.ToggleLike(
+                                                    postId = post.id,
+                                                    isCurrentlyLiked = post.isLikedByCurrentUser == true,
+                                                    currentLikeCount = post.stats.likeCount
+                                                )
+                                            )
+                                        },
+                                        onBookmarkClick = {
+                                            onAction(
+                                                HomeAction.ToggleBookmark(
+                                                    postId = post.id,
+                                                    isCurrentlyBookmarked = post.isBookmarkedByCurrentUser == true
+                                                )
+                                            )
+                                        },
+                                        onMediaClick = { index ->
+                                            onAction(HomeNavAction.MediaClick(post.media, index))
+                                        },
+                                        onAuthorClick = {
+                                            onAction(HomeNavAction.AuthorClick(post.author.id))
+                                        }
+                                    )
+                                }
+                            }
+
+                            if (lazyPagingItems.loadState.append is LoadState.Loading) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    NewPostsBanner(
-                        count = state.newPostCount,
-                        onClick = {
-                            onAction(HomeAction.NewPostsBannerClick)
-                            lazyPagingItems.refresh()
-                            coroutineScope.launch {
-                                listState.animateScrollToItem(0)
-                            }
-                        },
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 8.dp)
-                    )
+                        NewPostsBanner(
+                            count = state.newPostCount,
+                            onClick = {
+                                onAction(HomeAction.NewPostsBannerClick)
+                                lazyPagingItems.refresh()
+                                coroutineScope.launch {
+                                    listState.animateScrollToItem(0)
+                                }
+                            },
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = topOverlayPadding + 8.dp)
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun GlassFloatingButton(
+    modifier: Modifier = Modifier,
+    size: Dp = 58.dp,
+    hazeState: HazeState,
+    onClick: () -> Unit
+) {
+    val isDark = LocalIsDarkTheme.current
+    val borderBrush = Brush.verticalGradient(
+        colors = listOf(
+            Color.White.copy(alpha = if (isDark) 0.16f else 0.55f),
+            Color.White.copy(alpha = if (isDark) 0.04f else 0.1f)
+        )
+    )
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(CircleShape)
+            .hazeEffect(state = hazeState) {
+                blurRadius = 32.dp
+                noiseFactor = 0.04f
+            }
+            .background(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = if (isDark) 0.14f else 0.2f),
+                shape = CircleShape
+            )
+            .border(width = 0.5.dp, brush = borderBrush, shape = CircleShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        PlusIcon(
+            modifier = Modifier.size(24.dp),
+            color = if (isDark) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.primary
+        )
     }
 }
 
@@ -264,12 +331,41 @@ private fun NewPostsBanner(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeTopBar(
-    onProfileClick: (() -> Unit)?,
-    onMessagesClick: () -> Unit,
-    onSearchClick: () -> Unit,
-    onLogoutClick: () -> Unit
+    hazeState: HazeState,
+    onCreatePostClick: () -> Unit,
+    onProfileClick: (() -> Unit)?
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    val isDark = LocalIsDarkTheme.current
+    val topBarShape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp)
+    val borderBrush = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = if (isDark) 0.14f else 0.5f),
+            Color.White.copy(alpha = if (isDark) 0.03f else 0.1f)
+        )
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .hazeSource(
+                state = hazeState,
+                zIndex = 1f,
+                key = "home_top_bar"
+            )
+            .clip(topBarShape)
+            .hazeEffect(state = hazeState) {
+                blurRadius = 25.dp
+                noiseFactor = 0.02f
+                canDrawArea = { area ->
+                    area.key != "home_top_bar"
+                }
+            }
+            .background(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = if (isDark) 0.24f else 0.42f),
+                shape = topBarShape
+            )
+            .border(width = 0.5.dp, brush = borderBrush, shape = topBarShape)
+    ) {
         CenterAlignedTopAppBar(
             title = {
                 KwitterLogo(
@@ -283,49 +379,17 @@ private fun HomeTopBar(
                 }
             },
             actions = {
-                IconButton(
-                    onClick = onMessagesClick,
-                    modifier = Modifier
-                        .padding(end = 2.dp)
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                ) {
-                    EnvelopeIcon(
-                        modifier = Modifier.size(18.dp),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                IconButton(
-                    onClick = onSearchClick,
-                    modifier = Modifier
-                        .padding(end = 2.dp)
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                ) {
-                    SearchIcon(
-                        modifier = Modifier.size(18.dp),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                IconButton(
-                    onClick = onLogoutClick,
-                    modifier = Modifier
-                        .padding(end = 6.dp)
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                ) {
-                    LogoutIcon(
-                        modifier = Modifier.size(18.dp),
-                        color = MaterialTheme.colorScheme.onSurface
+                Box(modifier = Modifier.padding(end = 12.dp)) {
+                    GlassFloatingButton(
+                        size = 40.dp,
+                        hazeState = hazeState,
+                        onClick = onCreatePostClick
                     )
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.background,
-                scrolledContainerColor = MaterialTheme.colorScheme.background
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
             )
         )
 
@@ -333,7 +397,7 @@ private fun HomeTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(1.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.16f))
         )
     }
 }
@@ -469,82 +533,6 @@ private fun KwitterLogo(
         drawLine(resolvedColor, Offset(left, midY), Offset(right, top), stroke, cap = StrokeCap.Round)
         // Lower diagonal
         drawLine(resolvedColor, Offset(left, midY), Offset(right, bottom), stroke, cap = StrokeCap.Round)
-    }
-}
-
-@Composable
-private fun LogoutIcon(
-    modifier: Modifier = Modifier,
-    color: Color = Color.Unspecified
-) {
-    val resolvedColor = if (color == Color.Unspecified) {
-        MaterialTheme.colorScheme.onSurface
-    } else {
-        color
-    }
-    Canvas(modifier = modifier) {
-        val stroke = size.minDimension * 0.12f
-        // Door frame (right side open)
-        val left = size.width * 0.3f
-        val top = size.height * 0.15f
-        val bottom = size.height * 0.85f
-        val right = size.width * 0.75f
-        // Top line
-        drawLine(resolvedColor, Offset(left, top), Offset(right, top), stroke, cap = StrokeCap.Round)
-        // Bottom line
-        drawLine(resolvedColor, Offset(left, bottom), Offset(right, bottom), stroke, cap = StrokeCap.Round)
-        // Left line
-        drawLine(resolvedColor, Offset(left, top), Offset(left, bottom), stroke, cap = StrokeCap.Round)
-        // Arrow line (horizontal)
-        val arrowY = size.height * 0.5f
-        val arrowLeft = size.width * 0.1f
-        val arrowRight = size.width * 0.65f
-        drawLine(resolvedColor, Offset(arrowLeft, arrowY), Offset(arrowRight, arrowY), stroke, cap = StrokeCap.Round)
-        // Arrow head
-        val arrowSize = size.width * 0.15f
-        drawLine(
-            resolvedColor,
-            Offset(arrowLeft, arrowY),
-            Offset(arrowLeft + arrowSize, arrowY - arrowSize),
-            stroke,
-            cap = StrokeCap.Round
-        )
-        drawLine(
-            resolvedColor,
-            Offset(arrowLeft, arrowY),
-            Offset(arrowLeft + arrowSize, arrowY + arrowSize),
-            stroke,
-            cap = StrokeCap.Round
-        )
-    }
-}
-
-@Composable
-private fun EnvelopeIcon(
-    modifier: Modifier = Modifier,
-    color: Color = Color.Unspecified
-) {
-    val resolvedColor = if (color == Color.Unspecified) {
-        MaterialTheme.colorScheme.onSurface
-    } else {
-        color
-    }
-    Canvas(modifier = modifier) {
-        val stroke = size.minDimension * 0.1f
-        val left = size.width * 0.1f
-        val right = size.width * 0.9f
-        val top = size.height * 0.2f
-        val bottom = size.height * 0.8f
-        val centerX = size.width * 0.5f
-        val peakY = size.height * 0.5f
-        // Envelope body
-        drawLine(resolvedColor, Offset(left, top), Offset(right, top), stroke, cap = StrokeCap.Round)
-        drawLine(resolvedColor, Offset(right, top), Offset(right, bottom), stroke, cap = StrokeCap.Round)
-        drawLine(resolvedColor, Offset(right, bottom), Offset(left, bottom), stroke, cap = StrokeCap.Round)
-        drawLine(resolvedColor, Offset(left, bottom), Offset(left, top), stroke, cap = StrokeCap.Round)
-        // Envelope flap (V shape)
-        drawLine(resolvedColor, Offset(left, top), Offset(centerX, peakY), stroke, cap = StrokeCap.Round)
-        drawLine(resolvedColor, Offset(centerX, peakY), Offset(right, top), stroke, cap = StrokeCap.Round)
     }
 }
 
