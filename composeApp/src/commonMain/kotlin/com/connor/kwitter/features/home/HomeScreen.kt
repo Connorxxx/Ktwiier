@@ -14,12 +14,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -42,24 +44,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
-import com.connor.kwitter.features.glass.NativeGlassTopBar
-import com.connor.kwitter.features.glass.supportsNativeGlassBars
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.theme.LocalIsDarkTheme
 import com.connor.kwitter.core.ui.PostItem
+import com.connor.kwitter.features.glass.NativeTopBarAction
+import com.connor.kwitter.features.glass.getNativeTopBarController
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
@@ -70,7 +73,7 @@ import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.home_empty
 import org.jetbrains.compose.resources.stringResource
 
-private val NativeHomeTopBarHeight = 108.dp
+private val NativeHomeTopBarHeight = 116.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,8 +86,7 @@ fun HomeScreen(
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
-    val useNativeGlassBars = remember { supportsNativeGlassBars() }
-    val isDarkTheme = LocalIsDarkTheme.current
+    val nativeTopBarController = remember { getNativeTopBarController() }
     val onProfileClick = state.currentUserId?.let { userId ->
         { onAction(HomeNavAction.AuthorClick(userId)) }
     }
@@ -105,21 +107,33 @@ fun HomeScreen(
         }
     }
 
+    LaunchedEffect(nativeTopBarController, state.currentUserId) {
+        nativeTopBarController?.actionEvents?.collect { action ->
+            when (action) {
+                NativeTopBarAction.CreatePost -> {
+                    onAction(HomeNavAction.CreatePostClick)
+                }
+                NativeTopBarAction.Profile -> {
+                    state.currentUserId?.let { userId ->
+                        onAction(HomeNavAction.AuthorClick(userId))
+                    }
+                }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
-            if (useNativeGlassBars) {
-                NativeGlassTopBar(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(NativeHomeTopBarHeight),
-                    isDarkTheme = isDarkTheme,
+            if (nativeTopBarController == null) {
+                HomeTopBar(
                     onCreatePostClick = { onAction(HomeNavAction.CreatePostClick) },
                     onProfileClick = onProfileClick
                 )
             } else {
-                ComposeHomeTopBar(
-                    onCreatePostClick = { onAction(HomeNavAction.CreatePostClick) },
-                    onProfileClick = onProfileClick
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(NativeHomeTopBarHeight)
                 )
             }
         },
@@ -241,36 +255,6 @@ fun HomeScreen(
 }
 
 @Composable
-fun GlassFloatingButton(
-    modifier: Modifier = Modifier,
-    size: Dp = 58.dp,
-    onClick: () -> Unit
-) {
-    val isDark = LocalIsDarkTheme.current
-
-    GlassSurface(
-        modifier = modifier
-            .size(size)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            ),
-        shape = CircleShape
-    ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            PlusIcon(
-                modifier = Modifier.size(24.dp),
-                color = if (isDark) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.primary
-            )
-        }
-    }
-}
-
-@Composable
 private fun NewPostsBanner(
     count: Int,
     onClick: () -> Unit,
@@ -300,50 +284,114 @@ private fun NewPostsBanner(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ComposeHomeTopBar(
+private fun HomeTopBar(
     onCreatePostClick: () -> Unit,
     onProfileClick: (() -> Unit)?
 ) {
-    val topBarShape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp)
+    val isDark = LocalIsDarkTheme.current
+    val topBarShape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.48f else 0.82f)
+    val sheenBrush = Brush.verticalGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.surface.copy(alpha = if (isDark) 0.36f else 0.72f),
+            Color.Transparent
+        )
+    )
 
     GlassSurface(
         modifier = Modifier.fillMaxWidth(),
         shape = topBarShape
     ) {
-        Column {
-            CenterAlignedTopAppBar(
-                title = {
-                    KwitterLogo(
-                        modifier = Modifier.size(30.dp),
-                        color = MaterialTheme.colorScheme.primary
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(sheenBrush)
+            ) {
+                CenterAlignedTopAppBar(
+                    title = {
+                        HomeTopBarTitle()
+                    },
+                    navigationIcon = {
+                        Box(modifier = Modifier.padding(start = 14.dp)) {
+                            ProfilePlaceholder(onClick = onProfileClick)
+                        }
+                    },
+                    actions = {
+                        Box(modifier = Modifier.padding(end = 14.dp)) {
+                            CreatePostButton(onClick = onCreatePostClick)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = Color.Transparent
                     )
-                },
-                navigationIcon = {
-                    Box(modifier = Modifier.padding(start = 12.dp)) {
-                        ProfilePlaceholder(onClick = onProfileClick)
-                    }
-                },
-                actions = {
-                    Box(modifier = Modifier.padding(end = 12.dp)) {
-                        GlassFloatingButton(
-                            size = 40.dp,
-                            onClick = onCreatePostClick
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent
                 )
-            )
-
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.16f))
+                    .background(dividerColor)
             )
         }
+    }
+}
+
+@Composable
+private fun HomeTopBarTitle() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        KwitterLogo(
+            modifier = Modifier.size(20.dp),
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = "Post",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun CreatePostButton(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val isDark = LocalIsDarkTheme.current
+    val containerColor = MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.92f else 1f)
+    val contentColor = if (isDark) {
+        Color.Black.copy(alpha = 0.95f)
+    } else {
+        MaterialTheme.colorScheme.onPrimary
+    }
+    val strokeColor = if (isDark) {
+        Color.White.copy(alpha = 0.24f)
+    } else {
+        Color.Black.copy(alpha = 0.08f)
+    }
+
+    Box(
+        modifier = modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(containerColor, CircleShape)
+            .border(1.dp, strokeColor, CircleShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        PlusIcon(
+            modifier = Modifier.size(18.dp),
+            color = contentColor
+        )
     }
 }
 
@@ -421,21 +469,25 @@ private fun ProfilePlaceholder(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
+    val isEnabled = onClick != null
+    val backgroundBrush = Brush.linearGradient(
+        listOf(
+            MaterialTheme.colorScheme.surfaceContainerHigh,
+            MaterialTheme.colorScheme.surfaceContainer
+        )
+    )
+    val innerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = if (isEnabled) 0.2f else 0.1f)
+
     Box(
         modifier = modifier
             .size(40.dp)
             .background(
-                brush = Brush.linearGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.surfaceContainerHigh,
-                        MaterialTheme.colorScheme.surfaceContainer
-                    )
-                ),
+                brush = backgroundBrush,
                 shape = CircleShape
             )
             .border(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isEnabled) 0.72f else 0.45f),
                 shape = CircleShape
             )
             .then(
@@ -444,14 +496,23 @@ private fun ProfilePlaceholder(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(14.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
-                    shape = CircleShape
-                )
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier
+                    .size(12.dp)
+                    .background(color = innerColor, shape = CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .width(16.dp)
+                    .height(8.dp)
+                    .background(
+                        color = innerColor,
+                        shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 6.dp, bottomEnd = 6.dp)
+                    )
+            )
+        }
     }
 }
 

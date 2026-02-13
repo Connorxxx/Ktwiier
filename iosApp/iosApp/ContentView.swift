@@ -6,6 +6,7 @@ import ComposeApp
 // remains the single source of truth for actual screen content.
 final class ComposeHostViewController: UIViewController, UITabBarDelegate {
     private let composeChild: UIViewController
+    private let nativeTopBar = MainViewControllerKt.createNativeTopBarView()
     private let nativeTabBar = UITabBar()
     private var tabItems: [UITabBarItem] = []
 
@@ -28,6 +29,7 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
         composeChild.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(composeChild.view)
         composeChild.didMove(toParent: self)
+        view.addSubview(nativeTopBar)
 
         tabItems = [
             UITabBarItem(
@@ -84,6 +86,14 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
 
         composeChild.view.frame = view.bounds
 
+        let nativeTopBarHeight: CGFloat = 116.0
+        nativeTopBar.frame = CGRect(
+            x: 0.0,
+            y: 0.0,
+            width: view.bounds.width,
+            height: nativeTopBarHeight
+        )
+
         let fittedHeight = nativeTabBar.sizeThatFits(
             CGSize(width: view.bounds.width, height: 0.0)
         ).height
@@ -93,6 +103,7 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
             width: view.bounds.width,
             height: fittedHeight
         )
+        view.bringSubviewToFront(nativeTopBar)
         view.bringSubviewToFront(nativeTabBar)
     }
 
