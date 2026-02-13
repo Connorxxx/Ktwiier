@@ -29,7 +29,9 @@ import platform.UIKit.UIControlStateNormal
 import platform.UIKit.UIFont
 import platform.UIKit.UIGlassEffect
 import platform.UIKit.UIImage
+import platform.UIKit.UIImageView
 import platform.UIKit.UILabel
+import platform.UIKit.UITapGestureRecognizer
 import platform.UIKit.UIView
 import platform.UIKit.UIVisualEffect
 import platform.UIKit.UIVisualEffectView
@@ -220,18 +222,56 @@ private class NativeTopBarView : UIView(frame = CGRectZero.readValue()) {
 }
 
 // ──────────────────────────────────
-//  Bottom Bar
+//  Bottom Bar (iOS 26 Liquid Glass Style)
+//  - Icon on top, label below
+//  - Glass selection pill with spring animation
+//  - Filled SF Symbols for selected, outline for unselected
 // ──────────────────────────────────
 
+private fun sfSymbolForTab(label: String, selected: Boolean): String = when (label) {
+    "首页" -> if (selected) "house.fill" else "house"
+    "私信" -> if (selected) "envelope.fill" else "envelope"
+    "搜索" -> "magnifyingglass"
+    "设置" -> if (selected) "gearshape.fill" else "gearshape"
+    else -> "circle"
+}
+
 private class NativeBottomBarView : UIView(frame = CGRectZero.readValue()) {
+    // Glass background
     private val effectView = UIVisualEffectView(effect = createGlassEffect())
-    private val buttons = mutableListOf<UIButton>()
-    private val tapTargets = mutableListOf<TapActionTarget>()
+
+    // Selection pill — slides between tabs with spring animation
+    private val selectionPill = UIView()
+    private var pillGlassView: UIVisualEffectView? = null
+
+    // Tab items: each has icon (UIImageView) + label (UILabel)
+    private val tabContainers = mutableListOf<UIView>()
+    private val tabIconViews = mutableListOf<UIImageView>()
+    private val tabLabelViews = mutableListOf<UILabel>()
+    private val tabTapTargets = mutableListOf<TapActionTarget>()
+
+    // State
+    private var lastSelectedIndex = -1
+    private var isDark = false
 
     init {
         clipsToBounds = true
         layer.cornerRadius = 31.0
+
         addSubview(effectView)
+
+        // Selection pill (sits above glass background, below tab content)
+        selectionPill.clipsToBounds = true
+        selectionPill.layer.cornerRadius = 24.0
+        addSubview(selectionPill)
+
+        if (isLiquidGlassAvailable) {
+            val glassView = UIVisualEffectView(effect = UIGlassEffect())
+            glassView.clipsToBounds = true
+            glassView.layer.cornerRadius = 24.0
+            selectionPill.addSubview(glassView)
+            pillGlassView = glassView
+        }
     }
 
     override fun layoutSubviews() {
@@ -243,23 +283,40 @@ private class NativeBottomBarView : UIView(frame = CGRectZero.readValue()) {
         val hPad = 6.0
         val vPad = 6.0
         val spacing = 4.0
-        val count = buttons.size
+        val count = tabContainers.size
         if (count == 0) return
 
         val availableWidth = width - hPad * 2.0 - spacing * (count - 1).coerceAtLeast(0)
-        val buttonWidth = (availableWidth / count).coerceAtLeast(0.0)
-        val buttonHeight = (height - vPad * 2.0).coerceAtLeast(0.0)
+        val tabWidth = (availableWidth / count).coerceAtLeast(0.0)
+        val tabHeight = (height - vPad * 2.0).coerceAtLeast(0.0)
 
-        buttons.forEachIndexed { i, button ->
-            button.setFrame(
-                CGRectMake(
-                    hPad + i * (buttonWidth + spacing),
-                    vPad,
-                    buttonWidth,
-                    buttonHeight
-                )
+        // Layout tab containers
+        tabContainers.forEachIndexed { i, container ->
+            val x = hPad + i * (tabWidth + spacing)
+            container.setFrame(CGRectMake(x, vPad, tabWidth, tabHeight))
+
+            // Icon + label layout within container
+            val iconSize = 22.0
+            val labelHeight = 13.0
+            val gap = 2.0
+            val totalContentHeight = iconSize + gap + labelHeight
+            val contentTop = (tabHeight - totalContentHeight) / 2.0
+
+            tabIconViews[i].setFrame(
+                CGRectMake((tabWidth - iconSize) / 2.0, contentTop, iconSize, iconSize)
             )
-            button.layer.cornerRadius = 22.0
+            tabLabelViews[i].setFrame(
+                CGRectMake(0.0, contentTop + iconSize + gap, tabWidth, labelHeight)
+            )
+        }
+
+        // Position pill (non-animated, for layout changes like rotation)
+        if (lastSelectedIndex in tabContainers.indices) {
+            val pillFrame = pillFrameForIndex(lastSelectedIndex)
+            selectionPill.setFrame(pillFrame)
+            pillGlassView?.setFrame(
+                CGRectMake(0.0, 0.0, pillFrame.useContents { size.width }, pillFrame.useContents { size.height })
+            )
         }
     }
 
@@ -269,7 +326,8 @@ private class NativeBottomBarView : UIView(frame = CGRectZero.readValue()) {
         selectedIndex: Int,
         onTabSelected: (Int) -> Unit
     ) {
-        ensureButtonCount(tabLabels.size.coerceAtLeast(1))
+        isDark = isDarkTheme
+        ensureTabCount(tabLabels.size.coerceAtLeast(1))
 
         val activeColor = if (isDarkTheme) {
             UIColor.whiteColor.colorWithAlphaComponent(0.92)
@@ -281,43 +339,118 @@ private class NativeBottomBarView : UIView(frame = CGRectZero.readValue()) {
             UIColor.blackColor.colorWithAlphaComponent(0.35)
         }
 
-        val selectedBg = if (isDarkTheme) {
-            UIColor.whiteColor.colorWithAlphaComponent(0.12)
-        } else {
-            UIColor.blueColor.colorWithAlphaComponent(0.12)
+        // Pill tint (only visible when not using glass pill)
+        if (pillGlassView == null) {
+            selectionPill.backgroundColor = if (isDarkTheme) {
+                UIColor.whiteColor.colorWithAlphaComponent(0.12)
+            } else {
+                UIColor.blueColor.colorWithAlphaComponent(0.12)
+            }
         }
 
-        buttons.forEachIndexed { i, button ->
+        // Update each tab's icon + label
+        tabLabelViews.forEachIndexed { i, label ->
             val selected = i == selectedIndex
-            button.setTitle(tabLabels.getOrNull(i).orEmpty(), UIControlStateNormal)
-            button.setTitleColor(
-                if (selected) activeColor else inactiveColor,
-                UIControlStateNormal
-            )
-            button.backgroundColor = if (selected) selectedBg else UIColor.clearColor
-            button.titleLabel?.font = if (selected) {
-                UIFont.boldSystemFontOfSize(14.0)
+            val tabText = tabLabels.getOrNull(i).orEmpty()
+
+            // Icon (filled variant when selected)
+            tabIconViews[i].image = UIImage.systemImageNamed(sfSymbolForTab(tabText, selected))
+            tabIconViews[i].tintColor = if (selected) activeColor else inactiveColor
+
+            // Label
+            label.text = tabText
+            label.textColor = if (selected) activeColor else inactiveColor
+            label.font = if (selected) {
+                UIFont.boldSystemFontOfSize(10.0)
             } else {
-                UIFont.systemFontOfSize(14.0)
+                UIFont.systemFontOfSize(10.0)
             }
-            tapTargets[i].action = { onTabSelected(i) }
+
+            tabTapTargets[i].action = { onTabSelected(i) }
         }
-        setNeedsLayout()
+
+        // Animate selection pill
+        val shouldAnimate = lastSelectedIndex >= 0 && lastSelectedIndex != selectedIndex
+        lastSelectedIndex = selectedIndex
+        animatePill(toIndex = selectedIndex, animated = shouldAnimate)
     }
 
-    private fun ensureButtonCount(target: Int) {
-        while (buttons.size < target) {
-            val tap = TapActionTarget()
-            val button = UIButton.buttonWithType(UIButtonTypeSystem)
-            button.clipsToBounds = true
-            button.addTarget(tap, NSSelectorFromString("onTap"), UIControlEventTouchUpInside)
-            addSubview(button)
-            buttons += button
-            tapTargets += tap
+    // ── Selection Pill ──
+
+    private fun pillFrameForIndex(index: Int): kotlinx.cinterop.CValue<platform.CoreGraphics.CGRect> {
+        val width = bounds.useContents { size.width }
+        val height = bounds.useContents { size.height }
+        val hPad = 6.0
+        val vPad = 6.0
+        val spacing = 4.0
+        val count = tabContainers.size
+        if (count == 0) return CGRectZero.readValue()
+
+        val availableWidth = width - hPad * 2.0 - spacing * (count - 1).coerceAtLeast(0)
+        val tabWidth = (availableWidth / count).coerceAtLeast(0.0)
+        val tabHeight = (height - vPad * 2.0).coerceAtLeast(0.0)
+        val x = hPad + index * (tabWidth + spacing)
+        return CGRectMake(x, vPad, tabWidth, tabHeight)
+    }
+
+    private fun animatePill(toIndex: Int, animated: Boolean) {
+        if (toIndex !in tabContainers.indices) return
+
+        val targetFrame = pillFrameForIndex(toIndex)
+        val tw = targetFrame.useContents { size.width }
+        val th = targetFrame.useContents { size.height }
+
+        if (animated) {
+            UIView.animateWithDuration(
+                duration = 0.5,
+                delay = 0.0,
+                usingSpringWithDamping = 0.72,
+                initialSpringVelocity = 0.3,
+                options = 0u,
+                animations = {
+                    selectionPill.setFrame(targetFrame)
+                    pillGlassView?.setFrame(CGRectMake(0.0, 0.0, tw, th))
+                },
+                completion = null
+            )
+        } else {
+            selectionPill.setFrame(targetFrame)
+            pillGlassView?.setFrame(CGRectMake(0.0, 0.0, tw, th))
         }
-        while (buttons.size > target) {
-            buttons.removeLast().removeFromSuperview()
-            tapTargets.removeLast().action = null
+    }
+
+    // ── Tab Management ──
+
+    private fun ensureTabCount(target: Int) {
+        while (tabContainers.size < target) {
+            val tap = TapActionTarget()
+            val container = UIView()
+            container.userInteractionEnabled = true
+
+            val icon = UIImageView()
+            icon.tintColor = UIColor.grayColor
+
+            val label = UILabel()
+            label.textAlignment = NSTextAlignmentCenter
+            label.font = UIFont.systemFontOfSize(10.0)
+
+            container.addSubview(icon)
+            container.addSubview(label)
+
+            val tapGesture = UITapGestureRecognizer(target = tap, action = NSSelectorFromString("onTap"))
+            container.addGestureRecognizer(tapGesture)
+
+            addSubview(container)
+            tabContainers += container
+            tabIconViews += icon
+            tabLabelViews += label
+            tabTapTargets += tap
+        }
+        while (tabContainers.size > target) {
+            tabContainers.removeLast().removeFromSuperview()
+            tabIconViews.removeLast()
+            tabLabelViews.removeLast()
+            tabTapTargets.removeLast().action = null
         }
     }
 }

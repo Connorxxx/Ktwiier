@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.connor.kwitter.features.glass.NativeGlassBottomBar
+import com.connor.kwitter.features.glass.getNativeTabBarController
 import com.connor.kwitter.features.glass.supportsNativeGlassBars
 import com.connor.kwitter.core.ui.GlassSurface
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -168,6 +169,31 @@ fun MainScreen(
         ?: MainBottomTab.Home
 
     val showBottomBar = shouldShowMainBottomBar(currentRoute)
+
+    // Native tab bar integration (iOS)
+    val nativeTabController = remember { getNativeTabBarController() }
+
+    if (nativeTabController != null) {
+        // Forward native tab selection → Compose navigation
+        LaunchedEffect(Unit) {
+            nativeTabController.tabSelectionEvents.collect { index ->
+                MainBottomTab.entries.getOrNull(index)?.let { tab ->
+                    mainState.onNavigateRoot(tab.toRoute())
+                }
+            }
+        }
+        // Sync Compose tab selection → native tab bar
+        LaunchedEffect(selectedTab) {
+            nativeTabController.syncSelectedIndex(MainBottomTab.entries.indexOf(selectedTab))
+        }
+        // Show/hide native tab bar based on route
+        LaunchedEffect(showBottomBar) {
+            nativeTabController.setTabBarVisible(showBottomBar)
+        }
+    }
+
+    // Only show Compose bottom bar when NOT using native tab bar
+    val showComposeBottomBar = showBottomBar && nativeTabController == null
 
     Box(
         modifier = Modifier
@@ -642,7 +668,7 @@ fun MainScreen(
         )
 
         AnimatedVisibility(
-            visible = showBottomBar,
+            visible = showComposeBottomBar,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
