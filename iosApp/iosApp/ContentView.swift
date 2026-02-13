@@ -2,10 +2,43 @@ import UIKit
 import SwiftUI
 import ComposeApp
 
-// UITabBarController that manually forwards appearance events
-// to an overlaid compose child VC (not in viewControllers).
+// Transparent overlay that sits on top of the entire view hierarchy.
+// Routes touches to either the tab bar or the compose view,
+// completely bypassing UITabBarController's internal container views.
+class TouchRoutingOverlay: UIView {
+    weak var tabBar: UITabBar?
+    weak var composeView: UIView?
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        // 1) If touch is in the tab bar area → forward to tab bar
+        if let tabBar = tabBar,
+           !tabBar.isHidden,
+           tabBar.alpha > 0.01,
+           tabBar.isUserInteractionEnabled {
+            let tabBarPoint = convert(point, to: tabBar)
+            if tabBar.point(inside: tabBarPoint, with: event),
+               let hit = tabBar.hitTest(tabBarPoint, with: event) {
+                return hit
+            }
+        }
+
+        // 2) Everything else → forward to compose view
+        if let composeView = composeView {
+            let composePoint = convert(point, to: composeView)
+            if let hit = composeView.hitTest(composePoint, with: event) {
+                return hit
+            }
+        }
+
+        return nil
+    }
+}
+
+// UITabBarController that hosts a Compose child VC and uses a
+// touch-routing overlay to resolve the view hierarchy conflict.
 class ComposeHostTabBarController: UITabBarController {
     private(set) var composeChild: UIViewController?
+    private let touchOverlay = TouchRoutingOverlay()
 
     func installComposeChild(_ vc: UIViewController) {
         composeChild = vc
@@ -16,18 +49,25 @@ class ComposeHostTabBarController: UITabBarController {
             : view.bounds
         vc.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
 
-        // Insert below tab bar in subview hierarchy:
-        // tab bar naturally receives touches (higher in stack),
-        // compose view handles everything else.
-        view.insertSubview(vc.view, belowSubview: tabBar)
+        // Compose view at the very bottom — tab bar renders on top
+        view.insertSubview(vc.view, at: 0)
+
+        // Transparent overlay on top of everything — routes all touches
+        touchOverlay.composeView = vc.view
+        touchOverlay.tabBar = tabBar
+        touchOverlay.frame = view.bounds
+        touchOverlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        touchOverlay.backgroundColor = .clear
+        view.addSubview(touchOverlay)
 
         vc.didMove(toParent: self)
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        // Ensure compose view stays full-screen after layout changes
         composeChild?.view.frame = view.bounds
+        // Ensure overlay stays on top after any layout pass
+        view.bringSubviewToFront(touchOverlay)
     }
 
     // UITabBarController only forwards appearance to its selected
