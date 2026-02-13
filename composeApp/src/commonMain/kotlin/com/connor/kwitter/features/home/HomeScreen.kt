@@ -55,6 +55,8 @@ import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
+import com.connor.kwitter.features.glass.NativeGlassTopBar
+import com.connor.kwitter.features.glass.supportsNativeGlassBars
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.theme.LocalIsDarkTheme
 import com.connor.kwitter.core.ui.PostItem
@@ -68,6 +70,8 @@ import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.home_empty
 import org.jetbrains.compose.resources.stringResource
 
+private val NativeHomeTopBarHeight = 108.dp
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -79,6 +83,11 @@ fun HomeScreen(
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val useNativeGlassBars = remember { supportsNativeGlassBars() }
+    val isDarkTheme = LocalIsDarkTheme.current
+    val onProfileClick = state.currentUserId?.let { userId ->
+        { onAction(HomeNavAction.AuthorClick(userId)) }
+    }
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -98,16 +107,21 @@ fun HomeScreen(
 
     Scaffold(
         topBar = {
-            HomeTopBar(
-                onCreatePostClick = {
-                    onAction(HomeNavAction.CreatePostClick)
-                },
-                onProfileClick = state.currentUserId?.let { userId ->
-                    {
-                        onAction(HomeNavAction.AuthorClick(userId))
-                    }
-                }
-            )
+            if (useNativeGlassBars) {
+                NativeGlassTopBar(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(NativeHomeTopBarHeight),
+                    isDarkTheme = isDarkTheme,
+                    onCreatePostClick = { onAction(HomeNavAction.CreatePostClick) },
+                    onProfileClick = onProfileClick
+                )
+            } else {
+                ComposeHomeTopBar(
+                    onCreatePostClick = { onAction(HomeNavAction.CreatePostClick) },
+                    onProfileClick = onProfileClick
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
@@ -183,8 +197,8 @@ fun HomeScreen(
                                             )
                                         )
                                     },
-                                    onMediaClick = { index ->
-                                        onAction(HomeNavAction.MediaClick(post.media, index))
+                                    onMediaClick = { mediaIndex ->
+                                        onAction(HomeNavAction.MediaClick(post.media, mediaIndex))
                                     },
                                     onAuthorClick = {
                                         onAction(HomeNavAction.AuthorClick(post.author.id))
@@ -286,7 +300,7 @@ private fun NewPostsBanner(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeTopBar(
+private fun ComposeHomeTopBar(
     onCreatePostClick: () -> Unit,
     onProfileClick: (() -> Unit)?
 ) {

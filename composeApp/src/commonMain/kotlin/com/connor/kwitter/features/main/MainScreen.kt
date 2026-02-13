@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.connor.kwitter.features.glass.NativeGlassBottomBar
+import com.connor.kwitter.features.glass.supportsNativeGlassBars
 import com.connor.kwitter.core.ui.GlassSurface
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -173,8 +175,7 @@ fun MainScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         NavDisplay(
-            modifier = Modifier
-                .fillMaxSize(),
+            modifier = Modifier.fillMaxSize(),
             entryDecorators = listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),
                 rememberViewModelStoreNavEntryDecorator()
@@ -695,6 +696,22 @@ private fun GlassBottomBar(
     val isDark = LocalIsDarkTheme.current
     val barShape = RoundedCornerShape(50)
     val tabShape = RoundedCornerShape(20.dp)
+
+    if (supportsNativeGlassBars()) {
+        NativeGlassBottomBar(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(MainBottomBarHeight)
+                .shadow(elevation = 16.dp, shape = barShape),
+            isDarkTheme = isDark,
+            tabLabels = MainBottomTab.entries.map { it.label },
+            selectedIndex = MainBottomTab.entries.indexOf(selectedTab),
+            onTabSelected = { tabIndex ->
+                MainBottomTab.entries.getOrNull(tabIndex)?.let(onTabClick)
+            }
+        )
+        return
+    }
 
     val activeColor = if (isDark) {
         Color.White.copy(alpha = 0.92f)
