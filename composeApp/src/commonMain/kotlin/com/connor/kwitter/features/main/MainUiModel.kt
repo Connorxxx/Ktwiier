@@ -9,6 +9,13 @@ enum class MainBottomTab(val label: String) {
     Settings("设置")
 }
 
+val mainBottomTabRoutes: List<NavigationRoute> = listOf(
+    NavigationRoute.Home,
+    NavigationRoute.ConversationList,
+    NavigationRoute.Search,
+    NavigationRoute.Settings
+)
+
 fun NavigationRoute.toBottomTabOrNull(): MainBottomTab? = when (this) {
     NavigationRoute.Home -> MainBottomTab.Home
     NavigationRoute.ConversationList -> MainBottomTab.Messages
@@ -26,19 +33,17 @@ fun MainBottomTab.toRoute(): NavigationRoute = when (this) {
 
 /**
  * Main 界面的状态
- * 导航栈 + 当前选中 tab（两层分离）
+ * 导航栈本身就是数据
  */
 data class MainState(
     val isLoading: Boolean = false,
-    // 当前选中的 tab（独立于 backStack）
-    val selectedTab: MainBottomTab = MainBottomTab.Home,
-    // 导航栈：认证后始终以 Home 为底，detail 页面 push 在上面
+    // 导航栈：认证后包含所有 tab 根路由，detail 页面压在顶部
     val backStack: List<NavigationRoute>,
-    // 行为：暴露给 UI 的回调
+    // 行为：暴露给 UI 的回调，用于修改状态
     val onNavigate: (NavigationRoute) -> Unit,
-    // 替换式导航（Login ↔ Register）
+    // 替换式导航：移除栈中所有相同类型路由，然后添加新路由（实现 singleTop）
     val onNavigateReplace: (NavigationRoute) -> Unit,
-    // Tab 切换：设置 selectedTab + 清除 detail 页面
+    // 顶层导航：切换 tab 时把目标 tab 移到栈顶（保留所有 tab 根路由）
     val onNavigateRoot: (NavigationRoute) -> Unit,
     val onBack: () -> Unit
 )

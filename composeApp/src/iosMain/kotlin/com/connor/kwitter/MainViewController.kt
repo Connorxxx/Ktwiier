@@ -4,7 +4,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.window.ComposeUIViewController
 import com.connor.kwitter.di.initKoin
 import com.connor.kwitter.features.glass.NativeTabBridge
-import platform.UIKit.UITabBarController
+import platform.UIKit.UITabBar
 import platform.UIKit.UIViewController
 
 private val isDarkTheme = mutableStateOf(false)
@@ -21,9 +21,9 @@ fun updateDarkTheme(viewController: UIViewController, isDarkTheme: Boolean) {
     com.connor.kwitter.isDarkTheme.value = isDarkTheme
 }
 
-// Called from Swift after UITabBarController is configured
-fun registerTabBarController(controller: UITabBarController) {
-    NativeTabBridge.configure(controller)
+// Called from Swift after native UITabBar is configured
+fun registerNativeTabBar(tabBar: UITabBar) {
+    NativeTabBridge.configure(tabBar)
 }
 
 // Called from Swift delegate when a native tab is selected

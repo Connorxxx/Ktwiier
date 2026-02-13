@@ -43,6 +43,11 @@ class MainViewModel(
         events.trySend(action)
     }
 
+    private fun authenticatedBackStack(selectedTab: MainBottomTab = MainBottomTab.Home): List<NavigationRoute> {
+        val selectedRoute = selectedTab.toRoute()
+        return mainBottomTabRoutes.filterNot { it == selectedRoute } + selectedRoute
+    }
+
     @Composable
     private fun MainPresenter(): MainState {
         var isLoading by remember { mutableStateOf(false) }
@@ -50,11 +55,53 @@ class MainViewModel(
         // 导航栈状态
         val backStack = remember { mutableStateListOf<NavigationRoute>() }
 
-        // Tab 状态（独立于 backStack）
-        var selectedTab by remember { mutableStateOf(MainBottomTab.Home) }
+        val trimDetailRoutes: () -> Unit = remember {
+            {
+                while (backStack.isNotEmpty() && backStack.lastOrNull()?.toBottomTabOrNull() == null) {
+                    backStack.removeLastOrNull()
+                }
+            }
+        }
+
+        val moveTabToTop: (NavigationRoute) -> Unit = remember {
+            { route ->
+                val index = backStack.indexOf(route)
+                if (index >= 0 && index != backStack.lastIndex) {
+                    // Reorder in-place to keep tab roots continuously present in the stack.
+                    val tabRoute = backStack[index]
+                    for (i in index until backStack.lastIndex) {
+                        backStack[i] = backStack[i + 1]
+                    }
+                    backStack[backStack.lastIndex] = tabRoute
+                }
+            }
+        }
+
+        // 顶层导航：切换 tab 时清除 detail，并把目标 tab 移到栈顶
+        val onNavigateRoot: (NavigationRoute) -> Unit = remember {
+            { route ->
+                val targetTab = route.toBottomTabOrNull()
+                val hasTabRoots = backStack.any { it.toBottomTabOrNull() != null }
+                if (targetTab != null) {
+                    if (!hasTabRoots) {
+                        backStack.clear()
+                        backStack.addAll(authenticatedBackStack(targetTab))
+                    } else {
+                        trimDetailRoutes()
+                        moveTabToTop(targetTab.toRoute())
+                    }
+                }
+            }
+        }
 
         val onNavigate: (NavigationRoute) -> Unit = remember {
-            { route -> backStack.add(route) }
+            { route ->
+                if (route.toBottomTabOrNull() != null) {
+                    onNavigateRoot(route)
+                } else {
+                    backStack.add(route)
+                }
+            }
         }
 
         // 替换式导航：移除栈中所有指定类型，然后添加新路由（实现 singleTop 效果）
@@ -66,24 +113,16 @@ class MainViewModel(
             }
         }
 
-        // Tab 切换：设置 selectedTab + 清除 detail 页面（保留 Home base）
-        val onNavigateRoot: (NavigationRoute) -> Unit = remember {
-            { route ->
-                route.toBottomTabOrNull()?.let { tab ->
-                    // Pop any detail pages, keep Home base
-                    while (backStack.size > 1) backStack.removeLast()
-                    selectedTab = tab
-                }
-            }
-        }
-
-        // Smart back: pop detail if any, otherwise fall back to Home tab
+        // 返回：优先 pop detail；若当前在非 Home tab 根路由，则回到 Home tab
         val onBack: () -> Unit = remember {
             {
-                if (backStack.size > 1) {
-                    backStack.removeLast()
-                } else if (selectedTab != MainBottomTab.Home) {
-                    selectedTab = MainBottomTab.Home
+                val current = backStack.lastOrNull()
+                if (current != null) {
+                    if (current.toBottomTabOrNull() == null) {
+                        backStack.removeLast()
+                    } else if (current != NavigationRoute.Home) {
+                        onNavigateRoot(NavigationRoute.Home)
+                    }
                 }
             }
         }
@@ -94,8 +133,7 @@ class MainViewModel(
             when (session) {
                 is SessionState.Authenticated -> {
                     backStack.clear()
-                    backStack.add(NavigationRoute.Home)
-                    selectedTab = MainBottomTab.Home
+                    backStack.addAll(authenticatedBackStack(MainBottomTab.Home))
                 }
                 SessionState.Unauthenticated -> {
                     backStack.clear()
@@ -123,7 +161,6 @@ class MainViewModel(
 
         return MainState(
             isLoading = isLoading,
-            selectedTab = selectedTab,
             backStack = backStack,
             onNavigate = onNavigate,
             onNavigateReplace = onNavigateReplace,
