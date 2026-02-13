@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalForeignApi::class)
+
 package com.connor.kwitter.core.ui
 
 import androidx.compose.foundation.layout.Box
@@ -10,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -18,15 +19,28 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitView
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.useContents
+import platform.Foundation.NSProcessInfo
 import platform.QuartzCore.kCALayerMaxXMaxYCorner
 import platform.QuartzCore.kCALayerMaxXMinYCorner
 import platform.QuartzCore.kCALayerMinXMaxYCorner
 import platform.QuartzCore.kCALayerMinXMinYCorner
 import platform.UIKit.UIBlurEffect
 import platform.UIKit.UIBlurEffectStyle
+import platform.UIKit.UIGlassEffect
+import platform.UIKit.UIVisualEffect
 import platform.UIKit.UIVisualEffectView
 
-@OptIn(ExperimentalForeignApi::class)
+private val isLiquidGlassAvailable: Boolean by lazy {
+    NSProcessInfo.processInfo.operatingSystemVersion.useContents {
+        majorVersion >= 26L
+    }
+}
+
+private fun createGlassEffect(): UIVisualEffect =
+    if (isLiquidGlassAvailable) UIGlassEffect()
+    else UIBlurEffect.effectWithStyle(UIBlurEffectStyle.UIBlurEffectStyleSystemThinMaterial)
+
 @Composable
 actual fun GlassSurface(
     modifier: Modifier,
@@ -77,11 +91,7 @@ actual fun GlassSurface(
         UIKitView(
             modifier = Modifier.matchParentSize(),
             factory = {
-                UIVisualEffectView(
-                    effect = UIBlurEffect.effectWithStyle(
-                        UIBlurEffectStyle.UIBlurEffectStyleSystemThinMaterial
-                    )
-                ).apply {
+                UIVisualEffectView(effect = createGlassEffect()).apply {
                     clipsToBounds = true
                 }
             },
