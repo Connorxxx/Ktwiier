@@ -1,5 +1,6 @@
 package com.connor.kwitter.features.main
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -106,41 +107,10 @@ import com.connor.kwitter.core.theme.LocalIsDarkTheme
 import kotlinx.serialization.json.Json
 import org.koin.compose.viewmodel.koinViewModel
 
-private enum class MainBottomTab(
-    val label: String
-) {
-    Home("首页"),
-    Messages("私信"),
-    Search("搜索"),
-    Settings("设置")
-}
-
 private val MainBottomElementBottomPadding = 26.dp
 private val MainBottomHorizontalPadding = 22.dp
 private val MainBottomBarHeight = 62.dp
 
-private fun NavigationRoute.toBottomTabOrNull(): MainBottomTab? = when (this) {
-    NavigationRoute.Home -> MainBottomTab.Home
-    NavigationRoute.ConversationList -> MainBottomTab.Messages
-    NavigationRoute.Search -> MainBottomTab.Search
-    NavigationRoute.Settings -> MainBottomTab.Settings
-    else -> null
-}
-
-private fun MainBottomTab.toRoute(): NavigationRoute = when (this) {
-    MainBottomTab.Home -> NavigationRoute.Home
-    MainBottomTab.Messages -> NavigationRoute.ConversationList
-    MainBottomTab.Search -> NavigationRoute.Search
-    MainBottomTab.Settings -> NavigationRoute.Settings
-}
-
-private fun shouldShowMainBottomBar(route: NavigationRoute?): Boolean =
-    route?.toBottomTabOrNull() != null
-
-/**
- * Main Screen - 应用的主入口
- * 使用 Navigation 3 管理导航栈
- */
 @Composable
 fun MainScreen(
     mainVm: MainViewModel = koinViewModel()
@@ -148,7 +118,6 @@ fun MainScreen(
     val mainState by mainVm.state.collectAsStateWithLifecycle()
     val json = remember { Json { ignoreUnknownKeys = true } }
 
-    // Counter to trigger profile refresh after edit
     val profileRefreshKey = remember { mutableIntStateOf(0) }
 
     val navigateToMediaViewer: (List<PostMedia>, Int) -> Unit = remember(mainState) {
@@ -162,19 +131,15 @@ fun MainScreen(
         mainVm.onAction(MainAction.Load)
     }
 
-    val currentRoute = mainState.backStack.lastOrNull()
-    val selectedTab = mainState.backStack
-        .asReversed()
-        .firstNotNullOfOrNull { route -> route.toBottomTabOrNull() }
-        ?: MainBottomTab.Home
-
-    val showBottomBar = shouldShowMainBottomBar(currentRoute)
+    val selectedTab = mainState.selectedTab
+    val isAuthenticated = mainState.backStack.firstOrNull() == NavigationRoute.Home
+    val showBottomBar = isAuthenticated && mainState.backStack.size <= 1
 
     // Native tab bar integration (iOS)
     val nativeTabController = remember { getNativeTabBarController() }
 
     if (nativeTabController != null) {
-        // Forward native tab selection → Compose navigation
+        // Forward native tab selection -> Compose navigation
         LaunchedEffect(Unit) {
             nativeTabController.tabSelectionEvents.collect { index ->
                 MainBottomTab.entries.getOrNull(index)?.let { tab ->
@@ -182,7 +147,7 @@ fun MainScreen(
                 }
             }
         }
-        // Sync Compose tab selection → native tab bar
+        // Sync Compose tab selection -> native tab bar
         LaunchedEffect(selectedTab) {
             nativeTabController.syncSelectedIndex(MainBottomTab.entries.indexOf(selectedTab))
         }
@@ -200,6 +165,16 @@ fun MainScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
+        // Layer 1: Tab content (crossfade between tabs, visible when authenticated)
+        if (isAuthenticated) {
+            TabContent(
+                selectedTab = selectedTab,
+                mainState = mainState,
+                navigateToMediaViewer = navigateToMediaViewer,
+            )
+        }
+
+        // Layer 2: NavDisplay (detail + auth pages overlay)
         NavDisplay(
             modifier = Modifier.fillMaxSize(),
             entryDecorators = listOf(
@@ -209,10 +184,9 @@ fun MainScreen(
             backStack = mainState.backStack,
             onBack = mainState.onBack,
 
-        // 🎨 全局前进动画：缩放 + 淡入淡出 + 水平滑动
         transitionSpec = {
             (slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth / 3 }, // 从右侧 1/3 位置开始
+                initialOffsetX = { fullWidth -> fullWidth / 3 },
                 animationSpec = tween(400)
             ) + fadeIn(
                 animationSpec = tween(400)
@@ -234,7 +208,6 @@ fun MainScreen(
             )
         },
 
-        // 🔙 全局后退动画：反向缩放 + 淡入淡出
         popTransitionSpec = {
             (slideInHorizontally(
                 initialOffsetX = { fullWidth -> -fullWidth / 4 },
@@ -259,7 +232,6 @@ fun MainScreen(
             )
         },
 
-        // 📱 预测性返回手势（与 popTransitionSpec 保持一致）
         predictivePopTransitionSpec = {
             (slideInHorizontally(
                 initialOffsetX = { fullWidth -> -fullWidth / 4 },
@@ -283,6 +255,15 @@ fun MainScreen(
         },
 
         entryProvider = entryProvider {
+            entry<NavigationRoute.Home> {
+                // Transparent shell — tab content shows through from Layer 1
+                Box(Modifier.fillMaxSize())
+            }
+
+            entry<NavigationRoute.Splash> {
+                SplashScreen()
+            }
+
             entry<NavigationRoute.Register> {
                 val vm: RegisterViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
@@ -293,7 +274,6 @@ fun MainScreen(
                             is RegisterAction -> vm.onEvent(action)
                             is RegisterNavAction -> when (action) {
                                 RegisterNavAction.OnRegisterSuccess -> mainState.onNavigate(NavigationRoute.Home)
-                                // Login/Register 互相导航使用 replace，避免栈累积
                                 RegisterNavAction.LoginClick -> mainState.onNavigateReplace(NavigationRoute.Login)
                             }
                         }
@@ -311,43 +291,7 @@ fun MainScreen(
                             is LoginAction -> vm.onEvent(action)
                             is LoginNavAction -> when (action) {
                                 LoginNavAction.OnLoginSuccess -> mainState.onNavigate(NavigationRoute.Home)
-                                // Login/Register 互相导航使用 replace，避免栈累积
                                 LoginNavAction.RegisterClick -> mainState.onNavigateReplace(NavigationRoute.Register)
-                            }
-                        }
-                    }
-                )
-            }
-
-            entry<NavigationRoute.Home> {
-                val vm: HomeViewModel = koinViewModel()
-                val state by vm.uiState.collectAsStateWithLifecycle()
-
-                HomeScreen(
-                    state = state,
-                    pagingFlow = vm.pagingFlow,
-                    onAction = { action ->
-                        when (action) {
-                            is HomeAction -> vm.onEvent(action)
-                            is HomeNavAction -> when (action) {
-                                is HomeNavAction.PostClick -> mainState.onNavigate(
-                                    NavigationRoute.PostDetail(action.postId)
-                                )
-                                HomeNavAction.CreatePostClick -> mainState.onNavigate(
-                                    NavigationRoute.CreatePost()
-                                )
-                                is HomeNavAction.MediaClick -> navigateToMediaViewer(
-                                    action.media, action.index
-                                )
-                                is HomeNavAction.AuthorClick -> mainState.onNavigate(
-                                    NavigationRoute.UserProfile(userId = action.userId)
-                                )
-                                HomeNavAction.SearchClick -> mainState.onNavigate(
-                                    NavigationRoute.Search
-                                )
-                                HomeNavAction.MessagesClick -> mainState.onNavigate(
-                                    NavigationRoute.ConversationList
-                                )
                             }
                         }
                     }
@@ -417,10 +361,6 @@ fun MainScreen(
                 )
             }
 
-            entry<NavigationRoute.Splash> {
-                SplashScreen()
-            }
-
             entry<NavigationRoute.UserProfile> { route ->
                 val vm: UserProfileViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
@@ -429,7 +369,6 @@ fun MainScreen(
                     vm.onEvent(UserProfileAction.Load(userId = route.userId))
                 }
 
-                // Refresh profile data when returning from EditProfile
                 LaunchedEffect(profileRefreshKey.intValue) {
                     if (profileRefreshKey.intValue > 0) {
                         vm.onEvent(UserProfileAction.Refresh)
@@ -569,74 +508,6 @@ fun MainScreen(
                 )
             }
 
-            entry<NavigationRoute.Search> {
-                val vm: SearchViewModel = koinViewModel()
-                val state by vm.uiState.collectAsStateWithLifecycle()
-
-                SearchScreen(
-                    state = state,
-                    postsPaging = vm.postsPaging,
-                    repliesPaging = vm.repliesPaging,
-                    usersPaging = vm.usersPaging,
-                    onAction = { action ->
-                        when (action) {
-                            is SearchAction -> vm.onEvent(action)
-                            is SearchNavAction -> when (action) {
-                                SearchNavAction.BackClick -> mainState.onBack()
-                                is SearchNavAction.PostClick -> mainState.onNavigate(
-                                    NavigationRoute.PostDetail(action.postId)
-                                )
-                                is SearchNavAction.MediaClick -> navigateToMediaViewer(
-                                    action.media, action.index
-                                )
-                                is SearchNavAction.AuthorClick -> mainState.onNavigate(
-                                    NavigationRoute.UserProfile(userId = action.userId)
-                                )
-                                is SearchNavAction.UserClick -> mainState.onNavigate(
-                                    NavigationRoute.UserProfile(userId = action.userId)
-                                )
-                            }
-                        }
-                    }
-                )
-            }
-
-            entry<NavigationRoute.Settings> {
-                val vm: SettingsViewModel = koinViewModel()
-                val state by vm.uiState.collectAsStateWithLifecycle()
-
-                SettingsScreen(
-                    state = state,
-                    onAction = { action ->
-                        if (action is SettingsAction) {
-                            vm.onEvent(action)
-                        }
-                    }
-                )
-            }
-
-            entry<NavigationRoute.ConversationList> {
-                val vm: ConversationListViewModel = koinViewModel()
-
-                ConversationListScreen(
-                    pagingFlow = vm.pagingFlow,
-                    onAction = { action ->
-                        when (action) {
-                            is ConversationListNavAction -> when (action) {
-                                ConversationListNavAction.BackClick -> mainState.onBack()
-                                is ConversationListNavAction.ConversationClick -> mainState.onNavigate(
-                                    NavigationRoute.Chat(
-                                        conversationId = action.conversationId,
-                                        otherUserId = action.otherUserId,
-                                        otherUserDisplayName = action.otherUserDisplayName
-                                    )
-                                )
-                            }
-                        }
-                    }
-                )
-            }
-
             entry<NavigationRoute.Chat> { route ->
                 val vm: ChatViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
@@ -667,6 +538,7 @@ fun MainScreen(
         }
         )
 
+        // Layer 3: Compose bottom bar (only when NOT using native tab bar)
         AnimatedVisibility(
             visible = showComposeBottomBar,
             modifier = Modifier
@@ -709,6 +581,128 @@ fun MainScreen(
                     mainState.onNavigateRoot(tab.toRoute())
                 }
             )
+        }
+    }
+}
+
+/**
+ * Layer 1: Tab content with crossfade animation.
+ * Each tab VM is Activity-scoped (persists across tab switches).
+ */
+@Composable
+private fun TabContent(
+    selectedTab: MainBottomTab,
+    mainState: MainState,
+    navigateToMediaViewer: (List<PostMedia>, Int) -> Unit,
+) {
+    AnimatedContent(
+        targetState = selectedTab,
+        transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+        label = "TabContent"
+    ) { tab ->
+        when (tab) {
+            MainBottomTab.Home -> {
+                val vm: HomeViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                HomeScreen(
+                    state = state,
+                    pagingFlow = vm.pagingFlow,
+                    onAction = { action ->
+                        when (action) {
+                            is HomeAction -> vm.onEvent(action)
+                            is HomeNavAction -> when (action) {
+                                is HomeNavAction.PostClick -> mainState.onNavigate(
+                                    NavigationRoute.PostDetail(action.postId)
+                                )
+                                HomeNavAction.CreatePostClick -> mainState.onNavigate(
+                                    NavigationRoute.CreatePost()
+                                )
+                                is HomeNavAction.MediaClick -> navigateToMediaViewer(
+                                    action.media, action.index
+                                )
+                                is HomeNavAction.AuthorClick -> mainState.onNavigate(
+                                    NavigationRoute.UserProfile(userId = action.userId)
+                                )
+                                HomeNavAction.SearchClick -> mainState.onNavigateRoot(
+                                    NavigationRoute.Search
+                                )
+                                HomeNavAction.MessagesClick -> mainState.onNavigateRoot(
+                                    NavigationRoute.ConversationList
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+
+            MainBottomTab.Search -> {
+                val vm: SearchViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                SearchScreen(
+                    state = state,
+                    postsPaging = vm.postsPaging,
+                    repliesPaging = vm.repliesPaging,
+                    usersPaging = vm.usersPaging,
+                    onAction = { action ->
+                        when (action) {
+                            is SearchAction -> vm.onEvent(action)
+                            is SearchNavAction -> when (action) {
+                                SearchNavAction.BackClick -> mainState.onBack()
+                                is SearchNavAction.PostClick -> mainState.onNavigate(
+                                    NavigationRoute.PostDetail(action.postId)
+                                )
+                                is SearchNavAction.MediaClick -> navigateToMediaViewer(
+                                    action.media, action.index
+                                )
+                                is SearchNavAction.AuthorClick -> mainState.onNavigate(
+                                    NavigationRoute.UserProfile(userId = action.userId)
+                                )
+                                is SearchNavAction.UserClick -> mainState.onNavigate(
+                                    NavigationRoute.UserProfile(userId = action.userId)
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+
+            MainBottomTab.Messages -> {
+                val vm: ConversationListViewModel = koinViewModel()
+
+                ConversationListScreen(
+                    pagingFlow = vm.pagingFlow,
+                    onAction = { action ->
+                        when (action) {
+                            is ConversationListNavAction -> when (action) {
+                                ConversationListNavAction.BackClick -> mainState.onBack()
+                                is ConversationListNavAction.ConversationClick -> mainState.onNavigate(
+                                    NavigationRoute.Chat(
+                                        conversationId = action.conversationId,
+                                        otherUserId = action.otherUserId,
+                                        otherUserDisplayName = action.otherUserDisplayName
+                                    )
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+
+            MainBottomTab.Settings -> {
+                val vm: SettingsViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                SettingsScreen(
+                    state = state,
+                    onAction = { action ->
+                        if (action is SettingsAction) {
+                            vm.onEvent(action)
+                        }
+                    }
+                )
+            }
         }
     }
 }

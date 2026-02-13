@@ -50,6 +50,9 @@ class MainViewModel(
         // 导航栈状态
         val backStack = remember { mutableStateListOf<NavigationRoute>() }
 
+        // Tab 状态（独立于 backStack）
+        var selectedTab by remember { mutableStateOf(MainBottomTab.Home) }
+
         val onNavigate: (NavigationRoute) -> Unit = remember {
             { route -> backStack.add(route) }
         }
@@ -63,33 +66,46 @@ class MainViewModel(
             }
         }
 
-        // 顶层导航：切换首页/私信/搜索/设置时，重建业务栈
+        // Tab 切换：设置 selectedTab + 清除 detail 页面（保留 Home base）
         val onNavigateRoot: (NavigationRoute) -> Unit = remember {
             { route ->
-                backStack.clear()
-                if (route == NavigationRoute.Home) {
-                    backStack.add(NavigationRoute.Home)
-                } else {
-                    backStack.add(NavigationRoute.Home)
-                    backStack.add(route)
+                route.toBottomTabOrNull()?.let { tab ->
+                    // Pop any detail pages, keep Home base
+                    while (backStack.size > 1) backStack.removeLast()
+                    selectedTab = tab
                 }
             }
         }
 
+        // Smart back: pop detail if any, otherwise fall back to Home tab
         val onBack: () -> Unit = remember {
-            { backStack.removeLastOrNull() }
+            {
+                if (backStack.size > 1) {
+                    backStack.removeLast()
+                } else if (selectedTab != MainBottomTab.Home) {
+                    selectedTab = MainBottomTab.Home
+                }
+            }
         }
 
         val session by authRepository.session.collectAsState(initial = SessionState.Bootstrapping)
 
         LaunchedEffect(session) {
-            val route = when (session) {
-                is SessionState.Authenticated -> NavigationRoute.Home
-                SessionState.Unauthenticated -> NavigationRoute.Login
-                SessionState.Bootstrapping -> NavigationRoute.Splash
+            when (session) {
+                is SessionState.Authenticated -> {
+                    backStack.clear()
+                    backStack.add(NavigationRoute.Home)
+                    selectedTab = MainBottomTab.Home
+                }
+                SessionState.Unauthenticated -> {
+                    backStack.clear()
+                    backStack.add(NavigationRoute.Login)
+                }
+                SessionState.Bootstrapping -> {
+                    backStack.clear()
+                    backStack.add(NavigationRoute.Splash)
+                }
             }
-            backStack.clear()
-            backStack.add(route)
         }
 
         // 处理 Action
@@ -107,6 +123,7 @@ class MainViewModel(
 
         return MainState(
             isLoading = isLoading,
+            selectedTab = selectedTab,
             backStack = backStack,
             onNavigate = onNavigate,
             onNavigateReplace = onNavigateReplace,
