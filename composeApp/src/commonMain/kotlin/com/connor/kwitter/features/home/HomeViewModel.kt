@@ -14,7 +14,6 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
-import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.domain.notification.repository.NotificationRepository
 import com.connor.kwitter.domain.post.model.Post
@@ -36,7 +35,6 @@ data class HomeUiState(
 sealed interface HomeIntent
 
 sealed interface HomeAction : HomeIntent {
-    data object LogoutClick : HomeAction
     data object ErrorDismissed : HomeAction
     data object NewPostsBannerClick : HomeAction
     data object ResetNewPostCount : HomeAction
@@ -101,18 +99,6 @@ class HomeViewModel(
         LaunchedEffect(Unit) {
             _events.receiveAsFlow().collect { action ->
                 state = when (action) {
-                    is HomeAction.LogoutClick -> {
-                        val current = state.copy(error = null)
-                        state = current
-
-                        val logoutResult = authRepository.logout()
-                        logoutResult.fold(
-                            ifLeft = { error ->
-                                current.copy(error = formatAuthError(error))
-                            },
-                            ifRight = { current }
-                        )
-                    }
                     is HomeAction.ErrorDismissed -> state.copy(error = null)
                     is HomeAction.NewPostsBannerClick -> {
                         newPostCount = 0
@@ -189,15 +175,5 @@ class HomeViewModel(
         is PostError.Unauthorized -> "Authentication required"
         is PostError.NotFound -> "Not found"
         is PostError.Unknown -> "Unknown error: ${error.message}"
-    }
-
-    private fun formatAuthError(error: AuthError): String = when (error) {
-        is AuthError.NetworkError -> "Logout failed: network error (${error.message})"
-        is AuthError.ServerError -> "Logout failed: server error (${error.code}) ${error.message}"
-        is AuthError.ClientError -> "Logout failed: request error (${error.code}) ${error.message}"
-        is AuthError.InvalidCredentials -> "Logout failed: invalid credentials (${error.message})"
-        is AuthError.StorageError -> "Logout failed: storage error (${error.message})"
-        is AuthError.Unknown -> "Logout failed: unknown error (${error.message})"
-        is AuthError.SessionRevoked -> "Session revoked: ${error.message}"
     }
 }

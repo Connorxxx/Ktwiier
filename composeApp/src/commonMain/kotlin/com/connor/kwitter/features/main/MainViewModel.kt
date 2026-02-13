@@ -63,6 +63,19 @@ class MainViewModel(
             }
         }
 
+        // 顶层导航：切换首页/私信/搜索/设置时，重建业务栈
+        val onNavigateRoot: (NavigationRoute) -> Unit = remember {
+            { route ->
+                backStack.clear()
+                if (route == NavigationRoute.Home) {
+                    backStack.add(NavigationRoute.Home)
+                } else {
+                    backStack.add(NavigationRoute.Home)
+                    backStack.add(route)
+                }
+            }
+        }
+
         val onBack: () -> Unit = remember {
             { backStack.removeLastOrNull() }
         }
@@ -97,6 +110,7 @@ class MainViewModel(
             backStack = backStack,
             onNavigate = onNavigate,
             onNavigateReplace = onNavigateReplace,
+            onNavigateRoot = onNavigateRoot,
             onBack = onBack
         )
     }

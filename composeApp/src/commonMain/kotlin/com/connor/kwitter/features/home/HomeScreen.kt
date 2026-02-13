@@ -42,7 +42,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -62,31 +61,12 @@ import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeEffect
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.rememberHazeState
+import com.connor.kwitter.core.ui.GlassSurface
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.home_empty
 import org.jetbrains.compose.resources.stringResource
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-@Suppress("UNUSED_PARAMETER")
-fun HomeScreen(
-    state: HomeUiState,
-    pagingFlow: Flow<PagingData<Post>>,
-    hazeState: HazeState,
-    onAction: (HomeIntent) -> Unit
-) {
-    HomeScreen(
-        state = state,
-        pagingFlow = pagingFlow,
-        onAction = onAction
-    )
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,7 +79,6 @@ fun HomeScreen(
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
-    val hazeState = rememberHazeState()
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -120,7 +99,6 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             HomeTopBar(
-                hazeState = hazeState,
                 onCreatePostClick = {
                     onAction(HomeNavAction.CreatePostClick)
                 },
@@ -185,43 +163,33 @@ fun HomeScreen(
                                 key = lazyPagingItems.itemKey { it.id }
                             ) { index ->
                                 val post = lazyPagingItems[index] ?: return@items
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .hazeSource(
-                                            state = hazeState,
-                                            zIndex = 0f,
-                                            key = "home_post_item"
+                                PostItem(
+                                    post = post,
+                                    onClick = { onAction(HomeNavAction.PostClick(post.id)) },
+                                    onLikeClick = {
+                                        onAction(
+                                            HomeAction.ToggleLike(
+                                                postId = post.id,
+                                                isCurrentlyLiked = post.isLikedByCurrentUser == true,
+                                                currentLikeCount = post.stats.likeCount
+                                            )
                                         )
-                                ) {
-                                    PostItem(
-                                        post = post,
-                                        onClick = { onAction(HomeNavAction.PostClick(post.id)) },
-                                        onLikeClick = {
-                                            onAction(
-                                                HomeAction.ToggleLike(
-                                                    postId = post.id,
-                                                    isCurrentlyLiked = post.isLikedByCurrentUser == true,
-                                                    currentLikeCount = post.stats.likeCount
-                                                )
+                                    },
+                                    onBookmarkClick = {
+                                        onAction(
+                                            HomeAction.ToggleBookmark(
+                                                postId = post.id,
+                                                isCurrentlyBookmarked = post.isBookmarkedByCurrentUser == true
                                             )
-                                        },
-                                        onBookmarkClick = {
-                                            onAction(
-                                                HomeAction.ToggleBookmark(
-                                                    postId = post.id,
-                                                    isCurrentlyBookmarked = post.isBookmarkedByCurrentUser == true
-                                                )
-                                            )
-                                        },
-                                        onMediaClick = { index ->
-                                            onAction(HomeNavAction.MediaClick(post.media, index))
-                                        },
-                                        onAuthorClick = {
-                                            onAction(HomeNavAction.AuthorClick(post.author.id))
-                                        }
-                                    )
-                                }
+                                        )
+                                    },
+                                    onMediaClick = { index ->
+                                        onAction(HomeNavAction.MediaClick(post.media, index))
+                                    },
+                                    onAuthorClick = {
+                                        onAction(HomeNavAction.AuthorClick(post.author.id))
+                                    }
+                                )
                             }
 
                             if (lazyPagingItems.loadState.append is LoadState.Loading) {
@@ -262,41 +230,29 @@ fun HomeScreen(
 fun GlassFloatingButton(
     modifier: Modifier = Modifier,
     size: Dp = 58.dp,
-    hazeState: HazeState,
     onClick: () -> Unit
 ) {
     val isDark = LocalIsDarkTheme.current
-    val borderBrush = Brush.verticalGradient(
-        colors = listOf(
-            Color.White.copy(alpha = if (isDark) 0.16f else 0.55f),
-            Color.White.copy(alpha = if (isDark) 0.04f else 0.1f)
-        )
-    )
 
-    Box(
+    GlassSurface(
         modifier = modifier
             .size(size)
-            .clip(CircleShape)
-            .hazeEffect(state = hazeState) {
-                blurRadius = 32.dp
-                noiseFactor = 0.04f
-            }
-            .background(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = if (isDark) 0.14f else 0.2f),
-                shape = CircleShape
-            )
-            .border(width = 0.5.dp, brush = borderBrush, shape = CircleShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             ),
-        contentAlignment = Alignment.Center
+        shape = CircleShape
     ) {
-        PlusIcon(
-            modifier = Modifier.size(24.dp),
-            color = if (isDark) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.primary
-        )
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            PlusIcon(
+                modifier = Modifier.size(24.dp),
+                color = if (isDark) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 
@@ -331,74 +287,49 @@ private fun NewPostsBanner(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeTopBar(
-    hazeState: HazeState,
     onCreatePostClick: () -> Unit,
     onProfileClick: (() -> Unit)?
 ) {
-    val isDark = LocalIsDarkTheme.current
     val topBarShape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp)
-    val borderBrush = Brush.verticalGradient(
-        listOf(
-            Color.White.copy(alpha = if (isDark) 0.14f else 0.5f),
-            Color.White.copy(alpha = if (isDark) 0.03f else 0.1f)
-        )
-    )
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .hazeSource(
-                state = hazeState,
-                zIndex = 1f,
-                key = "home_top_bar"
-            )
-            .clip(topBarShape)
-            .hazeEffect(state = hazeState) {
-                blurRadius = 25.dp
-                noiseFactor = 0.02f
-                canDrawArea = { area ->
-                    area.key != "home_top_bar"
-                }
-            }
-            .background(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = if (isDark) 0.24f else 0.42f),
-                shape = topBarShape
-            )
-            .border(width = 0.5.dp, brush = borderBrush, shape = topBarShape)
+    GlassSurface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = topBarShape
     ) {
-        CenterAlignedTopAppBar(
-            title = {
-                KwitterLogo(
-                    modifier = Modifier.size(30.dp),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            },
-            navigationIcon = {
-                Box(modifier = Modifier.padding(start = 12.dp)) {
-                    ProfilePlaceholder(onClick = onProfileClick)
-                }
-            },
-            actions = {
-                Box(modifier = Modifier.padding(end = 12.dp)) {
-                    GlassFloatingButton(
-                        size = 40.dp,
-                        hazeState = hazeState,
-                        onClick = onCreatePostClick
+        Column {
+            CenterAlignedTopAppBar(
+                title = {
+                    KwitterLogo(
+                        modifier = Modifier.size(30.dp),
+                        color = MaterialTheme.colorScheme.primary
                     )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color.Transparent,
-                scrolledContainerColor = Color.Transparent
+                },
+                navigationIcon = {
+                    Box(modifier = Modifier.padding(start = 12.dp)) {
+                        ProfilePlaceholder(onClick = onProfileClick)
+                    }
+                },
+                actions = {
+                    Box(modifier = Modifier.padding(end = 12.dp)) {
+                        GlassFloatingButton(
+                            size = 40.dp,
+                            onClick = onCreatePostClick
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent
+                )
             )
-        )
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.16f))
-        )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.16f))
+            )
+        }
     }
 }
 

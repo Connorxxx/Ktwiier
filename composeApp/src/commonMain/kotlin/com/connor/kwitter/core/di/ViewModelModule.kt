@@ -13,6 +13,7 @@ import com.connor.kwitter.features.postdetail.PostDetailViewModel
 import com.connor.kwitter.features.userprofile.UserProfileViewModel
 import com.connor.kwitter.features.userlist.UserListViewModel
 import com.connor.kwitter.features.search.SearchViewModel
+import com.connor.kwitter.features.settings.SettingsViewModel
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
@@ -34,4 +35,5 @@ val viewModelModule = module {
     viewModelOf(::SearchViewModel)
     viewModelOf(::ConversationListViewModel)
     viewModelOf(::ChatViewModel)
+    viewModelOf(::SettingsViewModel)
 }

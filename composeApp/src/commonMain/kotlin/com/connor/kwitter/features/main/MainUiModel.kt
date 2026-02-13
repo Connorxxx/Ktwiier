@@ -14,6 +14,8 @@ data class MainState(
     val onNavigate: (NavigationRoute) -> Unit,
     // 替换式导航：移除栈中所有相同类型路由，然后添加新路由（实现 singleTop）
     val onNavigateReplace: (NavigationRoute) -> Unit,
+    // 顶层导航：清空当前业务栈并进入目标顶层页面
+    val onNavigateRoot: (NavigationRoute) -> Unit,
     val onBack: () -> Unit
 )
 

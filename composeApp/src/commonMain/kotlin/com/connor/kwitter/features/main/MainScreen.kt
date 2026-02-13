@@ -1,22 +1,46 @@
 package com.connor.kwitter.features.main
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.connor.kwitter.core.ui.GlassSurface
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
@@ -51,6 +75,9 @@ import com.connor.kwitter.features.login.LoginAction
 import com.connor.kwitter.features.login.LoginNavAction
 import com.connor.kwitter.features.login.LoginScreen
 import com.connor.kwitter.features.login.LoginViewModel
+import com.connor.kwitter.features.settings.SettingsAction
+import com.connor.kwitter.features.settings.SettingsScreen
+import com.connor.kwitter.features.settings.SettingsViewModel
 import com.connor.kwitter.features.auth.RegisterAction
 import com.connor.kwitter.features.auth.RegisterNavAction
 import com.connor.kwitter.features.auth.RegisterScreen
@@ -72,8 +99,40 @@ import com.connor.kwitter.features.userlist.UserListNavAction
 import com.connor.kwitter.features.userlist.UserListScreen
 import com.connor.kwitter.features.userlist.UserListType
 import com.connor.kwitter.features.userlist.UserListViewModel
+import com.connor.kwitter.core.theme.LocalIsDarkTheme
 import kotlinx.serialization.json.Json
 import org.koin.compose.viewmodel.koinViewModel
+
+private enum class MainBottomTab(
+    val label: String
+) {
+    Home("首页"),
+    Messages("私信"),
+    Search("搜索"),
+    Settings("设置")
+}
+
+private val MainBottomElementBottomPadding = 26.dp
+private val MainBottomHorizontalPadding = 22.dp
+private val MainBottomBarHeight = 62.dp
+
+private fun NavigationRoute.toBottomTabOrNull(): MainBottomTab? = when (this) {
+    NavigationRoute.Home -> MainBottomTab.Home
+    NavigationRoute.ConversationList -> MainBottomTab.Messages
+    NavigationRoute.Search -> MainBottomTab.Search
+    NavigationRoute.Settings -> MainBottomTab.Settings
+    else -> null
+}
+
+private fun MainBottomTab.toRoute(): NavigationRoute = when (this) {
+    MainBottomTab.Home -> NavigationRoute.Home
+    MainBottomTab.Messages -> NavigationRoute.ConversationList
+    MainBottomTab.Search -> NavigationRoute.Search
+    MainBottomTab.Settings -> NavigationRoute.Settings
+}
+
+private fun shouldShowMainBottomBar(route: NavigationRoute?): Boolean =
+    route?.toBottomTabOrNull() != null
 
 /**
  * Main Screen - 应用的主入口
@@ -100,14 +159,28 @@ fun MainScreen(
         mainVm.onAction(MainAction.Load)
     }
 
-    NavDisplay(
-        modifier = Modifier.background(MaterialTheme.colorScheme.background),
-        entryDecorators = listOf(
-            rememberSaveableStateHolderNavEntryDecorator(),
-            rememberViewModelStoreNavEntryDecorator()
-        ),
-        backStack = mainState.backStack,
-        onBack = mainState.onBack,
+    val currentRoute = mainState.backStack.lastOrNull()
+    val selectedTab = mainState.backStack
+        .asReversed()
+        .firstNotNullOfOrNull { route -> route.toBottomTabOrNull() }
+        ?: MainBottomTab.Home
+
+    val showBottomBar = shouldShowMainBottomBar(currentRoute)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        NavDisplay(
+            modifier = Modifier
+                .fillMaxSize(),
+            entryDecorators = listOf(
+                rememberSaveableStateHolderNavEntryDecorator(),
+                rememberViewModelStoreNavEntryDecorator()
+            ),
+            backStack = mainState.backStack,
+            onBack = mainState.onBack,
 
         // 🎨 全局前进动画：缩放 + 淡入淡出 + 水平滑动
         transitionSpec = {
@@ -501,6 +574,20 @@ fun MainScreen(
                 )
             }
 
+            entry<NavigationRoute.Settings> {
+                val vm: SettingsViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+
+                SettingsScreen(
+                    state = state,
+                    onAction = { action ->
+                        if (action is SettingsAction) {
+                            vm.onEvent(action)
+                        }
+                    }
+                )
+            }
+
             entry<NavigationRoute.ConversationList> {
                 val vm: ConversationListViewModel = koinViewModel()
 
@@ -551,5 +638,125 @@ fun MainScreen(
                 )
             }
         }
-    )
+        )
+
+        AnimatedVisibility(
+            visible = showBottomBar,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(
+                    start = MainBottomHorizontalPadding,
+                    end = MainBottomHorizontalPadding,
+                    bottom = MainBottomElementBottomPadding
+                ),
+            enter = slideInVertically(
+                initialOffsetY = { fullHeight -> fullHeight },
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            ) + fadeIn(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessLow
+                )
+            ),
+            exit = slideOutVertically(
+                targetOffsetY = { fullHeight -> fullHeight },
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium
+                )
+            ) + fadeOut(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMedium
+                )
+            )
+        ) {
+            GlassBottomBar(
+                modifier = Modifier,
+                selectedTab = selectedTab,
+                onTabClick = { tab ->
+                    mainState.onNavigateRoot(tab.toRoute())
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun GlassBottomBar(
+    modifier: Modifier = Modifier,
+    selectedTab: MainBottomTab,
+    onTabClick: (MainBottomTab) -> Unit
+) {
+    val isDark = LocalIsDarkTheme.current
+    val barShape = RoundedCornerShape(50)
+    val tabShape = RoundedCornerShape(20.dp)
+
+    val activeColor = if (isDark) {
+        Color.White.copy(alpha = 0.92f)
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val inactiveColor = if (isDark) {
+        Color.White.copy(alpha = 0.45f)
+    } else {
+        Color.Black.copy(alpha = 0.35f)
+    }
+    val selectedTabBg = if (isDark) {
+        Color.White.copy(alpha = 0.12f)
+    } else {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+    }
+
+    GlassSurface(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(MainBottomBarHeight)
+            .shadow(elevation = 16.dp, shape = barShape),
+        shape = barShape
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MainBottomTab.entries.forEach { tab ->
+                val selected = selectedTab == tab
+                val textColor by animateColorAsState(
+                    targetValue = if (selected) activeColor else inactiveColor,
+                    animationSpec = tween(200)
+                )
+                val tabBackgroundColor by animateColorAsState(
+                    targetValue = if (selected) selectedTabBg else Color.Transparent,
+                    animationSpec = tween(200)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(tabShape)
+                        .background(tabBackgroundColor, tabShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onTabClick(tab) }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = tab.label,
+                        color = textColor,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
 }
