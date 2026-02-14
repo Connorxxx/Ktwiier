@@ -9,6 +9,9 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
     private let nativeTopBar = MainViewControllerKt.createNativeTopBarView()
     private let nativeTabBar = UITabBar()
     private var tabItems: [UITabBarItem] = []
+    private let tabForegroundColor = UIColor { traitCollection in
+        traitCollection.userInterfaceStyle == .dark ? .white : .black
+    }
 
     init(composeChild: UIViewController) {
         self.composeChild = composeChild
@@ -54,21 +57,7 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
             )
         ]
 
-        let appearance = nativeTabBar.standardAppearance
-        let titleOffset = UIOffset(horizontal: 0.0, vertical: 0.0)
-        let itemAppearances = [
-            appearance.stackedLayoutAppearance,
-            appearance.inlineLayoutAppearance,
-            appearance.compactInlineLayoutAppearance
-        ]
-        itemAppearances.forEach { itemAppearance in
-            itemAppearance.normal.titlePositionAdjustment = titleOffset
-            itemAppearance.selected.titlePositionAdjustment = titleOffset
-        }
-        nativeTabBar.standardAppearance = appearance
-        if #available(iOS 15.0, *) {
-            nativeTabBar.scrollEdgeAppearance = appearance
-        }
+        applyTabBarAppearance()
 
         tabItems.forEach { item in
             item.imageInsets = .zero
@@ -79,6 +68,15 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
         view.addSubview(nativeTabBar)
 
         MainViewControllerKt.registerNativeTabBar(tabBar: nativeTabBar)
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+
+        guard previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle else {
+            return
+        }
+        applyTabBarAppearance()
     }
 
     override func viewDidLayoutSubviews() {
@@ -110,6 +108,32 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
     func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
         guard let index = tabItems.firstIndex(of: item) else { return }
         MainViewControllerKt.onNativeTabSelected(index: Int32(index))
+    }
+
+    private func applyTabBarAppearance() {
+        let appearance = nativeTabBar.standardAppearance
+        let titleOffset = UIOffset(horizontal: 0.0, vertical: 0.0)
+        let itemAppearances = [
+            appearance.stackedLayoutAppearance,
+            appearance.inlineLayoutAppearance,
+            appearance.compactInlineLayoutAppearance
+        ]
+
+        itemAppearances.forEach { itemAppearance in
+            itemAppearance.normal.titlePositionAdjustment = titleOffset
+            itemAppearance.selected.titlePositionAdjustment = titleOffset
+            itemAppearance.normal.iconColor = tabForegroundColor
+            itemAppearance.selected.iconColor = tabForegroundColor
+            itemAppearance.normal.titleTextAttributes = [.foregroundColor: tabForegroundColor]
+            itemAppearance.selected.titleTextAttributes = [.foregroundColor: tabForegroundColor]
+        }
+
+        nativeTabBar.standardAppearance = appearance
+        nativeTabBar.tintColor = tabForegroundColor
+        nativeTabBar.unselectedItemTintColor = tabForegroundColor
+        if #available(iOS 15.0, *) {
+            nativeTabBar.scrollEdgeAppearance = appearance
+        }
     }
 }
 
