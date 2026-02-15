@@ -23,7 +23,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import org.koin.dsl.module
 
-const val BASE_URL = "http://192.168.0.101:8080"
+const val BASE_URL = "http://192.168.2.142:8080"
 private const val REFRESH_PATH = "/v1/auth/refresh"
 
 val networkModule = module {

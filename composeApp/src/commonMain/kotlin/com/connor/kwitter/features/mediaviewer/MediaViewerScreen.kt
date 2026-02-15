@@ -27,10 +27,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
+import com.connor.kwitter.core.di.BASE_URL
 import com.connor.kwitter.core.ui.FullscreenVideoPlayer
 import com.connor.kwitter.domain.post.model.PostMediaType
-
-private const val BASE_URL = "http://192.168.0.101:8080"
 
 private fun resolveMediaUrl(url: String): String {
     return if (url.startsWith("http")) url else "$BASE_URL$url"

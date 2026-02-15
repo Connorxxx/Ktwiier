@@ -17,10 +17,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.connor.kwitter.core.di.BASE_URL
 import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.post.model.PostMediaType
-
-private const val BASE_URL = "http://192.168.0.101:8080"
 
 @Composable
 fun PostMediaGrid(

@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ImageBitmap
 import coil3.compose.AsyncImage
+import com.connor.kwitter.core.di.BASE_URL
 import com.connor.kwitter.core.media.decodeToImageBitmap
 import com.connor.kwitter.core.media.rememberImagePickerLauncher
 import com.connor.kwitter.core.theme.KwitterTheme
@@ -65,8 +66,6 @@ import kwitter.composeapp.generated.resources.profile_edit
 import kwitter.composeapp.generated.resources.profile_save
 import kwitter.composeapp.generated.resources.profile_username_label
 import org.jetbrains.compose.resources.stringResource
-
-private const val BASE_URL = "http://192.168.0.101:8080"
 
 private fun resolveAvatarUrl(url: String): String {
     return if (url.startsWith("http")) url else "$BASE_URL$url"
