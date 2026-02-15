@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary)
+    alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
@@ -13,10 +13,23 @@ plugins {
 }
 
 kotlin {
-    androidTarget {
+    android {
+        namespace = "com.connor.kwitter.composeapp"
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
+
         compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_11)
+            jvmTarget.set(JvmTarget.JVM_21)
         }
+    }
+
+    compilerOptions {
+        //jvmTarget.set(JvmTarget.JVM_21)
+        freeCompilerArgs.addAll(
+            "-Xjvm-default=all",
+            "-Xcontext-parameters",
+            "-Xwhen-guards"
+        )
     }
     
     listOf(
@@ -136,42 +149,8 @@ kotlin {
     }
 }
 
-android {
-    namespace = "com.connor.kwitter"
-    compileSdk = libs.versions.android.compileSdk.get().toInt()
-
-    defaultConfig {
-        minSdk = libs.versions.android.minSdk.get().toInt()
-    }
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
-    buildTypes {
-        getByName("release") {
-            isMinifyEnabled = false
-        }
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
-    }
-}
-
-kotlin {
-    compilerOptions {
-        //jvmTarget.set(JvmTarget.JVM_21)
-        freeCompilerArgs.addAll(
-            "-Xjvm-default=all",
-            "-Xcontext-parameters",
-            "-Xwhen-guards"
-        )
-    }
-}
-
 dependencies {
-    debugImplementation(libs.compose.uiTooling)
+    androidRuntimeClasspath(libs.compose.uiTooling)
 
     // Room KSP
     add("kspAndroid", libs.androidx.room.compiler)
