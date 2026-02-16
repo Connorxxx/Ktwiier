@@ -1,10 +1,18 @@
 package com.connor.kwitter.features.search
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.map
+import app.cash.molecule.RecompositionMode
+import app.cash.molecule.launchMolecule
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostMedia
@@ -14,17 +22,17 @@ import com.connor.kwitter.domain.user.model.UserError
 import com.connor.kwitter.domain.user.model.UserListItem
 import com.connor.kwitter.domain.user.repository.UserRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 enum class SearchTab { POSTS, REPLIES, USERS }
 
@@ -83,12 +91,16 @@ class SearchViewModel(
         val isBookmarkedByCurrentUser: Boolean? = null
     )
 
+    private val _events = Channel<SearchAction>(Channel.UNLIMITED)
     private val _searchQuery = MutableStateFlow(SearchQuery())
-    private val _uiState = MutableStateFlow(SearchUiState())
     private val _postMods = MutableStateFlow<Map<String, PostModification>>(emptyMap())
     private val _userMods = MutableStateFlow<Map<String, Boolean?>>(emptyMap())
 
-    val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<SearchUiState> = viewModelScope.launchMolecule(
+        mode = RecompositionMode.Immediate
+    ) {
+        SearchPresenter()
+    }
 
     private val postQueryFlow = _searchQuery
         .map { it.query to it.sort }
@@ -132,38 +144,52 @@ class SearchViewModel(
         }
 
     fun onEvent(event: SearchAction) {
-        when (event) {
-            is SearchAction.Search -> search(event.query)
-            is SearchAction.SelectTab -> _uiState.update { it.copy(selectedTab = event.tab) }
-            is SearchAction.SetSortOrder -> setSortOrder(event.sort)
-            is SearchAction.ToggleLike -> viewModelScope.launch { handleToggleLike(event) }
-            is SearchAction.ToggleBookmark -> viewModelScope.launch { handleToggleBookmark(event) }
-            is SearchAction.ToggleFollow -> viewModelScope.launch { handleToggleFollow(event) }
-            is SearchAction.ErrorDismissed -> _uiState.update { it.copy(error = null) }
-        }
+        _events.trySend(event)
     }
 
-    private fun search(query: String) {
+    @Composable
+    private fun SearchPresenter(): SearchUiState {
+        var state by remember { mutableStateOf(SearchUiState()) }
+
+        LaunchedEffect(Unit) {
+            _events.receiveAsFlow().collect { action ->
+                state = when (action) {
+                    is SearchAction.Search -> handleSearch(action.query, state)
+                    is SearchAction.SelectTab -> state.copy(selectedTab = action.tab)
+                    is SearchAction.SetSortOrder -> handleSetSortOrder(action.sort, state)
+                    is SearchAction.ToggleLike -> handleToggleLike(action, state)
+                    is SearchAction.ToggleBookmark -> handleToggleBookmark(action, state)
+                    is SearchAction.ToggleFollow -> handleToggleFollow(action, state)
+                    is SearchAction.ErrorDismissed -> state.copy(error = null)
+                }
+            }
+        }
+
+        return state
+    }
+
+    private fun handleSearch(query: String, currentState: SearchUiState): SearchUiState {
         val trimmed = query.trim()
-        if (trimmed.isBlank()) return
+        if (trimmed.isBlank()) return currentState
         _postMods.value = emptyMap()
         _userMods.value = emptyMap()
-        _searchQuery.value = SearchQuery(trimmed, _uiState.value.sortOrder)
-        _uiState.update {
-            it.copy(selectedTab = SearchTab.POSTS, hasSearched = true, error = null)
-        }
+        _searchQuery.value = SearchQuery(trimmed, currentState.sortOrder)
+        return currentState.copy(selectedTab = SearchTab.POSTS, hasSearched = true, error = null)
     }
 
-    private fun setSortOrder(sort: String) {
-        if (sort == _uiState.value.sortOrder) return
-        _uiState.update { it.copy(sortOrder = sort) }
+    private fun handleSetSortOrder(sort: String, currentState: SearchUiState): SearchUiState {
+        if (sort == currentState.sortOrder) return currentState
         val current = _searchQuery.value
         if (current.query.isNotBlank()) {
             _searchQuery.value = current.copy(sort = sort)
         }
+        return currentState.copy(sortOrder = sort)
     }
 
-    private suspend fun handleToggleLike(action: SearchAction.ToggleLike) {
+    private suspend fun handleToggleLike(
+        action: SearchAction.ToggleLike,
+        currentState: SearchUiState
+    ): SearchUiState {
         val newLiked = !action.isCurrentlyLiked
         val newCount = if (action.isCurrentlyLiked) {
             action.currentLikeCount - 1
@@ -185,7 +211,7 @@ class SearchViewModel(
             postRepository.likePost(action.postId)
         }
 
-        result.fold(
+        return result.fold(
             ifLeft = { error ->
                 _postMods.update { mods ->
                     val existing = mods[action.postId] ?: PostModification()
@@ -194,7 +220,7 @@ class SearchViewModel(
                         likeCount = action.currentLikeCount
                     ))
                 }
-                _uiState.update { it.copy(error = formatPostError(error)) }
+                currentState.copy(error = formatPostError(error))
             },
             ifRight = { updatedStats ->
                 _postMods.update { mods ->
@@ -204,11 +230,15 @@ class SearchViewModel(
                         likeCount = updatedStats.likeCount
                     ))
                 }
+                currentState
             }
         )
     }
 
-    private suspend fun handleToggleBookmark(action: SearchAction.ToggleBookmark) {
+    private suspend fun handleToggleBookmark(
+        action: SearchAction.ToggleBookmark,
+        currentState: SearchUiState
+    ): SearchUiState {
         val newBookmarked = !action.isCurrentlyBookmarked
 
         _postMods.update { mods ->
@@ -222,7 +252,7 @@ class SearchViewModel(
             postRepository.bookmarkPost(action.postId)
         }
 
-        result.fold(
+        return result.fold(
             ifLeft = { error ->
                 _postMods.update { mods ->
                     val existing = mods[action.postId] ?: PostModification()
@@ -230,13 +260,16 @@ class SearchViewModel(
                         isBookmarkedByCurrentUser = action.isCurrentlyBookmarked
                     ))
                 }
-                _uiState.update { it.copy(error = formatPostError(error)) }
+                currentState.copy(error = formatPostError(error))
             },
-            ifRight = { /* keep optimistic state */ }
+            ifRight = { currentState /* keep optimistic state */ }
         )
     }
 
-    private suspend fun handleToggleFollow(action: SearchAction.ToggleFollow) {
+    private suspend fun handleToggleFollow(
+        action: SearchAction.ToggleFollow,
+        currentState: SearchUiState
+    ): SearchUiState {
         val newFollowed = !action.isCurrentlyFollowing
 
         _userMods.update { it + (action.targetUserId to newFollowed) }
@@ -247,12 +280,12 @@ class SearchViewModel(
             userRepository.followUser(action.targetUserId)
         }
 
-        result.fold(
+        return result.fold(
             ifLeft = { error ->
                 _userMods.update { it + (action.targetUserId to action.isCurrentlyFollowing) }
-                _uiState.update { it.copy(error = formatUserError(error)) }
+                currentState.copy(error = formatUserError(error))
             },
-            ifRight = { /* keep optimistic state */ }
+            ifRight = { currentState /* keep optimistic state */ }
         )
     }
 
