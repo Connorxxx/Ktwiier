@@ -68,6 +68,12 @@ import com.connor.kwitter.core.ui.GlassTopBarIconContentColor
 import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import com.connor.kwitter.core.ui.GlassTopBarInnerIconSize
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.features.glass.NativeTopBarAction
+import com.connor.kwitter.features.glass.NativeTopBarButtonAction
+import com.connor.kwitter.features.glass.NativeTopBarButtons
+import com.connor.kwitter.features.glass.NativeTopBarModel
+import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -86,6 +92,17 @@ fun CreatePostScreen(
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
     val isReply = state.parentId != null
+    val nativeTopBarController = rememberNativeTopBarController()
+    val nativeTopTitle = if (isReply) {
+        stringResource(Res.string.create_post_reply_title)
+    } else {
+        stringResource(Res.string.create_post_title)
+    }
+    val nativeTopSubtitle = if (isReply) {
+        stringResource(Res.string.create_post_replying_to)
+    } else {
+        null
+    }
     val textProgress = (state.content.length.toFloat() / MAX_POST_LENGTH.toFloat()).coerceIn(0f, 1f)
     val canSubmit = state.content.isNotBlank() && !state.isUploading && !state.isLoading
 
@@ -108,12 +125,35 @@ fun CreatePostScreen(
         }
     }
 
+    LaunchedEffect(nativeTopBarController, nativeTopTitle, nativeTopSubtitle) {
+        nativeTopBarController?.setModel(
+            NativeTopBarModel.Title(
+                title = nativeTopTitle,
+                subtitle = nativeTopSubtitle,
+                leadingButton = NativeTopBarButtons.close()
+            )
+        )
+    }
+
+    LaunchedEffect(nativeTopBarController) {
+        nativeTopBarController?.actionEvents?.collect { action ->
+            if (
+                action is NativeTopBarAction.ButtonClicked &&
+                action.action == NativeTopBarButtonAction.Close
+            ) {
+                onAction(CreatePostNavAction.BackClick)
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
-            CreatePostTopBar(
-                isReply = isReply,
-                onClose = { onAction(CreatePostNavAction.BackClick) }
-            )
+            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+                CreatePostTopBar(
+                    isReply = isReply,
+                    onClose = { onAction(CreatePostNavAction.BackClick) }
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,

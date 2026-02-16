@@ -66,6 +66,12 @@ import coil3.compose.AsyncImage
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.PostItem
+import com.connor.kwitter.features.glass.NativeTopBarAction
+import com.connor.kwitter.features.glass.NativeTopBarButtonAction
+import com.connor.kwitter.features.glass.NativeTopBarButtons
+import com.connor.kwitter.features.glass.NativeTopBarModel
+import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.user.model.UserListItem
 import kotlinx.coroutines.flow.Flow
@@ -94,6 +100,8 @@ fun SearchScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var queryText by rememberSaveable { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
+    val nativeTopBarController = rememberNativeTopBarController()
+    val nativeSearchPlaceholder = stringResource(Res.string.search_placeholder)
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -102,19 +110,53 @@ fun SearchScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
+    LaunchedEffect(nativeTopBarController) {
+        if (nativeTopBarController == null) {
+            focusRequester.requestFocus()
+        }
+    }
+
+    LaunchedEffect(nativeTopBarController, nativeSearchPlaceholder) {
+        nativeTopBarController?.setModel(
+            NativeTopBarModel.Search(
+                query = queryText,
+                placeholder = nativeSearchPlaceholder,
+                leadingButton = NativeTopBarButtons.back()
+            )
+        )
+    }
+
+    LaunchedEffect(nativeTopBarController) {
+        nativeTopBarController?.actionEvents?.collect { action ->
+            when (action) {
+                is NativeTopBarAction.ButtonClicked -> {
+                    if (action.action == NativeTopBarButtonAction.Back) {
+                        onAction(SearchNavAction.BackClick)
+                    }
+                }
+
+                is NativeTopBarAction.SearchQueryChanged -> {
+                    queryText = action.query
+                }
+
+                NativeTopBarAction.SearchSubmitted -> {
+                    onAction(SearchAction.Search(queryText))
+                }
+            }
+        }
     }
 
     Scaffold(
         topBar = {
-            SearchTopBar(
-                queryText = queryText,
-                onQueryChange = { queryText = it },
-                onSearch = { onAction(SearchAction.Search(queryText)) },
-                onBackClick = { onAction(SearchNavAction.BackClick) },
-                focusRequester = focusRequester
-            )
+            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+                SearchTopBar(
+                    queryText = queryText,
+                    onQueryChange = { queryText = it },
+                    onSearch = { onAction(SearchAction.Search(queryText)) },
+                    onBackClick = { onAction(SearchNavAction.BackClick) },
+                    focusRequester = focusRequester
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,

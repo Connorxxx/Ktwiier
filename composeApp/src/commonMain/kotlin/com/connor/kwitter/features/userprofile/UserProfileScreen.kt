@@ -58,6 +58,12 @@ import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import com.connor.kwitter.core.ui.GlassTopBarInnerIconSize
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.ui.PostItem
+import com.connor.kwitter.features.glass.NativeTopBarAction
+import com.connor.kwitter.features.glass.NativeTopBarButtonAction
+import com.connor.kwitter.features.glass.NativeTopBarButtons
+import com.connor.kwitter.features.glass.NativeTopBarModel
+import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
@@ -87,6 +93,7 @@ fun UserProfileScreen(
     onAction: (UserProfileIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val nativeTopBarController = rememberNativeTopBarController()
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -95,14 +102,37 @@ fun UserProfileScreen(
         }
     }
 
+    LaunchedEffect(nativeTopBarController, state.profile?.displayName, state.isOwnProfile) {
+        nativeTopBarController?.setModel(
+            NativeTopBarModel.Title(
+                title = state.profile?.displayName.orEmpty(),
+                leadingButton = NativeTopBarButtons.back(),
+                trailingButton = if (state.isOwnProfile) NativeTopBarButtons.edit() else null
+            )
+        )
+    }
+
+    LaunchedEffect(nativeTopBarController) {
+        nativeTopBarController?.actionEvents?.collect { action ->
+            if (action !is NativeTopBarAction.ButtonClicked) return@collect
+            when (action.action) {
+                NativeTopBarButtonAction.Back -> onAction(UserProfileNavAction.BackClick)
+                NativeTopBarButtonAction.Edit -> onAction(UserProfileNavAction.EditProfileClick)
+                else -> Unit
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
-            ProfileTopBar(
-                displayName = state.profile?.displayName ?: "",
-                isOwnProfile = state.isOwnProfile,
-                onBackClick = { onAction(UserProfileNavAction.BackClick) },
-                onEditClick = { onAction(UserProfileNavAction.EditProfileClick) }
-            )
+            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+                ProfileTopBar(
+                    displayName = state.profile?.displayName ?: "",
+                    isOwnProfile = state.isOwnProfile,
+                    onBackClick = { onAction(UserProfileNavAction.BackClick) },
+                    onEditClick = { onAction(UserProfileNavAction.EditProfileClick) }
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,

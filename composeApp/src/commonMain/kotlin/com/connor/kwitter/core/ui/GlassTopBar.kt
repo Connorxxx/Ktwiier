@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.connor.kwitter.core.theme.LocalIsDarkTheme
 
 private val DefaultGlassTopBarShape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
-private val GlassTopBarButtonSize = 36.dp
+private val GlassTopBarButtonSize = 40.dp
 val GlassTopBarInnerIconSize = 18.dp
 
 @Composable

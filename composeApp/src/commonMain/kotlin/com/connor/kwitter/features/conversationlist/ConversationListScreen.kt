@@ -47,6 +47,12 @@ import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.util.formatPostTime
+import com.connor.kwitter.features.glass.NativeTopBarAction
+import com.connor.kwitter.features.glass.NativeTopBarButtonAction
+import com.connor.kwitter.features.glass.NativeTopBarButtons
+import com.connor.kwitter.features.glass.NativeTopBarModel
+import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import com.connor.kwitter.domain.messaging.model.Conversation
 import kotlinx.coroutines.flow.Flow
 
@@ -58,6 +64,7 @@ fun ConversationListScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
+    val nativeTopBarController = rememberNativeTopBarController()
 
     LaunchedEffect(lazyPagingItems.loadState.refresh) {
         val refreshState = lazyPagingItems.loadState.refresh
@@ -68,11 +75,33 @@ fun ConversationListScreen(
         }
     }
 
+    LaunchedEffect(nativeTopBarController) {
+        nativeTopBarController?.setModel(
+            NativeTopBarModel.Title(
+                title = "Messages",
+                leadingButton = NativeTopBarButtons.back()
+            )
+        )
+    }
+
+    LaunchedEffect(nativeTopBarController) {
+        nativeTopBarController?.actionEvents?.collect { action ->
+            if (
+                action is NativeTopBarAction.ButtonClicked &&
+                action.action == NativeTopBarButtonAction.Back
+            ) {
+                onAction(ConversationListNavAction.BackClick)
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
-            ConversationListTopBar(
-                onBackClick = { onAction(ConversationListNavAction.BackClick) }
-            )
+            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+                ConversationListTopBar(
+                    onBackClick = { onAction(ConversationListNavAction.BackClick) }
+                )
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,

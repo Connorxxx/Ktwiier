@@ -51,6 +51,12 @@ import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.util.formatPostTime
+import com.connor.kwitter.features.glass.NativeTopBarAction
+import com.connor.kwitter.features.glass.NativeTopBarButtonAction
+import com.connor.kwitter.features.glass.NativeTopBarButtons
+import com.connor.kwitter.features.glass.NativeTopBarModel
+import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import com.connor.kwitter.domain.messaging.model.Message
 import kotlinx.coroutines.flow.Flow
 
@@ -64,6 +70,7 @@ fun ChatScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
+    val nativeTopBarController = rememberNativeTopBarController()
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -88,12 +95,34 @@ fun ChatScreen(
         }
     }
 
+    LaunchedEffect(nativeTopBarController, state.otherUserDisplayName) {
+        nativeTopBarController?.setModel(
+            NativeTopBarModel.Title(
+                title = state.otherUserDisplayName,
+                leadingButton = NativeTopBarButtons.back()
+            )
+        )
+    }
+
+    LaunchedEffect(nativeTopBarController) {
+        nativeTopBarController?.actionEvents?.collect { action ->
+            if (
+                action is NativeTopBarAction.ButtonClicked &&
+                action.action == NativeTopBarButtonAction.Back
+            ) {
+                onAction(ChatNavAction.BackClick)
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
-            ChatTopBar(
-                displayName = state.otherUserDisplayName,
-                onBackClick = { onAction(ChatNavAction.BackClick) }
-            )
+            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+                ChatTopBar(
+                    displayName = state.otherUserDisplayName,
+                    onBackClick = { onAction(ChatNavAction.BackClick) }
+                )
+            }
         },
         bottomBar = {
             ChatInputBar(

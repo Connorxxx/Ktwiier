@@ -53,6 +53,12 @@ import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.util.formatPostTime
+import com.connor.kwitter.features.glass.NativeTopBarAction
+import com.connor.kwitter.features.glass.NativeTopBarButtonAction
+import com.connor.kwitter.features.glass.NativeTopBarButtons
+import com.connor.kwitter.features.glass.NativeTopBarModel
+import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostMedia
@@ -69,6 +75,12 @@ fun PostDetailScreen(
     onAction: (PostDetailIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
+    val nativeTopBarController = rememberNativeTopBarController()
+    val nativeSubtitle = if (state.threadReplies.isNotEmpty()) {
+        "${state.threadReplies.size} replies"
+    } else {
+        "Start the first reply"
+    }
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -77,12 +89,35 @@ fun PostDetailScreen(
         }
     }
 
+    LaunchedEffect(nativeTopBarController, nativeSubtitle) {
+        nativeTopBarController?.setModel(
+            NativeTopBarModel.Title(
+                title = "Conversation",
+                subtitle = nativeSubtitle,
+                leadingButton = NativeTopBarButtons.back()
+            )
+        )
+    }
+
+    LaunchedEffect(nativeTopBarController) {
+        nativeTopBarController?.actionEvents?.collect { action ->
+            if (
+                action is NativeTopBarAction.ButtonClicked &&
+                action.action == NativeTopBarButtonAction.Back
+            ) {
+                onAction(PostDetailNavAction.BackClick)
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
-            ThreadTopBar(
-                replyCount = state.threadReplies.size,
-                onBackClick = { onAction(PostDetailNavAction.BackClick) }
-            )
+            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+                ThreadTopBar(
+                    replyCount = state.threadReplies.size,
+                    onBackClick = { onAction(PostDetailNavAction.BackClick) }
+                )
+            }
         },
         floatingActionButton = {
             state.post?.let { post ->

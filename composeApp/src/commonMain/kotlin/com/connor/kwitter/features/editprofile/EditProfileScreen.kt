@@ -60,6 +60,12 @@ import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.features.glass.NativeTopBarAction
+import com.connor.kwitter.features.glass.NativeTopBarButtonAction
+import com.connor.kwitter.features.glass.NativeTopBarButtons
+import com.connor.kwitter.features.glass.NativeTopBarModel
+import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_bio_label
 import kwitter.composeapp.generated.resources.profile_display_name_label
@@ -96,6 +102,9 @@ fun EditProfileScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val nativeTopBarController = rememberNativeTopBarController()
+    val nativeTopTitle = stringResource(Res.string.profile_edit)
+    val nativeSaveLabel = stringResource(Res.string.profile_save)
 
     val launchPicker = rememberImagePickerLauncher { media ->
         media?.let { onAction(EditProfileAction.AvatarSelected(it)) }
@@ -114,6 +123,36 @@ fun EditProfileScreen(
         }
     }
 
+    LaunchedEffect(
+        nativeTopBarController,
+        nativeTopTitle,
+        nativeSaveLabel,
+        state.isSaving,
+        state.isUploadingAvatar
+    ) {
+        nativeTopBarController?.setModel(
+            NativeTopBarModel.Title(
+                title = nativeTopTitle,
+                leadingButton = NativeTopBarButtons.back(enabled = !state.isSaving),
+                trailingButton = NativeTopBarButtons.save(
+                    label = nativeSaveLabel,
+                    enabled = !state.isSaving && !state.isUploadingAvatar
+                )
+            )
+        )
+    }
+
+    LaunchedEffect(nativeTopBarController) {
+        nativeTopBarController?.actionEvents?.collect { action ->
+            if (action !is NativeTopBarAction.ButtonClicked) return@collect
+            when (action.action) {
+                NativeTopBarButtonAction.Back -> onAction(EditProfileNavAction.BackClick)
+                NativeTopBarButtonAction.Save -> onAction(EditProfileAction.Save)
+                else -> Unit
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -129,12 +168,14 @@ fun EditProfileScreen(
     ) {
         Scaffold(
             topBar = {
-                EditProfileTopBar(
-                    isSaving = state.isSaving,
-                    isUploading = state.isUploadingAvatar,
-                    onBackClick = { onAction(EditProfileNavAction.BackClick) },
-                    onSaveClick = { onAction(EditProfileAction.Save) }
-                )
+                NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+                    EditProfileTopBar(
+                        isSaving = state.isSaving,
+                        isUploading = state.isUploadingAvatar,
+                        onBackClick = { onAction(EditProfileNavAction.BackClick) },
+                        onSaveClick = { onAction(EditProfileAction.Save) }
+                    )
+                }
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
             containerColor = Color.Transparent,

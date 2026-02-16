@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,6 +39,12 @@ import com.connor.kwitter.core.media.decodeToImageBitmap
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.features.glass.NativeTopBarAction
+import com.connor.kwitter.features.glass.NativeTopBarButtonAction
+import com.connor.kwitter.features.glass.NativeTopBarButtons
+import com.connor.kwitter.features.glass.NativeTopBarModel
+import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -49,9 +56,31 @@ fun AvatarCropScreen(
     onCancel: () -> Unit
 ) {
     val imageBitmap = remember(imageBytes) { decodeToImageBitmap(imageBytes) }
+    val nativeTopBarController = rememberNativeTopBarController()
 
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+
+    LaunchedEffect(nativeTopBarController) {
+        nativeTopBarController?.setModel(
+            NativeTopBarModel.Title(
+                title = "Crop Avatar",
+                leadingButton = NativeTopBarButtons.back(),
+                preferLightForeground = true
+            )
+        )
+    }
+
+    LaunchedEffect(nativeTopBarController) {
+        nativeTopBarController?.actionEvents?.collect { action ->
+            if (
+                action is NativeTopBarAction.ButtonClicked &&
+                action.action == NativeTopBarButtonAction.Back
+            ) {
+                onCancel()
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -59,9 +88,11 @@ fun AvatarCropScreen(
             .background(Color.Black)
     ) {
         // Top bar
-        CropTopBar(
-            onCancel = onCancel
-        )
+        NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+            CropTopBar(
+                onCancel = onCancel
+            )
+        }
 
         // Crop area
         BoxWithConstraints(
