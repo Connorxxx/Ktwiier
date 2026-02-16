@@ -2,6 +2,7 @@ package com.connor.kwitter.core.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,22 +10,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.connor.kwitter.core.theme.LocalIsDarkTheme
 
 private val DefaultGlassTopBarShape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
-private val GlassTopBarButtonSize = 40.dp
+private val GlassTopBarButtonSize = 36.dp
 val GlassTopBarInnerIconSize = 18.dp
 
 @Composable
@@ -81,15 +83,18 @@ fun GlassTopBarIconButton(
     } else {
         Color.Black.copy(alpha = 0.08f)
     }
-
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
+    Box(
         modifier = modifier
             .size(GlassTopBarButtonSize)
             .clip(CircleShape)
             .background(containerColor, CircleShape)
             .border(1.dp, borderColor, CircleShape)
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
     ) {
         content()
     }
