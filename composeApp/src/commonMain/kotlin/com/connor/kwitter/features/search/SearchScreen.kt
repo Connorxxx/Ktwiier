@@ -63,9 +63,8 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
-import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.ui.GlassTopBar
-import com.connor.kwitter.core.ui.GlassTopBarIconButton
+import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.user.model.UserListItem
@@ -205,15 +204,10 @@ private fun SearchTopBar(
                 )
             },
             navigationIcon = {
-                GlassTopBarIconButton(
+                GlassTopBarBackButton(
                     onClick = onBackClick,
                     modifier = Modifier.padding(horizontal = 8.dp)
-                ) {
-                    BackArrowIcon(
-                        modifier = Modifier.size(14.dp),
-                        color = Color.Black.copy(alpha = 0.95f)
-                    )
-                }
+                )
             },
             colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                 containerColor = Color.Transparent,

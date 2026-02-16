@@ -46,9 +46,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.ui.GlassTopBar
-import com.connor.kwitter.core.ui.GlassTopBarIconButton
+import com.connor.kwitter.core.ui.GlassTopBarBackButton
+import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.domain.user.model.UserListItem
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_follow
@@ -197,10 +197,8 @@ private fun UserListTopBar(
         CenterAlignedTopAppBar(
             title = {
                 Column {
-                    Text(
+                    GlassTopBarTitle(
                         text = displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -215,15 +213,10 @@ private fun UserListTopBar(
                 }
             },
             navigationIcon = {
-                GlassTopBarIconButton(
+                GlassTopBarBackButton(
                     onClick = onBackClick,
                     modifier = Modifier.padding(horizontal = 8.dp)
-                ) {
-                    BackArrowIcon(
-                        modifier = Modifier.size(14.dp),
-                        color = Color.Black.copy(alpha = 0.95f)
-                    )
-                }
+                )
             },
             colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                 containerColor = Color.Transparent,

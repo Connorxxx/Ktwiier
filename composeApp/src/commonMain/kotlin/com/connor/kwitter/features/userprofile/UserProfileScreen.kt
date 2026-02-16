@@ -50,10 +50,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.theme.KwitterTheme
-import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.ui.EditPenIcon
 import com.connor.kwitter.core.ui.GlassTopBar
+import com.connor.kwitter.core.ui.GlassTopBarBackButton
+import com.connor.kwitter.core.ui.GlassTopBarIconContentColor
 import com.connor.kwitter.core.ui.GlassTopBarIconButton
+import com.connor.kwitter.core.ui.GlassTopBarInnerIconSize
+import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
@@ -274,26 +277,20 @@ private fun ProfileTopBar(
     onEditClick: () -> Unit
 ) {
     GlassTopBar {
+        val actionIconColor = GlassTopBarIconContentColor()
         CenterAlignedTopAppBar(
             title = {
-                Text(
+                GlassTopBarTitle(
                     text = displayName,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             },
             navigationIcon = {
-                GlassTopBarIconButton(
+                GlassTopBarBackButton(
                     onClick = onBackClick,
                     modifier = Modifier.padding(horizontal = 8.dp)
-                ) {
-                    BackArrowIcon(
-                        modifier = Modifier.size(14.dp),
-                        color = Color.Black.copy(alpha = 0.95f)
-                    )
-                }
+                )
             },
             actions = {
                 if (isOwnProfile) {
@@ -302,8 +299,8 @@ private fun ProfileTopBar(
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
                         EditPenIcon(
-                            modifier = Modifier.size(14.dp),
-                            color = Color.Black.copy(alpha = 0.95f)
+                            modifier = Modifier.size(GlassTopBarInnerIconSize),
+                            color = actionIconColor
                         )
                     }
                 }

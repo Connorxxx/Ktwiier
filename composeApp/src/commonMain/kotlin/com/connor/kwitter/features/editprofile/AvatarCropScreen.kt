@@ -35,9 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.connor.kwitter.core.media.cropCircle
 import com.connor.kwitter.core.media.decodeToImageBitmap
-import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.ui.GlassTopBar
-import com.connor.kwitter.core.ui.GlassTopBarIconButton
+import com.connor.kwitter.core.ui.GlassTopBarBackButton
+import com.connor.kwitter.core.ui.GlassTopBarTitle
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -171,23 +171,16 @@ private fun CropTopBar(
     GlassTopBar {
         CenterAlignedTopAppBar(
             title = {
-                Text(
+                GlassTopBarTitle(
                     text = "Crop Avatar",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
                     color = Color.White
                 )
             },
             navigationIcon = {
-                GlassTopBarIconButton(
+                GlassTopBarBackButton(
                     onClick = onCancel,
                     modifier = Modifier.padding(horizontal = 8.dp)
-                ) {
-                    BackArrowIcon(
-                        modifier = Modifier.size(14.dp),
-                        color = Color.Black.copy(alpha = 0.95f)
-                    )
-                }
+                )
             },
             colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                 containerColor = Color.Transparent,

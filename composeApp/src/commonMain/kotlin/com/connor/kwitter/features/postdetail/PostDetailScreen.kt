@@ -49,9 +49,9 @@ import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.PostActionBar
 import com.connor.kwitter.core.ui.PostMediaGrid
-import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.ui.GlassTopBar
-import com.connor.kwitter.core.ui.GlassTopBarIconButton
+import com.connor.kwitter.core.ui.GlassTopBarBackButton
+import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
@@ -277,11 +277,7 @@ private fun ThreadTopBar(
         CenterAlignedTopAppBar(
             title = {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = "Conversation",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    GlassTopBarTitle(text = "Conversation")
                     Text(
                         text = if (replyCount > 0) "$replyCount replies" else "Start the first reply",
                         style = MaterialTheme.typography.labelMedium,
@@ -290,15 +286,10 @@ private fun ThreadTopBar(
                 }
             },
             navigationIcon = {
-                GlassTopBarIconButton(
+                GlassTopBarBackButton(
                     onClick = onBackClick,
                     modifier = Modifier.padding(horizontal = 8.dp)
-                ) {
-                    BackArrowIcon(
-                        modifier = Modifier.size(14.dp),
-                        color = Color.Black.copy(alpha = 0.95f)
-                    )
-                }
+                )
             },
             colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                 containerColor = Color.Transparent,

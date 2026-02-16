@@ -11,16 +11,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.connor.kwitter.core.theme.LocalIsDarkTheme
 
 private val DefaultGlassTopBarShape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
+private val GlassTopBarButtonSize = 40.dp
+val GlassTopBarInnerIconSize = 18.dp
 
 @Composable
 fun GlassTopBar(
@@ -81,11 +86,59 @@ fun GlassTopBarIconButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier
-            .size(40.dp)
+            .size(GlassTopBarButtonSize)
             .clip(CircleShape)
             .background(containerColor, CircleShape)
             .border(1.dp, borderColor, CircleShape)
     ) {
         content()
     }
+}
+
+@Composable
+fun GlassTopBarIconContentColor(): Color {
+    val isDark = LocalIsDarkTheme.current
+    return if (isDark) {
+        Color.Black.copy(alpha = 0.95f)
+    } else {
+        MaterialTheme.colorScheme.onPrimary
+    }
+}
+
+@Composable
+fun GlassTopBarBackButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    iconColor: Color = GlassTopBarIconContentColor()
+) {
+    GlassTopBarIconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier
+    ) {
+        BackArrowIcon(
+            modifier = Modifier.size(GlassTopBarInnerIconSize),
+            color = iconColor
+        )
+    }
+}
+
+@Composable
+fun GlassTopBarTitle(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    maxLines: Int = 1,
+    overflow: TextOverflow = TextOverflow.Ellipsis
+) {
+    Text(
+        text = text,
+        modifier = modifier,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = color,
+        maxLines = maxLines,
+        overflow = overflow
+    )
 }

@@ -43,9 +43,9 @@ import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
-import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.ui.GlassTopBar
-import com.connor.kwitter.core.ui.GlassTopBarIconButton
+import com.connor.kwitter.core.ui.GlassTopBarBackButton
+import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.messaging.model.Conversation
 import kotlinx.coroutines.flow.Flow
@@ -194,22 +194,13 @@ private fun ConversationListTopBar(
     GlassTopBar {
         CenterAlignedTopAppBar(
             title = {
-                Text(
-                    text = "Messages",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                GlassTopBarTitle(text = "Messages")
             },
             navigationIcon = {
-                GlassTopBarIconButton(
+                GlassTopBarBackButton(
                     onClick = onBackClick,
                     modifier = Modifier.padding(horizontal = 8.dp)
-                ) {
-                    BackArrowIcon(
-                        modifier = Modifier.size(14.dp),
-                        color = Color.Black.copy(alpha = 0.95f)
-                    )
-                }
+                )
             },
             colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                 containerColor = Color.Transparent,

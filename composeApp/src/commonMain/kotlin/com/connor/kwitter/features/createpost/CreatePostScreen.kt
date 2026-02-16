@@ -64,7 +64,10 @@ import com.connor.kwitter.core.media.SelectedMedia
 import com.connor.kwitter.core.media.rememberMediaPickerLauncher
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.GlassTopBar
+import com.connor.kwitter.core.ui.GlassTopBarIconContentColor
 import com.connor.kwitter.core.ui.GlassTopBarIconButton
+import com.connor.kwitter.core.ui.GlassTopBarInnerIconSize
+import com.connor.kwitter.core.ui.GlassTopBarTitle
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -208,17 +211,17 @@ private fun CreatePostTopBar(
     isReply: Boolean,
     onClose: () -> Unit
 ) {
+    val actionIconColor = GlassTopBarIconContentColor()
     GlassTopBar {
         CenterAlignedTopAppBar(
             title = {
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
+                    GlassTopBarTitle(
                         text = if (isReply) {
                             stringResource(Res.string.create_post_reply_title)
                         } else {
                             stringResource(Res.string.create_post_title)
-                        },
-                        fontWeight = FontWeight.Bold
+                        }
                     )
                     if (isReply)
                         Text(
@@ -238,8 +241,8 @@ private fun CreatePostTopBar(
                     modifier = Modifier.padding(horizontal = 8.dp)
                 ) {
                     CloseIcon(
-                        modifier = Modifier.size(14.dp),
-                        color = Color.Black.copy(alpha = 0.95f)
+                        modifier = Modifier.size(GlassTopBarInnerIconSize),
+                        color = actionIconColor
                     )
                 }
             },

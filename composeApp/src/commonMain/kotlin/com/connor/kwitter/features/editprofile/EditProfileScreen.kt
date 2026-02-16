@@ -57,9 +57,9 @@ import com.connor.kwitter.core.di.BASE_URL
 import com.connor.kwitter.core.media.decodeToImageBitmap
 import com.connor.kwitter.core.media.rememberImagePickerLauncher
 import com.connor.kwitter.core.theme.KwitterTheme
-import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.ui.GlassTopBar
-import com.connor.kwitter.core.ui.GlassTopBarIconButton
+import com.connor.kwitter.core.ui.GlassTopBarBackButton
+import com.connor.kwitter.core.ui.GlassTopBarTitle
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_bio_label
 import kwitter.composeapp.generated.resources.profile_display_name_label
@@ -282,23 +282,14 @@ private fun EditProfileTopBar(
     GlassTopBar {
         CenterAlignedTopAppBar(
             title = {
-                Text(
-                    text = stringResource(Res.string.profile_edit),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
+                GlassTopBarTitle(text = stringResource(Res.string.profile_edit))
             },
             navigationIcon = {
-                GlassTopBarIconButton(
+                GlassTopBarBackButton(
                     onClick = onBackClick,
                     enabled = !isSaving,
                     modifier = Modifier.padding(horizontal = 8.dp)
-                ) {
-                    BackArrowIcon(
-                        modifier = Modifier.size(14.dp),
-                        color = Color.Black.copy(alpha = 0.95f)
-                    )
-                }
+                )
             },
             actions = {
                 Button(
