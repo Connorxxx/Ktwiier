@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,7 +30,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -37,8 +37,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -64,6 +63,8 @@ import com.connor.kwitter.core.media.MediaThumbnailImage
 import com.connor.kwitter.core.media.SelectedMedia
 import com.connor.kwitter.core.media.rememberMediaPickerLauncher
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.GlassTopBar
+import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -112,12 +113,16 @@ fun CreatePostScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
+        val topOverlayPadding = paddingValues.calculateTopPadding()
+        val bottomInsetPadding = paddingValues.calculateBottomPadding()
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(bottom = bottomInsetPadding)
                 .imePadding()
                 .pointerInput(Unit) {
                     detectTapGestures { focusManager.clearFocus() }
@@ -126,6 +131,8 @@ fun CreatePostScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Spacer(modifier = Modifier.height(topOverlayPadding))
+
             if (isReply) {
                 ReplyContextCard(
                     parentId = state.parentId,
@@ -201,42 +208,47 @@ private fun CreatePostTopBar(
     isReply: Boolean,
     onClose: () -> Unit
 ) {
-    TopAppBar(
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = if (isReply) {
-                        stringResource(Res.string.create_post_reply_title)
-                    } else {
-                        stringResource(Res.string.create_post_title)
-                    },
-                    fontWeight = FontWeight.Bold
-                )
-                if (isReply)
+    GlassTopBar {
+        CenterAlignedTopAppBar(
+            title = {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
                         text = if (isReply) {
-                            stringResource(Res.string.create_post_replying_to)
+                            stringResource(Res.string.create_post_reply_title)
                         } else {
-                            stringResource(Res.string.create_post_placeholder)
+                            stringResource(Res.string.create_post_title)
                         },
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.Bold
                     )
-            }
-        },
-        navigationIcon = {
-            IconButton(onClick = onClose) {
-                CloseIcon(
-                    modifier = Modifier.size(22.dp),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            scrolledContainerColor = MaterialTheme.colorScheme.background
+                    if (isReply)
+                        Text(
+                            text = if (isReply) {
+                                stringResource(Res.string.create_post_replying_to)
+                            } else {
+                                stringResource(Res.string.create_post_placeholder)
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                }
+            },
+            navigationIcon = {
+                GlassTopBarIconButton(
+                    onClick = onClose,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    CloseIcon(
+                        modifier = Modifier.size(14.dp),
+                        color = Color.Black.copy(alpha = 0.95f)
+                    )
+                }
+            },
+            colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
+            )
         )
-    )
+    }
 }
 
 @Composable

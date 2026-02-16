@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,7 +22,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -29,8 +29,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -59,6 +58,8 @@ import com.connor.kwitter.core.media.decodeToImageBitmap
 import com.connor.kwitter.core.media.rememberImagePickerLauncher
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.BackArrowIcon
+import com.connor.kwitter.core.ui.GlassTopBar
+import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_bio_label
 import kwitter.composeapp.generated.resources.profile_display_name_label
@@ -136,14 +137,21 @@ fun EditProfileScreen(
                 )
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
-            containerColor = Color.Transparent
+            containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0)
         ) { paddingValues ->
+            val topOverlayPadding = paddingValues.calculateTopPadding()
+            val bottomInsetPadding = paddingValues.calculateBottomPadding()
+
             when {
                 state.isLoading -> {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(paddingValues),
+                            .padding(
+                                top = topOverlayPadding,
+                                bottom = bottomInsetPadding
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
@@ -154,12 +162,12 @@ fun EditProfileScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(paddingValues)
+                            .padding(bottom = bottomInsetPadding)
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 24.dp, vertical = 24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(topOverlayPadding + 8.dp))
 
                         EditProfileAvatar(
                             croppedAvatarBytes = state.croppedAvatarBytes,
@@ -271,8 +279,8 @@ private fun EditProfileTopBar(
     onBackClick: () -> Unit,
     onSaveClick: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        TopAppBar(
+    GlassTopBar {
+        CenterAlignedTopAppBar(
             title = {
                 Text(
                     text = stringResource(Res.string.profile_edit),
@@ -281,18 +289,14 @@ private fun EditProfileTopBar(
                 )
             },
             navigationIcon = {
-                IconButton(
+                GlassTopBarIconButton(
                     onClick = onBackClick,
                     enabled = !isSaving,
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 ) {
                     BackArrowIcon(
-                        modifier = Modifier.size(18.dp),
-                        color = MaterialTheme.colorScheme.onSurface
+                        modifier = Modifier.size(14.dp),
+                        color = Color.Black.copy(alpha = 0.95f)
                     )
                 }
             },
@@ -300,7 +304,8 @@ private fun EditProfileTopBar(
                 Button(
                     onClick = onSaveClick,
                     enabled = !isSaving && !isUploading,
-                    modifier = Modifier.padding(end = 8.dp)
+                    modifier = Modifier.padding(end = 8.dp),
+                    shape = RoundedCornerShape(999.dp)
                 ) {
                     if (isSaving) {
                         CircularProgressIndicator(
@@ -316,17 +321,10 @@ private fun EditProfileTopBar(
                     }
                 }
             },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.background,
-                scrolledContainerColor = MaterialTheme.colorScheme.background
+            colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
             )
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
         )
     }
 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,14 +19,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,6 +44,8 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.ui.BackArrowIcon
+import com.connor.kwitter.core.ui.GlassTopBar
+import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.domain.messaging.model.Conversation
 import kotlinx.coroutines.flow.Flow
@@ -73,21 +75,29 @@ fun ConversationListScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
         val refreshState = lazyPagingItems.loadState.refresh
+        val topOverlayPadding = paddingValues.calculateTopPadding()
+        val bottomInsetPadding = paddingValues.calculateBottomPadding()
 
         PullToRefreshBox(
             isRefreshing = refreshState is LoadState.Loading && lazyPagingItems.itemCount > 0,
             onRefresh = { lazyPagingItems.refresh() },
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(bottom = bottomInsetPadding)
         ) {
             when {
                 refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                top = topOverlayPadding,
+                                bottom = bottomInsetPadding
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator()
@@ -96,7 +106,12 @@ fun ConversationListScreen(
 
                 refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                top = topOverlayPadding,
+                                bottom = bottomInsetPadding
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -109,7 +124,12 @@ fun ConversationListScreen(
 
                 refreshState is LoadState.NotLoading && lazyPagingItems.itemCount == 0 -> {
                     Box(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                top = topOverlayPadding,
+                                bottom = bottomInsetPadding
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -123,7 +143,10 @@ fun ConversationListScreen(
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 8.dp)
+                        contentPadding = PaddingValues(
+                            top = topOverlayPadding + 8.dp,
+                            bottom = 8.dp
+                        )
                     ) {
                         items(
                             count = lazyPagingItems.itemCount,
@@ -168,8 +191,8 @@ fun ConversationListScreen(
 private fun ConversationListTopBar(
     onBackClick: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        TopAppBar(
+    GlassTopBar {
+        CenterAlignedTopAppBar(
             title = {
                 Text(
                     text = "Messages",
@@ -178,31 +201,20 @@ private fun ConversationListTopBar(
                 )
             },
             navigationIcon = {
-                IconButton(
+                GlassTopBarIconButton(
                     onClick = onBackClick,
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 ) {
                     BackArrowIcon(
-                        modifier = Modifier.size(18.dp),
-                        color = MaterialTheme.colorScheme.onSurface
+                        modifier = Modifier.size(14.dp),
+                        color = Color.Black.copy(alpha = 0.95f)
                     )
                 }
             },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.background,
-                scrolledContainerColor = MaterialTheme.colorScheme.background
+            colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
             )
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
         )
     }
 }

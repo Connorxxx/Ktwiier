@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -31,8 +31,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -53,6 +52,8 @@ import coil3.compose.AsyncImage
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.BackArrowIcon
 import com.connor.kwitter.core.ui.EditPenIcon
+import com.connor.kwitter.core.ui.GlassTopBar
+import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
@@ -101,14 +102,21 @@ fun UserProfileScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
+        val topOverlayPadding = paddingValues.calculateTopPadding()
+        val bottomInsetPadding = paddingValues.calculateBottomPadding()
+
         when {
             state.isLoadingProfile && state.profile == null -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues),
+                        .padding(
+                            top = topOverlayPadding,
+                            bottom = bottomInsetPadding
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator()
@@ -142,10 +150,13 @@ fun UserProfileScreen(
 
                 LazyColumn(
                     state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentPadding = PaddingValues(horizontal = 16.dp)
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        top = topOverlayPadding,
+                        end = 16.dp,
+                        bottom = bottomInsetPadding
+                    )
                 ) {
                     // Profile Header
                     item(key = "profile_header") {
@@ -262,8 +273,8 @@ private fun ProfileTopBar(
     onBackClick: () -> Unit,
     onEditClick: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        TopAppBar(
+    GlassTopBar {
+        CenterAlignedTopAppBar(
             title = {
                 Text(
                     text = displayName,
@@ -274,48 +285,33 @@ private fun ProfileTopBar(
                 )
             },
             navigationIcon = {
-                IconButton(
+                GlassTopBarIconButton(
                     onClick = onBackClick,
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                    modifier = Modifier.padding(horizontal = 8.dp)
                 ) {
                     BackArrowIcon(
-                        modifier = Modifier.size(18.dp),
-                        color = MaterialTheme.colorScheme.onSurface
+                        modifier = Modifier.size(14.dp),
+                        color = Color.Black.copy(alpha = 0.95f)
                     )
                 }
             },
             actions = {
                 if (isOwnProfile) {
-                    IconButton(
+                    GlassTopBarIconButton(
                         onClick = onEditClick,
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                        modifier = Modifier.padding(end = 8.dp)
                     ) {
                         EditPenIcon(
-                            modifier = Modifier.size(18.dp),
-                            color = MaterialTheme.colorScheme.onSurface
+                            modifier = Modifier.size(14.dp),
+                            color = Color.Black.copy(alpha = 0.95f)
                         )
                     }
                 }
             },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.background,
-                scrolledContainerColor = MaterialTheme.colorScheme.background
+            colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
             )
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
         )
     }
 }

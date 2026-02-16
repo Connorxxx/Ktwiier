@@ -8,18 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -28,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -42,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import com.connor.kwitter.core.media.cropCircle
 import com.connor.kwitter.core.media.decodeToImageBitmap
 import com.connor.kwitter.core.ui.BackArrowIcon
+import com.connor.kwitter.core.ui.GlassTopBar
+import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -64,13 +60,8 @@ fun AvatarCropScreen(
     ) {
         // Top bar
         CropTopBar(
-            onCancel = onCancel,
-            onConfirm = {
-                // Deferred to BoxWithConstraints where we have view dimensions
-            }
+            onCancel = onCancel
         )
-
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.12f)))
 
         // Crop area
         BoxWithConstraints(
@@ -175,38 +166,35 @@ fun AvatarCropScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CropTopBar(
-    onCancel: () -> Unit,
-    onConfirm: () -> Unit
+    onCancel: () -> Unit
 ) {
-    TopAppBar(
-        title = {
-            Text(
-                text = "Crop Avatar",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-        },
-        navigationIcon = {
-            IconButton(
-                onClick = onCancel,
-                modifier = Modifier
-                    .padding(horizontal = 8.dp)
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.12f))
-            ) {
-                BackArrowIcon(
-                    modifier = Modifier.size(18.dp),
+    GlassTopBar {
+        CenterAlignedTopAppBar(
+            title = {
+                Text(
+                    text = "Crop Avatar",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     color = Color.White
                 )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color.Black,
-            scrolledContainerColor = Color.Black
+            },
+            navigationIcon = {
+                GlassTopBarIconButton(
+                    onClick = onCancel,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    BackArrowIcon(
+                        modifier = Modifier.size(14.dp),
+                        color = Color.Black.copy(alpha = 0.95f)
+                    )
+                }
+            },
+            colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
+            )
         )
-    )
+    }
 }
 
 private fun clampOffset(

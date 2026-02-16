@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.connor.kwitter.features.glass.NativeGlassBottomBar
+import com.connor.kwitter.features.glass.NativeTopBarMode
 import com.connor.kwitter.features.glass.getNativeTabBarController
 import com.connor.kwitter.features.glass.getNativeTopBarController
 import com.connor.kwitter.features.glass.supportsNativeGlassBars
@@ -117,6 +118,11 @@ private val mainTabSceneMetadata = mapOf(MainTabSceneMetadataKey to true)
 private fun shouldShowMainBottomBar(route: NavigationRoute?): Boolean =
     route?.toBottomTabOrNull() != null
 
+private fun topBarModeForRoute(route: NavigationRoute?): NativeTopBarMode = when (route) {
+    NavigationRoute.Home -> NativeTopBarMode.HomeInteractive
+    else -> NativeTopBarMode.Hidden
+}
+
 private fun Scene<NavigationRoute>.isMainTabScene(): Boolean =
     metadata[MainTabSceneMetadataKey] == true
 
@@ -172,8 +178,9 @@ fun MainScreen(
     }
 
     if (nativeTopBarController != null) {
-        LaunchedEffect(currentRoute) {
-            nativeTopBarController.setTopBarVisible(currentRoute is NavigationRoute.Home)
+        val topBarMode = topBarModeForRoute(currentRoute)
+        LaunchedEffect(topBarMode) {
+            nativeTopBarController.setTopBarMode(topBarMode)
         }
     }
 

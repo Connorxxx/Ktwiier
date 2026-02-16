@@ -59,6 +59,7 @@ import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.theme.LocalIsDarkTheme
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.features.glass.NativeTopBarAction
@@ -66,7 +67,6 @@ import com.connor.kwitter.features.glass.getNativeTopBarController
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
-import com.connor.kwitter.core.ui.GlassSurface
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kwitter.composeapp.generated.resources.Res
@@ -113,6 +113,7 @@ fun HomeScreen(
                 NativeTopBarAction.CreatePost -> {
                     onAction(HomeNavAction.CreatePostClick)
                 }
+
                 NativeTopBarAction.Profile -> {
                     state.currentUserId?.let { userId ->
                         onAction(HomeNavAction.AuthorClick(userId))
@@ -288,53 +289,30 @@ private fun HomeTopBar(
     onCreatePostClick: () -> Unit,
     onProfileClick: (() -> Unit)?
 ) {
-    val isDark = LocalIsDarkTheme.current
     val topBarShape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
-    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isDark) 0.48f else 0.82f)
-    val sheenBrush = Brush.verticalGradient(
-        colors = listOf(
-            MaterialTheme.colorScheme.surface.copy(alpha = if (isDark) 0.36f else 0.72f),
-            Color.Transparent
-        )
-    )
 
-    GlassSurface(
-        modifier = Modifier.fillMaxWidth(),
+    GlassTopBar(
         shape = topBarShape
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(sheenBrush)
-            ) {
-                CenterAlignedTopAppBar(
-                    title = {
-                        HomeTopBarTitle()
-                    },
-                    navigationIcon = {
-                        Box(modifier = Modifier.padding(start = 14.dp)) {
-                            ProfilePlaceholder(onClick = onProfileClick)
-                        }
-                    },
-                    actions = {
-                        Box(modifier = Modifier.padding(end = 14.dp)) {
-                            CreatePostButton(onClick = onCreatePostClick)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        scrolledContainerColor = Color.Transparent
-                    )
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(dividerColor)
+        CenterAlignedTopAppBar(
+            title = {
+                HomeTopBarTitle()
+            },
+            navigationIcon = {
+                Box(modifier = Modifier.padding(start = 14.dp)) {
+                    ProfilePlaceholder(onClick = onProfileClick)
+                }
+            },
+            actions = {
+                Box(modifier = Modifier.padding(end = 14.dp)) {
+                    CreatePostButton(onClick = onCreatePostClick)
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
             )
-        }
+        )
     }
 }
 
@@ -509,7 +487,12 @@ private fun ProfilePlaceholder(
                     .height(8.dp)
                     .background(
                         color = innerColor,
-                        shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 6.dp, bottomEnd = 6.dp)
+                        shape = RoundedCornerShape(
+                            topStart = 8.dp,
+                            topEnd = 8.dp,
+                            bottomStart = 6.dp,
+                            bottomEnd = 6.dp
+                        )
                     )
             )
         }
@@ -534,11 +517,29 @@ private fun KwitterLogo(
         val midY = size.height * 0.5f
         val right = size.width * 0.78f
         // Vertical stroke
-        drawLine(resolvedColor, Offset(left, top), Offset(left, bottom), stroke, cap = StrokeCap.Round)
+        drawLine(
+            resolvedColor,
+            Offset(left, top),
+            Offset(left, bottom),
+            stroke,
+            cap = StrokeCap.Round
+        )
         // Upper diagonal
-        drawLine(resolvedColor, Offset(left, midY), Offset(right, top), stroke, cap = StrokeCap.Round)
+        drawLine(
+            resolvedColor,
+            Offset(left, midY),
+            Offset(right, top),
+            stroke,
+            cap = StrokeCap.Round
+        )
         // Lower diagonal
-        drawLine(resolvedColor, Offset(left, midY), Offset(right, bottom), stroke, cap = StrokeCap.Round)
+        drawLine(
+            resolvedColor,
+            Offset(left, midY),
+            Offset(right, bottom),
+            stroke,
+            cap = StrokeCap.Round
+        )
     }
 }
 

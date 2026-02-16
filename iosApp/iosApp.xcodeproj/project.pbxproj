@@ -81,10 +81,10 @@
 			buildConfigurationList = 98534ED7D23BD081DD6F55EA /* Build configuration list for PBXNativeTarget "iosApp" */;
 			buildPhases = (
 				1351425E83871BBC874EC5CB /* Compile Kotlin Framework */,
-				A19C32A11F35D90000000004 /* Crashlytics Run */,
 				E2BFC0190269ABE9EC4E6132 /* Sources */,
 				6656B2155C78CA62C67F0469 /* Frameworks */,
 				E84C795DB69EF5A4EEA69830 /* Resources */,
+				A19C32A11F35D90000000004 /* Crashlytics Run */,
 			);
 			buildRules = (
 			);
@@ -179,6 +179,11 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}",
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${PRODUCT_NAME}",
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist",
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
 			);
 			name = "Crashlytics Run";
 			outputFileListPaths = (

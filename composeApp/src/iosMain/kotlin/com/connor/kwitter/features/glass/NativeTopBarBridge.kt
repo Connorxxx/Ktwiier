@@ -47,7 +47,7 @@ object NativeTopBarBridge : NativeTopBarController {
     override val actionEvents: Flow<NativeTopBarAction> = _actionEvents
 
     private var topBarView: NativeOverlayTopBarView? = null
-    private var desiredVisible: Boolean = false
+    private var desiredMode: NativeTopBarMode = NativeTopBarMode.Hidden
     private var desiredDarkTheme: Boolean = false
 
     fun createTopBarView(): UIView {
@@ -57,8 +57,9 @@ object NativeTopBarBridge : NativeTopBarController {
         )
         topBarView = view
         view.updateTheme(desiredDarkTheme)
-        view.alpha = if (desiredVisible) 1.0 else 0.0
-        view.userInteractionEnabled = desiredVisible
+        view.updateMode(desiredMode)
+        view.alpha = if (desiredMode == NativeTopBarMode.Hidden) 0.0 else 1.0
+        view.userInteractionEnabled = desiredMode == NativeTopBarMode.HomeInteractive
         return view
     }
 
@@ -67,16 +68,18 @@ object NativeTopBarBridge : NativeTopBarController {
         topBarView?.updateTheme(isDarkTheme)
     }
 
-    override fun setTopBarVisible(visible: Boolean) {
-        desiredVisible = visible
+    override fun setTopBarMode(mode: NativeTopBarMode) {
+        desiredMode = mode
         val view = topBarView ?: return
+        view.updateMode(mode)
+        val targetAlpha = if (mode == NativeTopBarMode.Hidden) 0.0 else 1.0
         UIView.animateWithDuration(
             duration = 0.28,
             animations = {
-                view.alpha = if (visible) 1.0 else 0.0
+                view.alpha = targetAlpha
             }
         )
-        view.userInteractionEnabled = visible
+        view.userInteractionEnabled = mode == NativeTopBarMode.HomeInteractive
     }
 }
 
@@ -169,6 +172,15 @@ private class NativeOverlayTopBarView(
         )
 
         separator.setFrame(CGRectMake(0.0, height - 0.5, width, 0.5))
+    }
+
+    fun updateMode(mode: NativeTopBarMode) {
+        val showHomeControls = mode == NativeTopBarMode.HomeInteractive
+        profileButton.hidden = !showHomeControls
+        createButton.hidden = !showHomeControls
+        titleLabel.hidden = !showHomeControls
+        separator.hidden = mode == NativeTopBarMode.Hidden
+        setNeedsLayout()
     }
 
     fun updateTheme(isDarkTheme: Boolean) {
