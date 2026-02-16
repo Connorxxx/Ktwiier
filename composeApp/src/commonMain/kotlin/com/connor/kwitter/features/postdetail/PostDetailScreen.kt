@@ -276,7 +276,10 @@ private fun ThreadTopBar(
     GlassTopBar {
         CenterAlignedTopAppBar(
             title = {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     GlassTopBarTitle(text = "Conversation")
                     Text(
                         text = if (replyCount > 0) "$replyCount replies" else "Start the first reply",

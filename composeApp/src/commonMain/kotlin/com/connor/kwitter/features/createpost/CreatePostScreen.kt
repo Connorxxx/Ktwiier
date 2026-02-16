@@ -215,7 +215,10 @@ private fun CreatePostTopBar(
     GlassTopBar {
         CenterAlignedTopAppBar(
             title = {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     GlassTopBarTitle(
                         text = if (isReply) {
                             stringResource(Res.string.create_post_reply_title)

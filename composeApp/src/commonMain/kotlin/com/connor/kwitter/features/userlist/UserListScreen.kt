@@ -196,7 +196,7 @@ private fun UserListTopBar(
     GlassTopBar {
         CenterAlignedTopAppBar(
             title = {
-                Column {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     GlassTopBarTitle(
                         text = displayName,
                         maxLines = 1,
