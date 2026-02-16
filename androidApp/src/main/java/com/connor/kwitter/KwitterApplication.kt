@@ -1,6 +1,7 @@
 package com.connor.kwitter
 
 import android.app.Application
+import com.connor.kwitter.core.crash.setupCrashReporting
 import com.connor.kwitter.core.di.authModule
 import com.connor.kwitter.core.di.mediaModule
 import com.connor.kwitter.core.di.messagingModule
@@ -18,6 +19,7 @@ import org.koin.core.context.startKoin
 class KwitterApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        setupCrashReporting()
 
         startKoin {
             // 启用 Android 日志

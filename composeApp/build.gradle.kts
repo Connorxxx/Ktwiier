@@ -117,6 +117,9 @@ kotlin {
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
 
+            // Crash reporting
+            implementation(libs.crashkios.crashlytics)
+
             // Navigation
             implementation(libs.androidx.navigation3.ui)
             // Navigation Android

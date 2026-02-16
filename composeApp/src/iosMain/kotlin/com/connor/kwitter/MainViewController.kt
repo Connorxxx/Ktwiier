@@ -2,6 +2,7 @@ package com.connor.kwitter
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.window.ComposeUIViewController
+import com.connor.kwitter.core.crash.setupCrashReporting
 import com.connor.kwitter.di.initKoin
 import com.connor.kwitter.features.glass.NativeTabBridge
 import com.connor.kwitter.features.glass.NativeTopBarBridge
@@ -10,6 +11,10 @@ import platform.UIKit.UIView
 import platform.UIKit.UIViewController
 
 private val isDarkTheme = mutableStateOf(false)
+
+fun setupPlatformCrashReporting() {
+    setupCrashReporting()
+}
 
 fun MainViewController(isDarkTheme: Boolean): UIViewController {
     initKoin()
