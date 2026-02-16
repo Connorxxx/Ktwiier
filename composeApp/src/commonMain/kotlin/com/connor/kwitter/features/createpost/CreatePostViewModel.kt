@@ -100,7 +100,7 @@ class CreatePostViewModel(
                             )
                             // Upload each new media file
                             newMedia.forEach { media ->
-                                viewModelScope.launch {
+                                launch {
                                     val bytes = media.readBytes()
                                     val result = mediaRepository.uploadMedia(
                                         bytes = bytes,

@@ -81,7 +81,7 @@ class EditProfileViewModel(
                     is EditProfileAction.UsernameChanged -> state.copy(username = action.value)
                     is EditProfileAction.BioChanged -> state.copy(bio = action.value)
                     is EditProfileAction.AvatarSelected -> {
-                        viewModelScope.launch {
+                        launch {
                             val bytes = action.media.readBytes()
                             state = state.copy(pendingCropImageBytes = bytes)
                         }
@@ -93,7 +93,7 @@ class EditProfileViewModel(
                             pendingCropImageBytes = null,
                             isUploadingAvatar = true
                         )
-                        viewModelScope.launch {
+                        launch {
                             userRepository.uploadAvatar(
                                 bytes = action.croppedBytes,
                                 fileName = "avatar.jpg",
