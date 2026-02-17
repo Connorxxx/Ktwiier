@@ -2,7 +2,6 @@ package com.connor.kwitter.features.main
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -30,13 +29,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +45,7 @@ import com.connor.kwitter.features.glass.NativeGlassBottomBar
 import com.connor.kwitter.features.glass.NativeTopBarCoordinator
 import com.connor.kwitter.features.glass.NativeTopBarAction
 import com.connor.kwitter.features.glass.NativeTopBarButtonAction
+import com.connor.kwitter.features.glass.SyncNativeTopBarController
 import com.connor.kwitter.features.glass.getNativeTabBarController
 import com.connor.kwitter.features.glass.getNativeTopBarController
 import com.connor.kwitter.features.glass.rememberNativeTopBarBinding
@@ -65,7 +62,6 @@ import androidx.navigation3.scene.SceneInfo
 import androidx.navigation3.scene.SinglePaneSceneStrategy
 import androidx.navigation3.scene.rememberSceneState
 import androidx.navigation3.ui.NavDisplay
-import androidx.navigationevent.NavigationEventTransitionState
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import com.connor.kwitter.features.NavigationRoute
@@ -129,7 +125,6 @@ private val MainBottomElementBottomPadding = 26.dp
 private val MainBottomHorizontalPadding = 22.dp
 private val MainBottomBarHeight = 62.dp
 private const val MainTabSceneMetadataKey = "main.tab.scene"
-private const val TopBarFallbackBackTransitionDurationMillis = 400
 private val mainTabSceneMetadata = mapOf(MainTabSceneMetadataKey to true)
 
 private fun shouldShowMainBottomBar(route: NavigationRoute?): Boolean =
@@ -156,25 +151,6 @@ private fun predictedBackTargetRoute(backStack: List<NavigationRoute>): Navigati
         current != NavigationRoute.Home -> NavigationRoute.Home
         else -> null
     }
-}
-
-private data class TopBarRouteTransition(
-    val fromRoute: NavigationRoute?,
-    val toRoute: NavigationRoute?
-)
-
-private fun inferredBackRouteTransition(
-    previousBackStack: List<NavigationRoute>,
-    currentBackStack: List<NavigationRoute>
-): TopBarRouteTransition? {
-    val fromRoute = previousBackStack.lastOrNull() ?: return null
-    val toRoute = currentBackStack.lastOrNull() ?: return null
-    if (fromRoute == toRoute) return null
-
-    val predictedBackTarget = predictedBackTargetRoute(previousBackStack) ?: return null
-    if (predictedBackTarget != toRoute) return null
-
-    return TopBarRouteTransition(fromRoute = fromRoute, toRoute = toRoute)
 }
 
 private fun Scene<NavigationRoute>.isMainTabScene(): Boolean =
@@ -835,122 +811,13 @@ fun MainScreen(
             }
         )
 
-        val predictiveBackProgress = when (val transition = navigationEventState.transitionState) {
-            is NavigationEventTransitionState.InProgress -> {
-                if (transition.direction == NavigationEventTransitionState.TRANSITIONING_BACK) {
-                    transition.latestEvent.progress.coerceIn(0f, 1f)
-                } else {
-                    0f
-                }
-            }
-            NavigationEventTransitionState.Idle -> 0f
-        }
-        val predictiveTargetRoute =
-            if (predictiveBackProgress > 0f) {
-                predictedBackTargetRoute(backStackSnapshot)
-            } else {
-                null
-            }
-        val isPredictiveBackInProgress =
-            predictiveTargetRoute != null && predictiveBackProgress > 0f
-
-        val fallbackTopBarTransitionProgress = remember { Animatable(1f) }
-        var fallbackTransitionFromRoute by remember { mutableStateOf<NavigationRoute?>(null) }
-        var fallbackTransitionToRoute by remember { mutableStateOf<NavigationRoute?>(null) }
-        var sawPredictiveBackProgress by remember { mutableStateOf(false) }
-        var previousBackStackSnapshot by remember {
-            mutableStateOf(backStackSnapshot)
-        }
-
-        LaunchedEffect(isPredictiveBackInProgress) {
-            if (isPredictiveBackInProgress) {
-                sawPredictiveBackProgress = true
-            }
-        }
-
-        LaunchedEffect(backStackSnapshot, isPredictiveBackInProgress) {
-            if (isPredictiveBackInProgress) {
-                fallbackTopBarTransitionProgress.stop()
-                fallbackTopBarTransitionProgress.snapTo(1f)
-                fallbackTransitionFromRoute = null
-                fallbackTransitionToRoute = null
-                return@LaunchedEffect
-            }
-
-            val currentBackStackSnapshot = backStackSnapshot
-            val fallbackTransition = inferredBackRouteTransition(
-                previousBackStack = previousBackStackSnapshot,
-                currentBackStack = currentBackStackSnapshot
-            )
-
-            if (fallbackTransition != null) {
-                if (!sawPredictiveBackProgress) {
-                    fallbackTransitionFromRoute = fallbackTransition.fromRoute
-                    fallbackTransitionToRoute = fallbackTransition.toRoute
-                    fallbackTopBarTransitionProgress.snapTo(0f)
-                    fallbackTopBarTransitionProgress.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(durationMillis = TopBarFallbackBackTransitionDurationMillis)
-                    )
-                    fallbackTransitionFromRoute = null
-                    fallbackTransitionToRoute = null
-                }
-                sawPredictiveBackProgress = false
-            } else if (!isPredictiveBackInProgress) {
-                // Predictive gesture cancelled (or no back transition happened).
-                sawPredictiveBackProgress = false
-            }
-
-            previousBackStackSnapshot = currentBackStackSnapshot
-        }
-
-        val fallbackBackProgress = fallbackTopBarTransitionProgress.value
-        val isFallbackBackTransitionActive =
-            fallbackTransitionFromRoute != null &&
-                fallbackTransitionToRoute != null
-        val pendingFallbackBackTransition = inferredBackRouteTransition(
-            previousBackStack = previousBackStackSnapshot,
-            currentBackStack = backStackSnapshot
+        SyncNativeTopBarController(
+            controller = nativeTopBarController,
+            coordinator = topBarCoordinator,
+            backStackSnapshot = backStackSnapshot,
+            navigationTransitionState = navigationEventState.transitionState,
+            predictBackTargetRoute = ::predictedBackTargetRoute
         )
-        val shouldHoldFromModelBeforeFallback =
-            pendingFallbackBackTransition != null && !sawPredictiveBackProgress
-
-        val currentTopBarModel = topBarCoordinator.resolveModel(
-            route = currentRoute,
-            fallbackRoute = previousRouteInBackStack
-        )
-        val targetTopBarModel = topBarCoordinator.resolveModel(route = predictiveTargetRoute)
-        val fallbackFromModel = topBarCoordinator.resolveModel(route = fallbackTransitionFromRoute)
-        val fallbackToModel = topBarCoordinator.resolveModel(route = fallbackTransitionToRoute)
-        val pendingFallbackFromModel =
-            topBarCoordinator.resolveModel(route = pendingFallbackBackTransition?.fromRoute)
-
-        SideEffect {
-            nativeTopBarController?.let { controller ->
-                when {
-                    isPredictiveBackInProgress -> {
-                        controller.setInteractiveModelTransition(
-                            fromModel = currentTopBarModel,
-                            toModel = targetTopBarModel,
-                            progress = predictiveBackProgress
-                        )
-                    }
-                    isFallbackBackTransitionActive -> {
-                        controller.setInteractiveModelTransition(
-                            fromModel = fallbackFromModel,
-                            toModel = fallbackToModel,
-                            progress = fallbackBackProgress
-                        )
-                    }
-                    shouldHoldFromModelBeforeFallback -> {
-                        controller.setModel(pendingFallbackFromModel)
-                    }
-                    else -> {
-                        controller.setModel(currentTopBarModel)
-                    }
-                }
-            }
-        }
 
         NavDisplay(
             sceneState = sceneState,
