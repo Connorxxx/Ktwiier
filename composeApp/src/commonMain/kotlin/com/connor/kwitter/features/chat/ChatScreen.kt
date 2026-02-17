@@ -51,12 +51,9 @@ import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.util.formatPostTime
-import com.connor.kwitter.features.glass.NativeTopBarAction
-import com.connor.kwitter.features.glass.NativeTopBarButtonAction
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
-import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import com.connor.kwitter.domain.messaging.model.Message
 import kotlinx.coroutines.flow.Flow
 
@@ -65,13 +62,13 @@ import kotlinx.coroutines.flow.Flow
 fun ChatScreen(
     state: ChatUiState,
     pagingFlow: Flow<PagingData<Message>>,
+    useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (ChatIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
-    val nativeTopBarController = rememberNativeTopBarController()
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -105,20 +102,9 @@ fun ChatScreen(
         )
     }
 
-    LaunchedEffect(nativeTopBarController) {
-        nativeTopBarController?.actionEvents?.collect { action ->
-            if (
-                action is NativeTopBarAction.ButtonClicked &&
-                action.action == NativeTopBarButtonAction.Back
-            ) {
-                onAction(ChatNavAction.BackClick)
-            }
-        }
-    }
-
     Scaffold(
         topBar = {
-            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+            NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 ChatTopBar(
                     displayName = state.otherUserDisplayName,
                     onBackClick = { onAction(ChatNavAction.BackClick) }

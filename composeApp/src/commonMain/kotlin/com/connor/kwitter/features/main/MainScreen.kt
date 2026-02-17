@@ -36,6 +36,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +47,8 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.connor.kwitter.features.glass.NativeGlassBottomBar
+import com.connor.kwitter.features.glass.NativeTopBarAction
+import com.connor.kwitter.features.glass.NativeTopBarButtonAction
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.getNativeTabBarController
 import com.connor.kwitter.features.glass.getNativeTopBarController
@@ -165,6 +168,26 @@ private fun resolvedNativeTopBarModel(
     return NativeTopBarModel.Hidden
 }
 
+private fun resolvedNativeTopBarActionHandler(
+    route: NavigationRoute?,
+    actionHandlersByRoute: Map<NavigationRoute, (NativeTopBarAction) -> Unit>,
+    fallbackRoute: NavigationRoute? = null
+): ((NativeTopBarAction) -> Unit)? {
+    if (!routeUsesNativeTopBar(route)) return null
+    if (route == null) return null
+
+    val directHandler = actionHandlersByRoute[route]
+    if (directHandler != null) return directHandler
+
+    if (routeUsesNativeTopBar(fallbackRoute) && fallbackRoute != null) {
+        actionHandlersByRoute[fallbackRoute]?.let { fallbackHandler ->
+            return fallbackHandler
+        }
+    }
+
+    return null
+}
+
 private fun predictedBackTargetRoute(backStack: List<NavigationRoute>): NavigationRoute? {
     val current = backStack.lastOrNull() ?: return null
     return when {
@@ -228,12 +251,22 @@ fun MainScreen(
     // Native tab bar integration (iOS)
     val nativeTabController = remember { getNativeTabBarController() }
     val nativeTopBarController = remember { getNativeTopBarController() }
+    val useNativeTopBar = nativeTopBarController != null
     val topBarModelsByRoute = remember { mutableStateMapOf<NavigationRoute, NativeTopBarModel>() }
+    val topBarActionHandlersByRoute = remember {
+        mutableStateMapOf<NavigationRoute, (NativeTopBarAction) -> Unit>()
+    }
     val publishNativeTopBarModel: (NavigationRoute, NativeTopBarModel) -> Unit = remember {
         { route, model ->
             topBarModelsByRoute[route] = model
         }
     }
+    val publishNativeTopBarActionHandler:
+        (NavigationRoute, (NativeTopBarAction) -> Unit) -> Unit = remember {
+            { route, actionHandler ->
+                topBarActionHandlersByRoute[route] = actionHandler
+            }
+        }
 
     if (nativeTabController != null) {
         // Forward native tab selection -> Compose navigation
@@ -264,6 +297,28 @@ fun MainScreen(
                 topBarModelsByRoute.remove(route)
             }
         }
+        topBarActionHandlersByRoute.keys.toList().forEach { route ->
+            if (route !in activeRoutes) {
+                topBarActionHandlersByRoute.remove(route)
+            }
+        }
+    }
+
+    val previousRouteInBackStack = backStackSnapshot.getOrNull(backStackSnapshot.lastIndex - 1)
+    val latestCurrentRoute by rememberUpdatedState(currentRoute)
+    val latestFallbackRoute by rememberUpdatedState(previousRouteInBackStack)
+    val latestActionHandlersByRoute by rememberUpdatedState(
+        topBarActionHandlersByRoute.toMap()
+    )
+
+    LaunchedEffect(nativeTopBarController) {
+        nativeTopBarController?.actionEvents?.collect { action ->
+            resolvedNativeTopBarActionHandler(
+                route = latestCurrentRoute,
+                actionHandlersByRoute = latestActionHandlersByRoute,
+                fallbackRoute = latestFallbackRoute
+            )?.invoke(action)
+        }
     }
 
     Box(
@@ -281,10 +336,37 @@ fun MainScreen(
             entry<NavigationRoute.Home>(metadata = mainTabSceneMetadata) {
                 val vm: HomeViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
+                val nativeTopBarActionHandler: (NativeTopBarAction) -> Unit =
+                    remember(state.currentUserId) {
+                    { action: NativeTopBarAction ->
+                        when (action) {
+                            is NativeTopBarAction.ButtonClicked -> when (action.action) {
+                                NativeTopBarButtonAction.CreatePost -> {
+                                    mainState.onNavigate(NavigationRoute.CreatePost())
+                                }
+
+                                NativeTopBarButtonAction.Profile -> {
+                                    state.currentUserId?.let { userId ->
+                                        mainState.onNavigate(NavigationRoute.UserProfile(userId = userId))
+                                    }
+                                    Unit
+                                }
+
+                                else -> Unit
+                            }
+
+                            else -> Unit
+                        }
+                    }
+                    }
+                SideEffect {
+                    publishNativeTopBarActionHandler(NavigationRoute.Home, nativeTopBarActionHandler)
+                }
 
                 HomeScreen(
                     state = state,
                     pagingFlow = vm.pagingFlow,
+                    useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = { model ->
                         publishNativeTopBarModel(NavigationRoute.Home, model)
                     },
@@ -357,13 +439,27 @@ fun MainScreen(
             entry<NavigationRoute.PostDetail> { route ->
                 val vm: PostDetailViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
+                val nativeTopBarActionHandler = remember(route) {
+                    { action: NativeTopBarAction ->
+                        if (
+                            action is NativeTopBarAction.ButtonClicked &&
+                            action.action == NativeTopBarButtonAction.Back
+                        ) {
+                            mainState.onBack()
+                        }
+                    }
+                }
 
                 LaunchedEffect(route.postId) {
                     vm.onEvent(PostDetailAction.Load(route.postId))
                 }
+                SideEffect {
+                    publishNativeTopBarActionHandler(route, nativeTopBarActionHandler)
+                }
 
                 PostDetailScreen(
                     state = state,
+                    useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = { model ->
                         publishNativeTopBarModel(route, model)
                     },
@@ -395,6 +491,16 @@ fun MainScreen(
             entry<NavigationRoute.CreatePost> { route ->
                 val vm: CreatePostViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
+                val nativeTopBarActionHandler = remember(route) {
+                    { action: NativeTopBarAction ->
+                        if (
+                            action is NativeTopBarAction.ButtonClicked &&
+                            action.action == NativeTopBarButtonAction.Close
+                        ) {
+                            mainState.onBack()
+                        }
+                    }
+                }
 
                 LaunchedEffect(route.parentId, route.replyToAuthorName, route.replyToContent) {
                     vm.onEvent(
@@ -405,9 +511,13 @@ fun MainScreen(
                         )
                     )
                 }
+                SideEffect {
+                    publishNativeTopBarActionHandler(route, nativeTopBarActionHandler)
+                }
 
                 CreatePostScreen(
                     state = state,
+                    useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = { model ->
                         publishNativeTopBarModel(route, model)
                     },
@@ -426,6 +536,20 @@ fun MainScreen(
             entry<NavigationRoute.UserProfile> { route ->
                 val vm: UserProfileViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
+                val nativeTopBarActionHandler = remember(route.userId) {
+                    { action: NativeTopBarAction ->
+                        if (action is NativeTopBarAction.ButtonClicked) {
+                            when (action.action) {
+                                NativeTopBarButtonAction.Back -> mainState.onBack()
+                                NativeTopBarButtonAction.Edit -> mainState.onNavigate(
+                                    NavigationRoute.EditProfile(userId = route.userId)
+                                )
+
+                                else -> Unit
+                            }
+                        }
+                    }
+                }
 
                 LaunchedEffect(route.userId) {
                     vm.onEvent(UserProfileAction.Load(userId = route.userId))
@@ -436,9 +560,13 @@ fun MainScreen(
                         vm.onEvent(UserProfileAction.Refresh)
                     }
                 }
+                SideEffect {
+                    publishNativeTopBarActionHandler(route, nativeTopBarActionHandler)
+                }
 
                 UserProfileScreen(
                     state = state,
+                    useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = { model ->
                         publishNativeTopBarModel(route, model)
                     },
@@ -495,13 +623,40 @@ fun MainScreen(
             entry<NavigationRoute.EditProfile> { route ->
                 val vm: EditProfileViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
+                val nativeTopBarActionHandler = remember(route, state.pendingCropImageBytes) {
+                    { action: NativeTopBarAction ->
+                        if (action is NativeTopBarAction.ButtonClicked) {
+                            when (action.action) {
+                                NativeTopBarButtonAction.Back -> {
+                                    if (state.pendingCropImageBytes != null) {
+                                        vm.onEvent(EditProfileAction.AvatarCropCancelled)
+                                    } else {
+                                        mainState.onBack()
+                                    }
+                                }
+
+                                NativeTopBarButtonAction.Save -> {
+                                    if (state.pendingCropImageBytes == null) {
+                                        vm.onEvent(EditProfileAction.Save)
+                                    }
+                                }
+
+                                else -> Unit
+                            }
+                        }
+                    }
+                }
 
                 LaunchedEffect(route.userId) {
                     vm.onEvent(EditProfileAction.Load(route.userId))
                 }
+                SideEffect {
+                    publishNativeTopBarActionHandler(route, nativeTopBarActionHandler)
+                }
 
                 EditProfileScreen(
                     state = state,
+                    useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = { model ->
                         publishNativeTopBarModel(route, model)
                     },
@@ -527,6 +682,16 @@ fun MainScreen(
                     "followers" -> UserListType.FOLLOWERS
                     else -> UserListType.FOLLOWING
                 }
+                val nativeTopBarActionHandler = remember(route) {
+                    { action: NativeTopBarAction ->
+                        if (
+                            action is NativeTopBarAction.ButtonClicked &&
+                            action.action == NativeTopBarButtonAction.Back
+                        ) {
+                            mainState.onBack()
+                        }
+                    }
+                }
 
                 LaunchedEffect(route.userId, route.listType) {
                     vm.onEvent(
@@ -537,9 +702,13 @@ fun MainScreen(
                         )
                     )
                 }
+                SideEffect {
+                    publishNativeTopBarActionHandler(route, nativeTopBarActionHandler)
+                }
 
                 UserListScreen(
                     state = state,
+                    useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = { model ->
                         publishNativeTopBarModel(route, model)
                     },
@@ -582,12 +751,38 @@ fun MainScreen(
             entry<NavigationRoute.Search>(metadata = mainTabSceneMetadata) {
                 val vm: SearchViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
+                val nativeTopBarActionHandler = remember(state.query) {
+                    { action: NativeTopBarAction ->
+                        when (action) {
+                            is NativeTopBarAction.ButtonClicked -> {
+                                if (action.action == NativeTopBarButtonAction.Back) {
+                                    mainState.onBack()
+                                }
+                            }
+
+                            is NativeTopBarAction.SearchQueryChanged -> {
+                                vm.onEvent(SearchAction.UpdateQuery(action.query))
+                            }
+
+                            NativeTopBarAction.SearchSubmitted -> {
+                                vm.onEvent(SearchAction.SubmitSearch)
+                            }
+                        }
+                    }
+                }
+                SideEffect {
+                    publishNativeTopBarActionHandler(
+                        NavigationRoute.Search,
+                        nativeTopBarActionHandler
+                    )
+                }
 
                 SearchScreen(
                     state = state,
                     postsPaging = vm.postsPaging,
                     repliesPaging = vm.repliesPaging,
                     usersPaging = vm.usersPaging,
+                    useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = { model ->
                         publishNativeTopBarModel(NavigationRoute.Search, model)
                     },
@@ -630,9 +825,26 @@ fun MainScreen(
 
             entry<NavigationRoute.ConversationList>(metadata = mainTabSceneMetadata) {
                 val vm: ConversationListViewModel = koinViewModel()
+                val nativeTopBarActionHandler = remember {
+                    { action: NativeTopBarAction ->
+                        if (
+                            action is NativeTopBarAction.ButtonClicked &&
+                            action.action == NativeTopBarButtonAction.Back
+                        ) {
+                            mainState.onBack()
+                        }
+                    }
+                }
+                SideEffect {
+                    publishNativeTopBarActionHandler(
+                        NavigationRoute.ConversationList,
+                        nativeTopBarActionHandler
+                    )
+                }
 
                 ConversationListScreen(
                     pagingFlow = vm.pagingFlow,
+                    useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = { model ->
                         publishNativeTopBarModel(NavigationRoute.ConversationList, model)
                     },
@@ -656,6 +868,16 @@ fun MainScreen(
             entry<NavigationRoute.Chat> { route ->
                 val vm: ChatViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
+                val nativeTopBarActionHandler = remember(route) {
+                    { action: NativeTopBarAction ->
+                        if (
+                            action is NativeTopBarAction.ButtonClicked &&
+                            action.action == NativeTopBarButtonAction.Back
+                        ) {
+                            mainState.onBack()
+                        }
+                    }
+                }
 
                 LaunchedEffect(route.conversationId, route.otherUserId) {
                     vm.onEvent(
@@ -666,10 +888,14 @@ fun MainScreen(
                         )
                     )
                 }
+                SideEffect {
+                    publishNativeTopBarActionHandler(route, nativeTopBarActionHandler)
+                }
 
                 ChatScreen(
                     state = state,
                     pagingFlow = vm.pagingFlow,
+                    useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = { model ->
                         publishNativeTopBarModel(route, model)
                     },
@@ -787,7 +1013,6 @@ fun MainScreen(
         val shouldHoldFromModelBeforeFallback =
             pendingFallbackBackTransition != null && !sawPredictiveBackProgress
 
-        val previousRouteInBackStack = backStackSnapshot.getOrNull(backStackSnapshot.lastIndex - 1)
         val currentTopBarModel = resolvedNativeTopBarModel(
             route = currentRoute,
             topBarModelsByRoute = topBarModelsByRoute,

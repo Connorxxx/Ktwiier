@@ -60,12 +60,9 @@ import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
-import com.connor.kwitter.features.glass.NativeTopBarAction
-import com.connor.kwitter.features.glass.NativeTopBarButtonAction
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
-import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_bio_label
 import kwitter.composeapp.generated.resources.profile_display_name_label
@@ -82,6 +79,7 @@ private fun resolveAvatarUrl(url: String): String {
 @Composable
 fun EditProfileScreen(
     state: EditProfileUiState,
+    useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (EditProfileIntent) -> Unit
 ) {
@@ -93,6 +91,7 @@ fun EditProfileScreen(
             onConfirm = { croppedBytes ->
                 onAction(EditProfileAction.AvatarCropConfirmed(croppedBytes))
             },
+            useNativeTopBar = useNativeTopBar,
             onNativeTopBarModel = onNativeTopBarModel,
             onCancel = {
                 onAction(EditProfileAction.AvatarCropCancelled)
@@ -104,7 +103,6 @@ fun EditProfileScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
-    val nativeTopBarController = rememberNativeTopBarController()
     val nativeTopTitle = stringResource(Res.string.profile_edit)
     val nativeSaveLabel = stringResource(Res.string.profile_save)
 
@@ -144,17 +142,6 @@ fun EditProfileScreen(
         )
     }
 
-    LaunchedEffect(nativeTopBarController) {
-        nativeTopBarController?.actionEvents?.collect { action ->
-            if (action !is NativeTopBarAction.ButtonClicked) return@collect
-            when (action.action) {
-                NativeTopBarButtonAction.Back -> onAction(EditProfileNavAction.BackClick)
-                NativeTopBarButtonAction.Save -> onAction(EditProfileAction.Save)
-                else -> Unit
-            }
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -170,7 +157,7 @@ fun EditProfileScreen(
     ) {
         Scaffold(
             topBar = {
-                NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+                NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                     EditProfileTopBar(
                         isSaving = state.isSaving,
                         isUploading = state.isUploadingAvatar,

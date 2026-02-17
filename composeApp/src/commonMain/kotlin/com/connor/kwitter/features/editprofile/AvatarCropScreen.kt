@@ -39,12 +39,9 @@ import com.connor.kwitter.core.media.decodeToImageBitmap
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
-import com.connor.kwitter.features.glass.NativeTopBarAction
-import com.connor.kwitter.features.glass.NativeTopBarButtonAction
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
-import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -53,11 +50,11 @@ import kotlin.math.roundToInt
 fun AvatarCropScreen(
     imageBytes: ByteArray,
     onConfirm: (ByteArray) -> Unit,
+    useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onCancel: () -> Unit
 ) {
     val imageBitmap = remember(imageBytes) { decodeToImageBitmap(imageBytes) }
-    val nativeTopBarController = rememberNativeTopBarController()
 
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -72,24 +69,13 @@ fun AvatarCropScreen(
         )
     }
 
-    LaunchedEffect(nativeTopBarController) {
-        nativeTopBarController?.actionEvents?.collect { action ->
-            if (
-                action is NativeTopBarAction.ButtonClicked &&
-                action.action == NativeTopBarButtonAction.Back
-            ) {
-                onCancel()
-            }
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
         // Top bar
-        NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+        NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
             CropTopBar(
                 onCancel = onCancel
             )

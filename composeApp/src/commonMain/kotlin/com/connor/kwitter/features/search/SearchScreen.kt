@@ -38,11 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,12 +62,9 @@ import coil3.compose.AsyncImage
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.PostItem
-import com.connor.kwitter.features.glass.NativeTopBarAction
-import com.connor.kwitter.features.glass.NativeTopBarButtonAction
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
-import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.user.model.UserListItem
 import kotlinx.coroutines.flow.Flow
@@ -95,13 +88,12 @@ fun SearchScreen(
     postsPaging: Flow<PagingData<Post>>,
     repliesPaging: Flow<PagingData<Post>>,
     usersPaging: Flow<PagingData<UserListItem>>,
+    useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (SearchIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    var queryText by rememberSaveable { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
-    val nativeTopBarController = rememberNativeTopBarController()
     val nativeSearchPlaceholder = stringResource(Res.string.search_placeholder)
 
     LaunchedEffect(state.error) {
@@ -111,49 +103,29 @@ fun SearchScreen(
         }
     }
 
-    LaunchedEffect(nativeTopBarController) {
-        if (nativeTopBarController == null) {
+    LaunchedEffect(useNativeTopBar) {
+        if (!useNativeTopBar) {
             focusRequester.requestFocus()
         }
     }
 
-    LaunchedEffect(onNativeTopBarModel, queryText, nativeSearchPlaceholder) {
+    LaunchedEffect(onNativeTopBarModel, state.query, nativeSearchPlaceholder) {
         onNativeTopBarModel(
             NativeTopBarModel.Search(
-                query = queryText,
+                query = state.query,
                 placeholder = nativeSearchPlaceholder,
                 leadingButton = NativeTopBarButtons.back()
             )
         )
     }
 
-    LaunchedEffect(nativeTopBarController) {
-        nativeTopBarController?.actionEvents?.collect { action ->
-            when (action) {
-                is NativeTopBarAction.ButtonClicked -> {
-                    if (action.action == NativeTopBarButtonAction.Back) {
-                        onAction(SearchNavAction.BackClick)
-                    }
-                }
-
-                is NativeTopBarAction.SearchQueryChanged -> {
-                    queryText = action.query
-                }
-
-                NativeTopBarAction.SearchSubmitted -> {
-                    onAction(SearchAction.Search(queryText))
-                }
-            }
-        }
-    }
-
     Scaffold(
         topBar = {
-            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+            NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 SearchTopBar(
-                    queryText = queryText,
-                    onQueryChange = { queryText = it },
-                    onSearch = { onAction(SearchAction.Search(queryText)) },
+                    queryText = state.query,
+                    onQueryChange = { onAction(SearchAction.UpdateQuery(it)) },
+                    onSearch = { onAction(SearchAction.SubmitSearch) },
                     onBackClick = { onAction(SearchNavAction.BackClick) },
                     focusRequester = focusRequester
                 )

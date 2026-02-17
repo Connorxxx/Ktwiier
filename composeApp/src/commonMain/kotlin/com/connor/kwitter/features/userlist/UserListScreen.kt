@@ -49,12 +49,9 @@ import coil3.compose.AsyncImage
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
-import com.connor.kwitter.features.glass.NativeTopBarAction
-import com.connor.kwitter.features.glass.NativeTopBarButtonAction
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
-import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import com.connor.kwitter.domain.user.model.UserListItem
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_follow
@@ -66,11 +63,11 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun UserListScreen(
     state: UserListUiState,
+    useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (UserListIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    val nativeTopBarController = rememberNativeTopBarController()
     val nativeSubtitle = when (state.listType) {
         UserListType.FOLLOWING -> stringResource(Res.string.profile_following)
         UserListType.FOLLOWERS -> stringResource(Res.string.profile_followers)
@@ -93,20 +90,9 @@ fun UserListScreen(
         )
     }
 
-    LaunchedEffect(nativeTopBarController) {
-        nativeTopBarController?.actionEvents?.collect { action ->
-            if (
-                action is NativeTopBarAction.ButtonClicked &&
-                action.action == NativeTopBarButtonAction.Back
-            ) {
-                onAction(UserListNavAction.BackClick)
-            }
-        }
-    }
-
     Scaffold(
         topBar = {
-            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+            NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 UserListTopBar(
                     displayName = state.displayName,
                     listType = state.listType,

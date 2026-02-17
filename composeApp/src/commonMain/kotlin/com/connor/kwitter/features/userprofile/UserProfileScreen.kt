@@ -58,12 +58,9 @@ import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import com.connor.kwitter.core.ui.GlassTopBarInnerIconSize
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.ui.PostItem
-import com.connor.kwitter.features.glass.NativeTopBarAction
-import com.connor.kwitter.features.glass.NativeTopBarButtonAction
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
-import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
@@ -90,11 +87,11 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun UserProfileScreen(
     state: UserProfileUiState,
+    useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (UserProfileIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    val nativeTopBarController = rememberNativeTopBarController()
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -113,20 +110,9 @@ fun UserProfileScreen(
         )
     }
 
-    LaunchedEffect(nativeTopBarController) {
-        nativeTopBarController?.actionEvents?.collect { action ->
-            if (action !is NativeTopBarAction.ButtonClicked) return@collect
-            when (action.action) {
-                NativeTopBarButtonAction.Back -> onAction(UserProfileNavAction.BackClick)
-                NativeTopBarButtonAction.Edit -> onAction(UserProfileNavAction.EditProfileClick)
-                else -> Unit
-            }
-        }
-    }
-
     Scaffold(
         topBar = {
-            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+            NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 ProfileTopBar(
                     displayName = state.profile?.displayName ?: "",
                     isOwnProfile = state.isOwnProfile,

@@ -62,11 +62,8 @@ import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.theme.LocalIsDarkTheme
 import com.connor.kwitter.core.ui.PostItem
-import com.connor.kwitter.features.glass.NativeTopBarAction
-import com.connor.kwitter.features.glass.NativeTopBarButtonAction
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
-import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
@@ -81,6 +78,7 @@ import org.jetbrains.compose.resources.stringResource
 fun HomeScreen(
     state: HomeUiState,
     pagingFlow: Flow<PagingData<Post>>,
+    useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (HomeIntent) -> Unit
 ) {
@@ -88,7 +86,6 @@ fun HomeScreen(
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
-    val nativeTopBarController = rememberNativeTopBarController()
     val onProfileClick = state.currentUserId?.let { userId ->
         { onAction(HomeNavAction.AuthorClick(userId)) }
     }
@@ -113,28 +110,9 @@ fun HomeScreen(
         onNativeTopBarModel(NativeTopBarModel.HomeInteractive)
     }
 
-    LaunchedEffect(nativeTopBarController, state.currentUserId) {
-        nativeTopBarController?.actionEvents?.collect { action ->
-            when (action) {
-                is NativeTopBarAction.ButtonClicked -> when (action.action) {
-                    NativeTopBarButtonAction.CreatePost -> onAction(HomeNavAction.CreatePostClick)
-                    NativeTopBarButtonAction.Profile -> {
-                        state.currentUserId?.let { userId ->
-                            onAction(HomeNavAction.AuthorClick(userId))
-                        }
-                    }
-
-                    else -> Unit
-                }
-
-                else -> Unit
-            }
-        }
-    }
-
     Scaffold(
         topBar = {
-            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+            NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 HomeTopBar(
                     onCreatePostClick = { onAction(HomeNavAction.CreatePostClick) },
                     onProfileClick = onProfileClick

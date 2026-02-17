@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.update
 enum class SearchTab { POSTS, REPLIES, USERS }
 
 data class SearchUiState(
+    val query: String = "",
     val selectedTab: SearchTab = SearchTab.POSTS,
     val sortOrder: String = "best_match",
     val hasSearched: Boolean = false,
@@ -46,7 +47,8 @@ data class SearchUiState(
 sealed interface SearchIntent
 
 sealed interface SearchAction : SearchIntent {
-    data class Search(val query: String) : SearchAction
+    data class UpdateQuery(val query: String) : SearchAction
+    data object SubmitSearch : SearchAction
     data class SelectTab(val tab: SearchTab) : SearchAction
     data class SetSortOrder(val sort: String) : SearchAction
     data class ToggleLike(
@@ -154,7 +156,8 @@ class SearchViewModel(
         LaunchedEffect(Unit) {
             _events.receiveAsFlow().collect { action ->
                 state = when (action) {
-                    is SearchAction.Search -> handleSearch(action.query, state)
+                    is SearchAction.UpdateQuery -> state.copy(query = action.query)
+                    SearchAction.SubmitSearch -> handleSearch(state)
                     is SearchAction.SelectTab -> state.copy(selectedTab = action.tab)
                     is SearchAction.SetSortOrder -> handleSetSortOrder(action.sort, state)
                     is SearchAction.ToggleLike -> handleToggleLike(action, state)
@@ -168,8 +171,8 @@ class SearchViewModel(
         return state
     }
 
-    private fun handleSearch(query: String, currentState: SearchUiState): SearchUiState {
-        val trimmed = query.trim()
+    private fun handleSearch(currentState: SearchUiState): SearchUiState {
+        val trimmed = currentState.query.trim()
         if (trimmed.isBlank()) return currentState
         _postMods.value = emptyMap()
         _userMods.value = emptyMap()

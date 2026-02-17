@@ -68,12 +68,9 @@ import com.connor.kwitter.core.ui.GlassTopBarIconContentColor
 import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import com.connor.kwitter.core.ui.GlassTopBarInnerIconSize
 import com.connor.kwitter.core.ui.GlassTopBarTitle
-import com.connor.kwitter.features.glass.NativeTopBarAction
-import com.connor.kwitter.features.glass.NativeTopBarButtonAction
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
-import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -86,6 +83,7 @@ private const val PREVIEW_POST_ID_LENGTH = 8
 @Composable
 fun CreatePostScreen(
     state: CreatePostUiState,
+    useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (CreatePostIntent) -> Unit
 ) {
@@ -93,7 +91,6 @@ fun CreatePostScreen(
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
     val isReply = state.parentId != null
-    val nativeTopBarController = rememberNativeTopBarController()
     val nativeTopTitle = if (isReply) {
         stringResource(Res.string.create_post_reply_title)
     } else {
@@ -136,20 +133,9 @@ fun CreatePostScreen(
         )
     }
 
-    LaunchedEffect(nativeTopBarController) {
-        nativeTopBarController?.actionEvents?.collect { action ->
-            if (
-                action is NativeTopBarAction.ButtonClicked &&
-                action.action == NativeTopBarButtonAction.Close
-            ) {
-                onAction(CreatePostNavAction.BackClick)
-            }
-        }
-    }
-
     Scaffold(
         topBar = {
-            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+            NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 CreatePostTopBar(
                     isReply = isReply,
                     onClose = { onAction(CreatePostNavAction.BackClick) }

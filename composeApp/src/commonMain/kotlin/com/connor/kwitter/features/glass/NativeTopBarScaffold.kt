@@ -4,14 +4,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 val NativeTopBarPlaceholderHeight = 116.dp
-
-@Composable
-fun rememberNativeTopBarController(): NativeTopBarController? = remember { getNativeTopBarController() }
 
 @Composable
 fun NativeTopBarPlaceholder(modifier: Modifier = Modifier) {
@@ -24,12 +20,12 @@ fun NativeTopBarPlaceholder(modifier: Modifier = Modifier) {
 
 @Composable
 fun NativeTopBarSlot(
-    nativeTopBarController: NativeTopBarController?,
+    nativeTopBarEnabled: Boolean,
     composeTopBar: @Composable () -> Unit
 ) {
-    if (nativeTopBarController == null) {
-        composeTopBar()
-    } else {
+    if (nativeTopBarEnabled) {
         NativeTopBarPlaceholder()
+    } else {
+        composeTopBar()
     }
 }

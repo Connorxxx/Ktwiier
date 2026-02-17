@@ -53,12 +53,9 @@ import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.util.formatPostTime
-import com.connor.kwitter.features.glass.NativeTopBarAction
-import com.connor.kwitter.features.glass.NativeTopBarButtonAction
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
-import com.connor.kwitter.features.glass.rememberNativeTopBarController
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostMedia
@@ -72,11 +69,11 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun PostDetailScreen(
     state: PostDetailUiState,
+    useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (PostDetailIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    val nativeTopBarController = rememberNativeTopBarController()
     val nativeSubtitle = if (state.threadReplies.isNotEmpty()) {
         "${state.threadReplies.size} replies"
     } else {
@@ -100,20 +97,9 @@ fun PostDetailScreen(
         )
     }
 
-    LaunchedEffect(nativeTopBarController) {
-        nativeTopBarController?.actionEvents?.collect { action ->
-            if (
-                action is NativeTopBarAction.ButtonClicked &&
-                action.action == NativeTopBarButtonAction.Back
-            ) {
-                onAction(PostDetailNavAction.BackClick)
-            }
-        }
-    }
-
     Scaffold(
         topBar = {
-            NativeTopBarSlot(nativeTopBarController = nativeTopBarController) {
+            NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 ThreadTopBar(
                     replyCount = state.threadReplies.size,
                     onBackClick = { onAction(PostDetailNavAction.BackClick) }
