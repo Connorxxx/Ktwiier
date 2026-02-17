@@ -49,19 +49,17 @@ object NativeTopBarBridge : NativeTopBarController {
     private val _actionEvents = MutableSharedFlow<NativeTopBarAction>(extraBufferCapacity = 4)
     override val actionEvents: Flow<NativeTopBarAction> = _actionEvents
 
-    private var topBarView: NativeOverlayTopBarView? = null
+    private var topBarView: NativeTopBarContainerView? = null
     private var desiredModel: NativeTopBarModel = NativeTopBarModel.Hidden
     private var desiredDarkTheme: Boolean = false
 
     fun createTopBarView(): UIView {
-        val view = NativeOverlayTopBarView(onAction = { action ->
+        val view = NativeTopBarContainerView(onAction = { action ->
             _actionEvents.tryEmit(action)
         })
         topBarView = view
         view.updateTheme(desiredDarkTheme)
-        view.updateModel(desiredModel)
-        view.alpha = if (desiredModel is NativeTopBarModel.Hidden) 0.0 else 1.0
-        view.userInteractionEnabled = desiredModel !is NativeTopBarModel.Hidden
+        view.applyModel(desiredModel, animate = false)
         return view
     }
 
@@ -72,22 +70,150 @@ object NativeTopBarBridge : NativeTopBarController {
 
     override fun setModel(model: NativeTopBarModel) {
         desiredModel = model
-        val view = topBarView ?: return
-        view.updateModel(model)
+        topBarView?.applyModel(model, animate = true)
+    }
 
+    override fun setInteractiveModelTransition(
+        fromModel: NativeTopBarModel,
+        toModel: NativeTopBarModel,
+        progress: Float
+    ) {
+        if (fromModel == toModel) {
+            setModel(toModel)
+            return
+        }
+        desiredModel = if (progress >= 0.5f) toModel else fromModel
+        val view = topBarView ?: return
+        view.applyInteractiveTransition(fromModel, toModel, progress)
+    }
+}
+
+private class NativeTopBarContainerView(
+    private val onAction: (NativeTopBarAction) -> Unit
+) : UIView(frame = CGRectZero.readValue()) {
+    private val fromView = NativeOverlayTopBarView(onAction = onAction)
+    private val toView = NativeOverlayTopBarView(onAction = onAction)
+
+    private var currentModel: NativeTopBarModel = NativeTopBarModel.Hidden
+    private var transitionFromModel: NativeTopBarModel? = null
+    private var transitionToModel: NativeTopBarModel? = null
+    private var isInInteractiveTransition: Boolean = false
+
+    init {
+        addSubview(fromView)
+        addSubview(toView)
+        toView.hidden = true
+        toView.alpha = 0.0
+    }
+
+    override fun layoutSubviews() {
+        super.layoutSubviews()
+        fromView.setFrame(bounds)
+        toView.setFrame(bounds)
+    }
+
+    fun updateTheme(isDarkTheme: Boolean) {
+        fromView.updateTheme(isDarkTheme)
+        toView.updateTheme(isDarkTheme)
+    }
+
+    fun applyModel(model: NativeTopBarModel, animate: Boolean) {
         val shouldHide = model is NativeTopBarModel.Hidden
-        val isCurrentlyHidden = view.alpha < 0.01
-        if (isCurrentlyHidden != shouldHide) {
+        val settlingInteractiveTransition =
+            isInInteractiveTransition &&
+                (transitionFromModel == model || transitionToModel == model)
+
+        if (settlingInteractiveTransition) {
+            val startAlpha = if (transitionToModel == model) toView.alpha else fromView.alpha
+            fromView.updateModel(model)
+            fromView.alpha = startAlpha
+
+            currentModel = model
+            transitionFromModel = null
+            transitionToModel = null
+            isInInteractiveTransition = false
+
+            toView.hidden = true
+            toView.alpha = 0.0
+            toView.userInteractionEnabled = false
+
+            val targetAlpha = if (shouldHide) 0.0 else 1.0
+            if (animate && kotlin.math.abs(startAlpha - targetAlpha) > 0.001) {
+                UIView.animateWithDuration(
+                    duration = 0.28,
+                    animations = {
+                        fromView.alpha = targetAlpha
+                    }
+                )
+            } else {
+                fromView.alpha = targetAlpha
+            }
+            fromView.userInteractionEnabled = !shouldHide
+            userInteractionEnabled = !shouldHide
+            return
+        }
+
+        val unchanged = !isInInteractiveTransition && currentModel == model
+        currentModel = model
+        transitionFromModel = null
+        transitionToModel = null
+        isInInteractiveTransition = false
+
+        toView.hidden = true
+        toView.alpha = 0.0
+        toView.userInteractionEnabled = false
+
+        if (unchanged) {
+            fromView.alpha = if (shouldHide) 0.0 else 1.0
+            fromView.userInteractionEnabled = !shouldHide
+            userInteractionEnabled = !shouldHide
+            return
+        }
+
+        fromView.updateModel(model)
+        val targetAlpha = if (shouldHide) 0.0 else 1.0
+        if (animate) {
             UIView.animateWithDuration(
                 duration = 0.28,
                 animations = {
-                    view.alpha = if (shouldHide) 0.0 else 1.0
+                    fromView.alpha = targetAlpha
                 }
             )
         } else {
-            view.alpha = if (shouldHide) 0.0 else 1.0
+            fromView.alpha = targetAlpha
         }
-        view.userInteractionEnabled = !shouldHide
+        fromView.userInteractionEnabled = !shouldHide
+        userInteractionEnabled = !shouldHide
+    }
+
+    fun applyInteractiveTransition(
+        fromModel: NativeTopBarModel,
+        toModel: NativeTopBarModel,
+        progress: Float
+    ) {
+        val clampedProgress = progress.coerceIn(0f, 1f).toDouble()
+
+        if (
+            !isInInteractiveTransition ||
+            transitionFromModel != fromModel ||
+            transitionToModel != toModel
+        ) {
+            isInInteractiveTransition = true
+            transitionFromModel = fromModel
+            transitionToModel = toModel
+            fromView.updateModel(fromModel)
+            toView.updateModel(toModel)
+            toView.hidden = false
+        }
+
+        val fromVisibility = if (fromModel is NativeTopBarModel.Hidden) 0.0 else 1.0
+        val toVisibility = if (toModel is NativeTopBarModel.Hidden) 0.0 else 1.0
+        fromView.alpha = fromVisibility * (1.0 - clampedProgress)
+        toView.alpha = toVisibility * clampedProgress
+
+        fromView.userInteractionEnabled = false
+        toView.userInteractionEnabled = false
+        userInteractionEnabled = false
     }
 }
 
@@ -377,12 +503,11 @@ private class NativeOverlayTopBarView(
             )
         }
 
-        val titleStart = sidePadding + if (hasLeading) buttonSize + horizontalGap else 0.0
-        val titleEnd = width - sidePadding - if (trailingWidth > 0.0) {
-            trailingWidth + horizontalGap
-        } else {
-            0.0
-        }
+        val leadingOccupiedWidth = if (hasLeading) buttonSize + horizontalGap else 0.0
+        val trailingOccupiedWidth = if (trailingWidth > 0.0) trailingWidth + horizontalGap else 0.0
+        val mirroredInset = maxOf(leadingOccupiedWidth, trailingOccupiedWidth)
+        val titleStart = sidePadding + mirroredInset
+        val titleEnd = width - sidePadding - mirroredInset
         val titleWidth = (titleEnd - titleStart).coerceAtLeast(0.0)
 
         if (subtitleLabel.hidden) {

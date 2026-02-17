@@ -86,6 +86,7 @@ private const val PREVIEW_POST_ID_LENGTH = 8
 @Composable
 fun CreatePostScreen(
     state: CreatePostUiState,
+    onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (CreatePostIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -125,8 +126,8 @@ fun CreatePostScreen(
         }
     }
 
-    LaunchedEffect(nativeTopBarController, nativeTopTitle, nativeTopSubtitle) {
-        nativeTopBarController?.setModel(
+    LaunchedEffect(onNativeTopBarModel, nativeTopTitle, nativeTopSubtitle) {
+        onNativeTopBarModel(
             NativeTopBarModel.Title(
                 title = nativeTopTitle,
                 subtitle = nativeTopSubtitle,

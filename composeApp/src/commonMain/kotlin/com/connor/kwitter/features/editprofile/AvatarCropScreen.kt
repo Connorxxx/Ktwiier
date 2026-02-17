@@ -53,6 +53,7 @@ import kotlin.math.roundToInt
 fun AvatarCropScreen(
     imageBytes: ByteArray,
     onConfirm: (ByteArray) -> Unit,
+    onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onCancel: () -> Unit
 ) {
     val imageBitmap = remember(imageBytes) { decodeToImageBitmap(imageBytes) }
@@ -61,8 +62,8 @@ fun AvatarCropScreen(
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
 
-    LaunchedEffect(nativeTopBarController) {
-        nativeTopBarController?.setModel(
+    LaunchedEffect(onNativeTopBarModel) {
+        onNativeTopBarModel(
             NativeTopBarModel.Title(
                 title = "Crop Avatar",
                 leadingButton = NativeTopBarButtons.back(),

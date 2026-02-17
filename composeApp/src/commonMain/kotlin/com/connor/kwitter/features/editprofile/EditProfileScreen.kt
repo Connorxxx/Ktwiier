@@ -82,6 +82,7 @@ private fun resolveAvatarUrl(url: String): String {
 @Composable
 fun EditProfileScreen(
     state: EditProfileUiState,
+    onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (EditProfileIntent) -> Unit
 ) {
     // Show crop screen when pending image bytes are available
@@ -92,6 +93,7 @@ fun EditProfileScreen(
             onConfirm = { croppedBytes ->
                 onAction(EditProfileAction.AvatarCropConfirmed(croppedBytes))
             },
+            onNativeTopBarModel = onNativeTopBarModel,
             onCancel = {
                 onAction(EditProfileAction.AvatarCropCancelled)
             }
@@ -124,13 +126,13 @@ fun EditProfileScreen(
     }
 
     LaunchedEffect(
-        nativeTopBarController,
+        onNativeTopBarModel,
         nativeTopTitle,
         nativeSaveLabel,
         state.isSaving,
         state.isUploadingAvatar
     ) {
-        nativeTopBarController?.setModel(
+        onNativeTopBarModel(
             NativeTopBarModel.Title(
                 title = nativeTopTitle,
                 leadingButton = NativeTopBarButtons.back(enabled = !state.isSaving),

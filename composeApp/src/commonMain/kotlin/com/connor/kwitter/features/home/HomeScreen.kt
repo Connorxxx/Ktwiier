@@ -81,6 +81,7 @@ import org.jetbrains.compose.resources.stringResource
 fun HomeScreen(
     state: HomeUiState,
     pagingFlow: Flow<PagingData<Post>>,
+    onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (HomeIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -108,8 +109,8 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(nativeTopBarController) {
-        nativeTopBarController?.setModel(NativeTopBarModel.HomeInteractive)
+    LaunchedEffect(onNativeTopBarModel) {
+        onNativeTopBarModel(NativeTopBarModel.HomeInteractive)
     }
 
     LaunchedEffect(nativeTopBarController, state.currentUserId) {

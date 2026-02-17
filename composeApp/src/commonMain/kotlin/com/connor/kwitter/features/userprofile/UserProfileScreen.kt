@@ -90,6 +90,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun UserProfileScreen(
     state: UserProfileUiState,
+    onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (UserProfileIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -102,8 +103,8 @@ fun UserProfileScreen(
         }
     }
 
-    LaunchedEffect(nativeTopBarController, state.profile?.displayName, state.isOwnProfile) {
-        nativeTopBarController?.setModel(
+    LaunchedEffect(onNativeTopBarModel, state.profile?.displayName, state.isOwnProfile) {
+        onNativeTopBarModel(
             NativeTopBarModel.Title(
                 title = state.profile?.displayName.orEmpty(),
                 leadingButton = NativeTopBarButtons.back(),

@@ -2,6 +2,7 @@ package com.connor.kwitter.features.main
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -29,9 +30,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,9 +54,16 @@ import com.connor.kwitter.core.ui.GlassSurface
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.Scene
+import androidx.navigation3.scene.SceneInfo
+import androidx.navigation3.scene.SinglePaneSceneStrategy
+import androidx.navigation3.scene.rememberSceneState
 import androidx.navigation3.ui.NavDisplay
+import androidx.navigationevent.NavigationEventTransitionState
+import androidx.navigationevent.compose.NavigationBackHandler
+import androidx.navigationevent.compose.rememberNavigationEventState
 import com.connor.kwitter.features.NavigationRoute
 import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.features.chat.ChatAction
@@ -113,6 +125,7 @@ private val MainBottomElementBottomPadding = 26.dp
 private val MainBottomHorizontalPadding = 22.dp
 private val MainBottomBarHeight = 62.dp
 private const val MainTabSceneMetadataKey = "main.tab.scene"
+private const val TopBarFallbackBackTransitionDurationMillis = 400
 private val mainTabSceneMetadata = mapOf(MainTabSceneMetadataKey to true)
 
 private fun shouldShowMainBottomBar(route: NavigationRoute?): Boolean =
@@ -130,6 +143,54 @@ private fun routeUsesNativeTopBar(route: NavigationRoute?): Boolean = when (rout
     is NavigationRoute.Chat -> true
 
     else -> false
+}
+
+private fun resolvedNativeTopBarModel(
+    route: NavigationRoute?,
+    topBarModelsByRoute: Map<NavigationRoute, NativeTopBarModel>,
+    fallbackRoute: NavigationRoute? = null
+): NativeTopBarModel {
+    if (!routeUsesNativeTopBar(route)) return NativeTopBarModel.Hidden
+    if (route == null) return NativeTopBarModel.Hidden
+
+    val directModel = topBarModelsByRoute[route]
+    if (directModel != null) return directModel
+
+    if (routeUsesNativeTopBar(fallbackRoute) && fallbackRoute != null) {
+        topBarModelsByRoute[fallbackRoute]?.let { fallbackModel ->
+            return fallbackModel
+        }
+    }
+
+    return NativeTopBarModel.Hidden
+}
+
+private fun predictedBackTargetRoute(backStack: List<NavigationRoute>): NavigationRoute? {
+    val current = backStack.lastOrNull() ?: return null
+    return when {
+        current.toBottomTabOrNull() == null -> backStack.getOrNull(backStack.lastIndex - 1)
+        current != NavigationRoute.Home -> NavigationRoute.Home
+        else -> null
+    }
+}
+
+private data class TopBarRouteTransition(
+    val fromRoute: NavigationRoute?,
+    val toRoute: NavigationRoute?
+)
+
+private fun inferredBackRouteTransition(
+    previousBackStack: List<NavigationRoute>,
+    currentBackStack: List<NavigationRoute>
+): TopBarRouteTransition? {
+    val fromRoute = previousBackStack.lastOrNull() ?: return null
+    val toRoute = currentBackStack.lastOrNull() ?: return null
+    if (fromRoute == toRoute) return null
+
+    val predictedBackTarget = predictedBackTargetRoute(previousBackStack) ?: return null
+    if (predictedBackTarget != toRoute) return null
+
+    return TopBarRouteTransition(fromRoute = fromRoute, toRoute = toRoute)
 }
 
 private fun Scene<NavigationRoute>.isMainTabScene(): Boolean =
@@ -155,8 +216,9 @@ fun MainScreen(
         mainVm.onAction(MainAction.Load)
     }
 
-    val currentRoute = mainState.backStack.lastOrNull()
-    val selectedTab = mainState.backStack
+    val backStackSnapshot = mainState.backStack.toList()
+    val currentRoute = backStackSnapshot.lastOrNull()
+    val selectedTab = backStackSnapshot
         .asReversed()
         .firstNotNullOfOrNull { route -> route.toBottomTabOrNull() }
         ?: MainBottomTab.Home
@@ -166,6 +228,12 @@ fun MainScreen(
     // Native tab bar integration (iOS)
     val nativeTabController = remember { getNativeTabBarController() }
     val nativeTopBarController = remember { getNativeTopBarController() }
+    val topBarModelsByRoute = remember { mutableStateMapOf<NavigationRoute, NativeTopBarModel>() }
+    val publishNativeTopBarModel: (NavigationRoute, NativeTopBarModel) -> Unit = remember {
+        { route, model ->
+            topBarModelsByRoute[route] = model
+        }
+    }
 
     if (nativeTabController != null) {
         // Forward native tab selection -> Compose navigation
@@ -186,117 +254,30 @@ fun MainScreen(
         }
     }
 
-    if (nativeTopBarController != null) {
-        LaunchedEffect(currentRoute) {
-            if (!routeUsesNativeTopBar(currentRoute)) {
-                nativeTopBarController.setModel(NativeTopBarModel.Hidden)
+    // Only show Compose bottom bar when NOT using native tab bar
+    val showComposeBottomBar = showBottomBar && nativeTabController == null
+
+    LaunchedEffect(backStackSnapshot) {
+        val activeRoutes = backStackSnapshot.toSet()
+        topBarModelsByRoute.keys.toList().forEach { route ->
+            if (route !in activeRoutes) {
+                topBarModelsByRoute.remove(route)
             }
         }
     }
-
-    // Only show Compose bottom bar when NOT using native tab bar
-    val showComposeBottomBar = showBottomBar && nativeTabController == null
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        NavDisplay(
-            modifier = Modifier.fillMaxSize(),
+        val entries = rememberDecoratedNavEntries(
+            backStack = mainState.backStack,
             entryDecorators = listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),
                 rememberViewModelStoreNavEntryDecorator()
             ),
-            backStack = mainState.backStack,
-            onBack = mainState.onBack,
-
-        transitionSpec = {
-            if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
-                fadeIn(animationSpec = tween(220)) togetherWith
-                    fadeOut(animationSpec = tween(180))
-            } else {
-                (slideInHorizontally(
-                    initialOffsetX = { fullWidth -> fullWidth / 3 },
-                    animationSpec = tween(400)
-                ) + fadeIn(
-                    animationSpec = tween(400)
-                ) + scaleIn(
-                    initialScale = 0.92f,
-                    transformOrigin = TransformOrigin(0.5f, 0.5f),
-                    animationSpec = tween(400)
-                )) togetherWith (
-                    slideOutHorizontally(
-                        targetOffsetX = { fullWidth -> -fullWidth / 4 },
-                        animationSpec = tween(400)
-                    ) + fadeOut(
-                        animationSpec = tween(300)
-                    ) + scaleOut(
-                        targetScale = 0.95f,
-                        transformOrigin = TransformOrigin(0.5f, 0.5f),
-                        animationSpec = tween(400)
-                    )
-                )
-            }
-        },
-
-        popTransitionSpec = {
-            if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
-                fadeIn(animationSpec = tween(220)) togetherWith
-                    fadeOut(animationSpec = tween(180))
-            } else {
-                (slideInHorizontally(
-                    initialOffsetX = { fullWidth -> -fullWidth / 4 },
-                    animationSpec = tween(400)
-                ) + fadeIn(
-                    animationSpec = tween(400)
-                ) + scaleIn(
-                    initialScale = 0.95f,
-                    transformOrigin = TransformOrigin(0.5f, 0.5f),
-                    animationSpec = tween(400)
-                )) togetherWith (
-                    slideOutHorizontally(
-                        targetOffsetX = { fullWidth -> fullWidth / 3 },
-                        animationSpec = tween(400)
-                    ) + fadeOut(
-                        animationSpec = tween(300)
-                    ) + scaleOut(
-                        targetScale = 0.92f,
-                        transformOrigin = TransformOrigin(0.5f, 0.5f),
-                        animationSpec = tween(400)
-                    )
-                )
-            }
-        },
-
-        predictivePopTransitionSpec = {
-            if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
-                fadeIn(animationSpec = tween(220)) togetherWith
-                    fadeOut(animationSpec = tween(180))
-            } else {
-                (slideInHorizontally(
-                    initialOffsetX = { fullWidth -> -fullWidth / 4 },
-                    animationSpec = tween(400)
-                ) + fadeIn(
-                    animationSpec = tween(400)
-                ) + scaleIn(
-                    initialScale = 0.95f,
-                    animationSpec = tween(400)
-                )) togetherWith (
-                    slideOutHorizontally(
-                        targetOffsetX = { fullWidth -> fullWidth / 3 },
-                        animationSpec = tween(400)
-                    ) + fadeOut(
-                        animationSpec = tween(300)
-                    ) + scaleOut(
-                        targetScale = 0.92f,
-                        animationSpec = tween(400)
-                    )
-                )
-            }
-        },
-
-        entryProvider = entryProvider {
+            entryProvider = entryProvider {
             entry<NavigationRoute.Home>(metadata = mainTabSceneMetadata) {
                 val vm: HomeViewModel = koinViewModel()
                 val state by vm.uiState.collectAsStateWithLifecycle()
@@ -304,6 +285,9 @@ fun MainScreen(
                 HomeScreen(
                     state = state,
                     pagingFlow = vm.pagingFlow,
+                    onNativeTopBarModel = { model ->
+                        publishNativeTopBarModel(NavigationRoute.Home, model)
+                    },
                     onAction = { action ->
                         when (action) {
                             is HomeAction -> vm.onEvent(action)
@@ -380,6 +364,9 @@ fun MainScreen(
 
                 PostDetailScreen(
                     state = state,
+                    onNativeTopBarModel = { model ->
+                        publishNativeTopBarModel(route, model)
+                    },
                     onAction = { action ->
                         when (action) {
                             is PostDetailAction -> vm.onEvent(action)
@@ -421,6 +408,9 @@ fun MainScreen(
 
                 CreatePostScreen(
                     state = state,
+                    onNativeTopBarModel = { model ->
+                        publishNativeTopBarModel(route, model)
+                    },
                     onAction = { action ->
                         when (action) {
                             is CreatePostAction -> vm.onEvent(action)
@@ -449,6 +439,9 @@ fun MainScreen(
 
                 UserProfileScreen(
                     state = state,
+                    onNativeTopBarModel = { model ->
+                        publishNativeTopBarModel(route, model)
+                    },
                     onAction = { action ->
                         when (action) {
                             is UserProfileAction -> vm.onEvent(action)
@@ -509,6 +502,9 @@ fun MainScreen(
 
                 EditProfileScreen(
                     state = state,
+                    onNativeTopBarModel = { model ->
+                        publishNativeTopBarModel(route, model)
+                    },
                     onAction = { action ->
                         when (action) {
                             is EditProfileAction -> vm.onEvent(action)
@@ -544,6 +540,9 @@ fun MainScreen(
 
                 UserListScreen(
                     state = state,
+                    onNativeTopBarModel = { model ->
+                        publishNativeTopBarModel(route, model)
+                    },
                     onAction = { action ->
                         when (action) {
                             is UserListAction -> vm.onEvent(action)
@@ -589,6 +588,9 @@ fun MainScreen(
                     postsPaging = vm.postsPaging,
                     repliesPaging = vm.repliesPaging,
                     usersPaging = vm.usersPaging,
+                    onNativeTopBarModel = { model ->
+                        publishNativeTopBarModel(NavigationRoute.Search, model)
+                    },
                     onAction = { action ->
                         when (action) {
                             is SearchAction -> vm.onEvent(action)
@@ -631,6 +633,9 @@ fun MainScreen(
 
                 ConversationListScreen(
                     pagingFlow = vm.pagingFlow,
+                    onNativeTopBarModel = { model ->
+                        publishNativeTopBarModel(NavigationRoute.ConversationList, model)
+                    },
                     onAction = { action ->
                         when (action) {
                             is ConversationListNavAction -> when (action) {
@@ -665,6 +670,9 @@ fun MainScreen(
                 ChatScreen(
                     state = state,
                     pagingFlow = vm.pagingFlow,
+                    onNativeTopBarModel = { model ->
+                        publishNativeTopBarModel(route, model)
+                    },
                     onAction = { action ->
                         when (action) {
                             is ChatAction -> vm.onEvent(action)
@@ -676,6 +684,242 @@ fun MainScreen(
                 )
             }
         }
+        )
+
+        val sceneState = rememberSceneState(
+            entries = entries,
+            sceneStrategy = SinglePaneSceneStrategy(),
+            onBack = mainState.onBack
+        )
+        val currentScene = sceneState.currentScene
+        val navigationEventState = rememberNavigationEventState(
+            currentInfo = SceneInfo(currentScene),
+            backInfo = sceneState.previousScenes.map { SceneInfo(it) }
+        )
+
+        NavigationBackHandler(
+            state = navigationEventState,
+            isBackEnabled = currentScene.previousEntries.isNotEmpty(),
+            onBackCompleted = {
+                repeat(entries.size - currentScene.previousEntries.size) {
+                    mainState.onBack()
+                }
+            }
+        )
+
+        val predictiveBackProgress = when (val transition = navigationEventState.transitionState) {
+            is NavigationEventTransitionState.InProgress -> {
+                if (transition.direction == NavigationEventTransitionState.TRANSITIONING_BACK) {
+                    transition.latestEvent.progress.coerceIn(0f, 1f)
+                } else {
+                    0f
+                }
+            }
+            NavigationEventTransitionState.Idle -> 0f
+        }
+        val predictiveTargetRoute =
+            if (predictiveBackProgress > 0f) {
+                predictedBackTargetRoute(backStackSnapshot)
+            } else {
+                null
+            }
+        val isPredictiveBackInProgress =
+            predictiveTargetRoute != null && predictiveBackProgress > 0f
+
+        val fallbackTopBarTransitionProgress = remember { Animatable(1f) }
+        var fallbackTransitionFromRoute by remember { mutableStateOf<NavigationRoute?>(null) }
+        var fallbackTransitionToRoute by remember { mutableStateOf<NavigationRoute?>(null) }
+        var sawPredictiveBackProgress by remember { mutableStateOf(false) }
+        var previousBackStackSnapshot by remember {
+            mutableStateOf(backStackSnapshot)
+        }
+
+        LaunchedEffect(isPredictiveBackInProgress) {
+            if (isPredictiveBackInProgress) {
+                sawPredictiveBackProgress = true
+            }
+        }
+
+        LaunchedEffect(backStackSnapshot, isPredictiveBackInProgress) {
+            if (isPredictiveBackInProgress) {
+                fallbackTopBarTransitionProgress.stop()
+                fallbackTopBarTransitionProgress.snapTo(1f)
+                fallbackTransitionFromRoute = null
+                fallbackTransitionToRoute = null
+                return@LaunchedEffect
+            }
+
+            val currentBackStackSnapshot = backStackSnapshot
+            val fallbackTransition = inferredBackRouteTransition(
+                previousBackStack = previousBackStackSnapshot,
+                currentBackStack = currentBackStackSnapshot
+            )
+
+            if (fallbackTransition != null) {
+                if (!sawPredictiveBackProgress) {
+                    fallbackTransitionFromRoute = fallbackTransition.fromRoute
+                    fallbackTransitionToRoute = fallbackTransition.toRoute
+                    fallbackTopBarTransitionProgress.snapTo(0f)
+                    fallbackTopBarTransitionProgress.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(durationMillis = TopBarFallbackBackTransitionDurationMillis)
+                    )
+                    fallbackTransitionFromRoute = null
+                    fallbackTransitionToRoute = null
+                }
+                sawPredictiveBackProgress = false
+            } else if (!isPredictiveBackInProgress) {
+                // Predictive gesture cancelled (or no back transition happened).
+                sawPredictiveBackProgress = false
+            }
+
+            previousBackStackSnapshot = currentBackStackSnapshot
+        }
+
+        val fallbackBackProgress = fallbackTopBarTransitionProgress.value
+        val isFallbackBackTransitionActive =
+            fallbackTransitionFromRoute != null &&
+                fallbackTransitionToRoute != null
+        val pendingFallbackBackTransition = inferredBackRouteTransition(
+            previousBackStack = previousBackStackSnapshot,
+            currentBackStack = backStackSnapshot
+        )
+        val shouldHoldFromModelBeforeFallback =
+            pendingFallbackBackTransition != null && !sawPredictiveBackProgress
+
+        val previousRouteInBackStack = backStackSnapshot.getOrNull(backStackSnapshot.lastIndex - 1)
+        val currentTopBarModel = resolvedNativeTopBarModel(
+            route = currentRoute,
+            topBarModelsByRoute = topBarModelsByRoute,
+            fallbackRoute = previousRouteInBackStack
+        )
+        val targetTopBarModel = resolvedNativeTopBarModel(predictiveTargetRoute, topBarModelsByRoute)
+        val fallbackFromModel = resolvedNativeTopBarModel(
+            route = fallbackTransitionFromRoute,
+            topBarModelsByRoute = topBarModelsByRoute
+        )
+        val fallbackToModel = resolvedNativeTopBarModel(
+            route = fallbackTransitionToRoute,
+            topBarModelsByRoute = topBarModelsByRoute
+        )
+        val pendingFallbackFromModel = resolvedNativeTopBarModel(
+            route = pendingFallbackBackTransition?.fromRoute,
+            topBarModelsByRoute = topBarModelsByRoute
+        )
+
+        SideEffect {
+            nativeTopBarController?.let { controller ->
+                when {
+                    isPredictiveBackInProgress -> {
+                        controller.setInteractiveModelTransition(
+                            fromModel = currentTopBarModel,
+                            toModel = targetTopBarModel,
+                            progress = predictiveBackProgress
+                        )
+                    }
+                    isFallbackBackTransitionActive -> {
+                        controller.setInteractiveModelTransition(
+                            fromModel = fallbackFromModel,
+                            toModel = fallbackToModel,
+                            progress = fallbackBackProgress
+                        )
+                    }
+                    shouldHoldFromModelBeforeFallback -> {
+                        controller.setModel(pendingFallbackFromModel)
+                    }
+                    else -> {
+                        controller.setModel(currentTopBarModel)
+                    }
+                }
+            }
+        }
+
+        NavDisplay(
+            sceneState = sceneState,
+            navigationEventState = navigationEventState,
+            modifier = Modifier.fillMaxSize(),
+            transitionSpec = {
+                if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
+                    fadeIn(animationSpec = tween(220)) togetherWith
+                        fadeOut(animationSpec = tween(180))
+                } else {
+                    (slideInHorizontally(
+                        initialOffsetX = { fullWidth -> fullWidth / 3 },
+                        animationSpec = tween(400)
+                    ) + fadeIn(
+                        animationSpec = tween(400)
+                    ) + scaleIn(
+                        initialScale = 0.92f,
+                        transformOrigin = TransformOrigin(0.5f, 0.5f),
+                        animationSpec = tween(400)
+                    )) togetherWith (
+                        slideOutHorizontally(
+                            targetOffsetX = { fullWidth -> -fullWidth / 4 },
+                            animationSpec = tween(400)
+                        ) + fadeOut(
+                            animationSpec = tween(300)
+                        ) + scaleOut(
+                            targetScale = 0.95f,
+                            transformOrigin = TransformOrigin(0.5f, 0.5f),
+                            animationSpec = tween(400)
+                        )
+                    )
+                }
+            },
+            popTransitionSpec = {
+                if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
+                    fadeIn(animationSpec = tween(220)) togetherWith
+                        fadeOut(animationSpec = tween(180))
+                } else {
+                    (slideInHorizontally(
+                        initialOffsetX = { fullWidth -> -fullWidth / 4 },
+                        animationSpec = tween(400)
+                    ) + fadeIn(
+                        animationSpec = tween(400)
+                    ) + scaleIn(
+                        initialScale = 0.95f,
+                        transformOrigin = TransformOrigin(0.5f, 0.5f),
+                        animationSpec = tween(400)
+                    )) togetherWith (
+                        slideOutHorizontally(
+                            targetOffsetX = { fullWidth -> fullWidth / 3 },
+                            animationSpec = tween(400)
+                        ) + fadeOut(
+                            animationSpec = tween(300)
+                        ) + scaleOut(
+                            targetScale = 0.92f,
+                            transformOrigin = TransformOrigin(0.5f, 0.5f),
+                            animationSpec = tween(400)
+                        )
+                    )
+                }
+            },
+            predictivePopTransitionSpec = {
+                if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
+                    fadeIn(animationSpec = tween(220)) togetherWith
+                        fadeOut(animationSpec = tween(180))
+                } else {
+                    (slideInHorizontally(
+                        initialOffsetX = { fullWidth -> -fullWidth / 4 },
+                        animationSpec = tween(400)
+                    ) + fadeIn(
+                        animationSpec = tween(400)
+                    ) + scaleIn(
+                        initialScale = 0.95f,
+                        animationSpec = tween(400)
+                    )) togetherWith (
+                        slideOutHorizontally(
+                            targetOffsetX = { fullWidth -> fullWidth / 3 },
+                            animationSpec = tween(400)
+                        ) + fadeOut(
+                            animationSpec = tween(300)
+                        ) + scaleOut(
+                            targetScale = 0.92f,
+                            animationSpec = tween(400)
+                        )
+                    )
+                }
+            }
         )
 
         // Layer 3: Compose bottom bar (only when NOT using native tab bar)

@@ -66,6 +66,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun UserListScreen(
     state: UserListUiState,
+    onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (UserListIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -82,8 +83,8 @@ fun UserListScreen(
         }
     }
 
-    LaunchedEffect(nativeTopBarController, state.displayName, nativeSubtitle) {
-        nativeTopBarController?.setModel(
+    LaunchedEffect(onNativeTopBarModel, state.displayName, nativeSubtitle) {
+        onNativeTopBarModel(
             NativeTopBarModel.Title(
                 title = state.displayName,
                 subtitle = nativeSubtitle,

@@ -72,6 +72,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun PostDetailScreen(
     state: PostDetailUiState,
+    onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (PostDetailIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -89,8 +90,8 @@ fun PostDetailScreen(
         }
     }
 
-    LaunchedEffect(nativeTopBarController, nativeSubtitle) {
-        nativeTopBarController?.setModel(
+    LaunchedEffect(onNativeTopBarModel, nativeSubtitle) {
+        onNativeTopBarModel(
             NativeTopBarModel.Title(
                 title = "Conversation",
                 subtitle = nativeSubtitle,

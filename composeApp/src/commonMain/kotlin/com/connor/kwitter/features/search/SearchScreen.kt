@@ -95,6 +95,7 @@ fun SearchScreen(
     postsPaging: Flow<PagingData<Post>>,
     repliesPaging: Flow<PagingData<Post>>,
     usersPaging: Flow<PagingData<UserListItem>>,
+    onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (SearchIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -116,8 +117,8 @@ fun SearchScreen(
         }
     }
 
-    LaunchedEffect(nativeTopBarController, nativeSearchPlaceholder) {
-        nativeTopBarController?.setModel(
+    LaunchedEffect(onNativeTopBarModel, queryText, nativeSearchPlaceholder) {
+        onNativeTopBarModel(
             NativeTopBarModel.Search(
                 query = queryText,
                 placeholder = nativeSearchPlaceholder,

@@ -65,6 +65,7 @@ import kotlinx.coroutines.flow.Flow
 fun ChatScreen(
     state: ChatUiState,
     pagingFlow: Flow<PagingData<Message>>,
+    onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (ChatIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -95,8 +96,8 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(nativeTopBarController, state.otherUserDisplayName) {
-        nativeTopBarController?.setModel(
+    LaunchedEffect(onNativeTopBarModel, state.otherUserDisplayName) {
+        onNativeTopBarModel(
             NativeTopBarModel.Title(
                 title = state.otherUserDisplayName,
                 leadingButton = NativeTopBarButtons.back()

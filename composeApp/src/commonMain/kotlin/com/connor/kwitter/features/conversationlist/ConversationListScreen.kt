@@ -60,6 +60,7 @@ import kotlinx.coroutines.flow.Flow
 @Composable
 fun ConversationListScreen(
     pagingFlow: Flow<PagingData<Conversation>>,
+    onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (ConversationListIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -75,8 +76,8 @@ fun ConversationListScreen(
         }
     }
 
-    LaunchedEffect(nativeTopBarController) {
-        nativeTopBarController?.setModel(
+    LaunchedEffect(onNativeTopBarModel) {
+        onNativeTopBarModel(
             NativeTopBarModel.Title(
                 title = "Messages",
                 leadingButton = NativeTopBarButtons.back()
