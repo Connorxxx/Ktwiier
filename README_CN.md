@@ -33,7 +33,7 @@
 
 ### 工具库
 - **kotlinx-datetime** - 日期时间
-- **kotlinx-atomicfu** - 原子操作
+- **Kotlin 标准库 atomics** - 原子操作（按需启用）
 - **kotlinx-io** - IO 操作
 
 ## 📁 项目结构

@@ -9,7 +9,6 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
-    alias(libs.plugins.atomicfu)
 }
 
 kotlin {
@@ -17,6 +16,9 @@ kotlin {
         namespace = "com.connor.kwitter.composeapp"
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
+        androidResources {
+            enable = true
+        }
 
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_21)
@@ -87,7 +89,6 @@ kotlin {
 
             // Kotlinx Extensions
             implementation(libs.kotlinx.datetime)
-            // atomicfu is applied as a plugin, no need for direct dependency
             implementation(libs.kotlinx.io.core)
 
             // DataStore

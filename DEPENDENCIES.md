@@ -268,7 +268,7 @@ suspend fun fetchUser(id: String): User {
 
 #### Kotlinx Extensions
 - **kotlinx-datetime** (0.6.1): 日期时间处理
-- **kotlinx-atomicfu** (0.27.0): 原子操作
+- **Kotlin 标准库 atomics**: 原子操作（`kotlin.concurrent.atomics`，按需启用）
 - **kotlinx-io-core** (0.6.0): IO 操作
 
 ## 项目结构

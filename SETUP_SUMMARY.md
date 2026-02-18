@@ -200,7 +200,6 @@ fun TweetListPresenter(
 构建时可能出现的警告（不影响功能）:
 1. AGP 9.0 与 KMP plugin 兼容性警告 - 正常，等待 AGP 10.0
 2. 部分 gradle.properties 选项被标记为 deprecated - 正常
-3. Test source sets 中的 API 依赖警告 - atomicfu 导致，不影响功能
 
 ## 下一步建议
 

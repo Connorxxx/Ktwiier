@@ -84,7 +84,7 @@
 
 ### 额外依赖
 - [x] `kotlinx-datetime` - 日期时间处理
-- [x] `kotlinx-atomicfu` - 原子操作 (plugin)
+- [x] 移除 `kotlinx-atomicfu` Gradle plugin（避免 AGP9/KMP 任务兼容问题）
 - [x] `kotlinx-io-core` - IO 操作
 
 ## 📁 创建的文件
@@ -129,7 +129,7 @@
 - ✅ 添加 `kotlinSerialization` plugin
 - ✅ 添加 `ksp` plugin
 - ✅ 添加 `room` plugin
-- ✅ 添加 `atomicfu` plugin
+- ✅ 移除 `atomicfu` plugin（迁移到 AGP 9 后）
 
 ### composeApp/build.gradle.kts
 - ✅ 应用所有 plugins
