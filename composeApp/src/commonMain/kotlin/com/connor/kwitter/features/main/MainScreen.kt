@@ -7,13 +7,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -38,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.connor.kwitter.features.glass.NativeGlassBottomBar
@@ -57,7 +51,6 @@ import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDe
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.navigation3.scene.Scene
 import androidx.navigation3.scene.SceneInfo
 import androidx.navigation3.scene.SinglePaneSceneStrategy
 import androidx.navigation3.scene.rememberSceneState
@@ -124,8 +117,6 @@ import org.koin.compose.viewmodel.koinViewModel
 private val MainBottomElementBottomPadding = 26.dp
 private val MainBottomHorizontalPadding = 22.dp
 private val MainBottomBarHeight = 62.dp
-private const val MainTabSceneMetadataKey = "main.tab.scene"
-private val mainTabSceneMetadata = mapOf(MainTabSceneMetadataKey to true)
 
 private fun shouldShowMainBottomBar(route: NavigationRoute?): Boolean =
     route?.toBottomTabOrNull() != null
@@ -152,9 +143,6 @@ private fun predictedBackTargetRoute(backStack: List<NavigationRoute>): Navigati
         else -> null
     }
 }
-
-private fun Scene<NavigationRoute>.isMainTabScene(): Boolean =
-    metadata[MainTabSceneMetadataKey] == true
 
 @Composable
 fun MainScreen(
@@ -824,85 +812,24 @@ fun MainScreen(
             navigationEventState = navigationEventState,
             modifier = Modifier.fillMaxSize(),
             transitionSpec = {
-                if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
-                    fadeIn(animationSpec = tween(220)) togetherWith
-                        fadeOut(animationSpec = tween(180))
+                if (shouldUseMainTabCrossFade(initialState, targetState)) {
+                    MainScreenTransitions.mainTabSwitch()
                 } else {
-                    (slideInHorizontally(
-                        initialOffsetX = { fullWidth -> fullWidth / 3 },
-                        animationSpec = tween(400)
-                    ) + fadeIn(
-                        animationSpec = tween(400)
-                    ) + scaleIn(
-                        initialScale = 0.92f,
-                        transformOrigin = TransformOrigin(0.5f, 0.5f),
-                        animationSpec = tween(400)
-                    )) togetherWith (
-                        slideOutHorizontally(
-                            targetOffsetX = { fullWidth -> -fullWidth / 4 },
-                            animationSpec = tween(400)
-                        ) + fadeOut(
-                            animationSpec = tween(300)
-                        ) + scaleOut(
-                            targetScale = 0.95f,
-                            transformOrigin = TransformOrigin(0.5f, 0.5f),
-                            animationSpec = tween(400)
-                        )
-                    )
+                    MainScreenTransitions.push()
                 }
             },
             popTransitionSpec = {
-                if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
-                    fadeIn(animationSpec = tween(220)) togetherWith
-                        fadeOut(animationSpec = tween(180))
+                if (shouldUseMainTabCrossFade(initialState, targetState)) {
+                    MainScreenTransitions.mainTabSwitch()
                 } else {
-                    (slideInHorizontally(
-                        initialOffsetX = { fullWidth -> -fullWidth / 4 },
-                        animationSpec = tween(400)
-                    ) + fadeIn(
-                        animationSpec = tween(400)
-                    ) + scaleIn(
-                        initialScale = 0.95f,
-                        transformOrigin = TransformOrigin(0.5f, 0.5f),
-                        animationSpec = tween(400)
-                    )) togetherWith (
-                        slideOutHorizontally(
-                            targetOffsetX = { fullWidth -> fullWidth / 3 },
-                            animationSpec = tween(400)
-                        ) + fadeOut(
-                            animationSpec = tween(300)
-                        ) + scaleOut(
-                            targetScale = 0.92f,
-                            transformOrigin = TransformOrigin(0.5f, 0.5f),
-                            animationSpec = tween(400)
-                        )
-                    )
+                    MainScreenTransitions.pop(includeTransformOrigin = true)
                 }
             },
             predictivePopTransitionSpec = {
-                if (initialState.isMainTabScene() && targetState.isMainTabScene()) {
-                    fadeIn(animationSpec = tween(220)) togetherWith
-                        fadeOut(animationSpec = tween(180))
+                if (shouldUseMainTabCrossFade(initialState, targetState)) {
+                    MainScreenTransitions.mainTabSwitch()
                 } else {
-                    (slideInHorizontally(
-                        initialOffsetX = { fullWidth -> -fullWidth / 4 },
-                        animationSpec = tween(400)
-                    ) + fadeIn(
-                        animationSpec = tween(400)
-                    ) + scaleIn(
-                        initialScale = 0.95f,
-                        animationSpec = tween(400)
-                    )) togetherWith (
-                        slideOutHorizontally(
-                            targetOffsetX = { fullWidth -> fullWidth / 3 },
-                            animationSpec = tween(400)
-                        ) + fadeOut(
-                            animationSpec = tween(300)
-                        ) + scaleOut(
-                            targetScale = 0.92f,
-                            animationSpec = tween(400)
-                        )
-                    )
+                    MainScreenTransitions.pop(includeTransformOrigin = false)
                 }
             }
         )
