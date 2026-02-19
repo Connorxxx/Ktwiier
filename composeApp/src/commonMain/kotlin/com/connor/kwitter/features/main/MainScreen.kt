@@ -258,7 +258,6 @@ fun MainScreen(
                             else -> Unit
                         }
                     }
-                    Unit
                 }
 
                 HomeScreen(
@@ -345,7 +344,6 @@ fun MainScreen(
                     ) {
                         mainState.onBack()
                     }
-                    Unit
                 }
 
                 LaunchedEffect(route.postId) {
@@ -394,7 +392,6 @@ fun MainScreen(
                     ) {
                         mainState.onBack()
                     }
-                    Unit
                 }
 
                 LaunchedEffect(route.parentId, route.replyToAuthorName, route.replyToContent) {
@@ -440,7 +437,6 @@ fun MainScreen(
                             else -> Unit
                         }
                     }
-                    Unit
                 }
 
                 LaunchedEffect(route.userId) {
@@ -533,7 +529,6 @@ fun MainScreen(
                             else -> Unit
                         }
                     }
-                    Unit
                 }
 
                 LaunchedEffect(route.userId) {
@@ -576,7 +571,6 @@ fun MainScreen(
                     ) {
                         mainState.onBack()
                     }
-                    Unit
                 }
 
                 LaunchedEffect(route.userId, route.listType) {
@@ -651,7 +645,6 @@ fun MainScreen(
                             vm.onEvent(SearchAction.SubmitSearch)
                         }
                     }
-                    Unit
                 }
 
                 SearchScreen(
@@ -710,7 +703,6 @@ fun MainScreen(
                     ) {
                         mainState.onBack()
                     }
-                    Unit
                 }
 
                 ConversationListScreen(
@@ -747,7 +739,6 @@ fun MainScreen(
                     ) {
                         mainState.onBack()
                     }
-                    Unit
                 }
 
                 LaunchedEffect(route.conversationId, route.otherUserId) {
