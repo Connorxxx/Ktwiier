@@ -376,9 +376,9 @@ private fun ComposerInputCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                ConversationAvatar(name = "You", size = 36.dp)
+                ConversationAvatar(name = stringResource(Res.string.create_post_current_user), size = 36.dp)
                 Text(
-                    text = "You",
+                    text = stringResource(Res.string.create_post_current_user),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface

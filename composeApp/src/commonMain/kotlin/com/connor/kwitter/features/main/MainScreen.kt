@@ -113,6 +113,12 @@ import com.connor.kwitter.features.userlist.UserListViewModel
 import com.connor.kwitter.core.theme.LocalIsDarkTheme
 import kotlinx.serialization.json.Json
 import org.koin.compose.viewmodel.koinViewModel
+import kwitter.composeapp.generated.resources.Res
+import kwitter.composeapp.generated.resources.main_tab_home
+import kwitter.composeapp.generated.resources.main_tab_messages
+import kwitter.composeapp.generated.resources.main_tab_search
+import kwitter.composeapp.generated.resources.main_tab_settings
+import org.jetbrains.compose.resources.stringResource
 
 private val MainBottomElementBottomPadding = 26.dp
 private val MainBottomHorizontalPadding = 22.dp
@@ -845,6 +851,17 @@ private fun GlassBottomBar(
     val isDark = LocalIsDarkTheme.current
     val barShape = RoundedCornerShape(50)
     val tabShape = RoundedCornerShape(20.dp)
+    val homeTabLabel = stringResource(Res.string.main_tab_home)
+    val messagesTabLabel = stringResource(Res.string.main_tab_messages)
+    val searchTabLabel = stringResource(Res.string.main_tab_search)
+    val settingsTabLabel = stringResource(Res.string.main_tab_settings)
+
+    fun labelFor(tab: MainBottomTab): String = when (tab) {
+        MainBottomTab.Home -> homeTabLabel
+        MainBottomTab.Messages -> messagesTabLabel
+        MainBottomTab.Search -> searchTabLabel
+        MainBottomTab.Settings -> settingsTabLabel
+    }
 
     if (supportsNativeGlassBars()) {
         NativeGlassBottomBar(
@@ -853,7 +870,7 @@ private fun GlassBottomBar(
                 .height(MainBottomBarHeight)
                 .shadow(elevation = 16.dp, shape = barShape),
             isDarkTheme = isDark,
-            tabLabels = MainBottomTab.entries.map { it.label },
+            tabLabels = listOf(homeTabLabel, messagesTabLabel, searchTabLabel, settingsTabLabel),
             selectedIndex = MainBottomTab.entries.indexOf(selectedTab),
             onTabSelected = { tabIndex ->
                 MainBottomTab.entries.getOrNull(tabIndex)?.let(onTabClick)
@@ -916,7 +933,7 @@ private fun GlassBottomBar(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = tab.label,
+                        text = labelFor(tab),
                         color = textColor,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium

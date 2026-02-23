@@ -40,6 +40,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -72,6 +74,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.home_empty
+import kwitter.composeapp.generated.resources.home_load_failed
+import kwitter.composeapp.generated.resources.home_new_post_multiple
+import kwitter.composeapp.generated.resources.home_new_post_single
+import kwitter.composeapp.generated.resources.home_refresh_failed
+import kwitter.composeapp.generated.resources.home_retry
+import kwitter.composeapp.generated.resources.home_top_title
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -87,6 +95,18 @@ fun HomeScreen(
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val refreshFailedText = stringResource(Res.string.home_refresh_failed)
+    val loadFailedText = stringResource(Res.string.home_load_failed)
+
+    val activeVideoPostKey by remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+            layoutInfo.visibleItemsInfo
+                .minByOrNull { kotlin.math.abs(it.offset + it.size / 2 - viewportCenter) }
+                ?.key
+        }
+    }
     val onProfileClick = state.currentUserId?.let { userId ->
         { onAction(HomeNavAction.AuthorClick(userId)) }
     }
@@ -102,7 +122,7 @@ fun HomeScreen(
         val refreshState = lazyPagingItems.loadState.refresh
         if (refreshState is LoadState.Error && lazyPagingItems.itemCount > 0) {
             snackbarHostState.showSnackbar(
-                refreshState.error.message ?: "Failed to refresh timeline"
+                refreshState.error.message ?: refreshFailedText
             )
         }
     }
@@ -145,7 +165,7 @@ fun HomeScreen(
 
                 is LoadState.Error if lazyPagingItems.itemCount == 0 -> {
                     TimelineLoadErrorState(
-                        message = refreshState.error.message ?: "Failed to load timeline",
+                        message = refreshState.error.message ?: loadFailedText,
                         onRetry = { lazyPagingItems.refresh() }
                     )
                 }
@@ -197,7 +217,8 @@ fun HomeScreen(
                                     },
                                     onAuthorClick = {
                                         onAction(HomeNavAction.AuthorClick(post.author.id))
-                                    }
+                                    },
+                                    isVideoPlaying = activeVideoPostKey == post.id
                                 )
                             }
 
@@ -254,7 +275,11 @@ private fun NewPostsBanner(
             shadowElevation = 4.dp
         ) {
             Text(
-                text = if (count == 1) "1 new post" else "$count new posts",
+                text = if (count == 1) {
+                    stringResource(Res.string.home_new_post_single)
+                } else {
+                    stringResource(Res.string.home_new_post_multiple, count)
+                },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onPrimary
@@ -307,7 +332,7 @@ private fun HomeTopBarTitle() {
             color = MaterialTheme.colorScheme.primary
         )
         Text(
-            text = "Post",
+            text = stringResource(Res.string.home_top_title),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface
@@ -404,7 +429,7 @@ private fun TimelineLoadErrorState(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = "Timeline load failed",
+                text = stringResource(Res.string.home_load_failed),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center
@@ -416,7 +441,7 @@ private fun TimelineLoadErrorState(
                 textAlign = TextAlign.Center
             )
             TextButton(onClick = onRetry) {
-                Text("Retry")
+                Text(stringResource(Res.string.home_retry))
             }
         }
     }

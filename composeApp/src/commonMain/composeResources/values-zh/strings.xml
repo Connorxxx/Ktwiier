@@ -11,6 +11,14 @@
     <string name="register_have_account">已有账号？</string>
     <string name="register_login_link">去登录</string>
     <string name="register_terms">使用条款 · 隐私政策</string>
+    <string name="auth_error_network">网络错误：%1$s</string>
+    <string name="auth_error_server">服务器错误（%1$d）：%2$s</string>
+    <string name="auth_error_client">请求错误（%1$d）：%2$s</string>
+    <string name="auth_error_invalid_credentials">邮箱或密码错误</string>
+    <string name="auth_error_invalid_credentials_with_detail">无效凭证：%1$s</string>
+    <string name="auth_error_storage">存储错误：%1$s</string>
+    <string name="auth_error_unknown">未知错误：%1$s</string>
+    <string name="auth_error_session_revoked">会话已撤销：%1$s</string>
 
     <string name="login_title">欢迎回来</string>
     <string name="login_email_label">邮箱</string>
@@ -21,6 +29,48 @@
     <string name="login_no_account">还没有账号？</string>
     <string name="login_register_link">去注册</string>
     <string name="login_terms">使用条款 · 隐私政策</string>
+
+    <string name="home_title">首页</string>
+    <string name="home_logout">登出</string>
+    <string name="home_empty">还没有帖子，快来发布第一条吧！</string>
+    <string name="home_error_dismiss">关闭</string>
+    <string name="home_refresh_failed">刷新时间线失败</string>
+    <string name="home_load_failed">加载时间线失败</string>
+    <string name="home_new_post_single">1 条新帖子</string>
+    <string name="home_new_post_multiple">%1$d 条新帖子</string>
+    <string name="home_top_title">动态</string>
+    <string name="home_retry">重试</string>
+
+    <string name="post_detail_title">帖子</string>
+    <string name="post_detail_replies_header">回复</string>
+    <string name="post_detail_no_replies">暂无回复</string>
+    <string name="post_detail_reply_action">回复</string>
+    <string name="post_detail_conversation_title">对话</string>
+    <string name="post_detail_reply_count">%1$d 条回复</string>
+    <string name="post_detail_start_first_reply">来发第一条回复</string>
+    <string name="post_detail_show_replies">显示回复</string>
+    <string name="post_detail_hide_replies">隐藏回复</string>
+
+    <string name="create_post_title">新帖子</string>
+    <string name="create_post_reply_title">回复</string>
+    <string name="create_post_placeholder">有什么新鲜事？</string>
+    <string name="create_post_reply_placeholder">写下你的回复</string>
+    <string name="create_post_replying_to">正在回复</string>
+    <string name="create_post_button">发布</string>
+    <string name="create_post_reply_button">回复</string>
+    <string name="create_post_reply_context_title">回复对象</string>
+    <string name="create_post_reply_context_unknown_author">未知作者</string>
+    <string name="create_post_reply_context_unknown_content">原帖预览不可用</string>
+    <string name="create_post_reply_context_post_id">帖子</string>
+    <string name="create_post_content_hint">尽量写清楚回复内容，方便他人跟进讨论。</string>
+    <string name="create_post_media_title">媒体</string>
+    <string name="create_post_media_add">添加媒体</string>
+    <string name="create_post_media_limit">最多 4 个附件</string>
+    <string name="create_post_uploading">正在上传媒体...</string>
+    <string name="create_post_status_ready">可以发布</string>
+    <string name="create_post_status_need_text">请输入内容后再发布</string>
+    <string name="create_post_status_limit">已达到字符上限</string>
+    <string name="create_post_current_user">你</string>
 
     <string name="time_just_now">刚刚</string>
     <string name="time_minutes_ago">%1$d分钟前</string>
@@ -43,6 +93,7 @@
     <string name="profile_no_replies">暂无回复</string>
     <string name="profile_no_likes">暂无喜欢</string>
     <string name="profile_joined">加入于 %1$s</string>
+    <string name="profile_message">私信</string>
 
     <string name="search_placeholder">搜索帖子、回复、用户</string>
     <string name="search_posts">帖子</string>
@@ -52,4 +103,35 @@
     <string name="search_empty_hint">搜索帖子、回复或用户</string>
     <string name="search_sort_best_match">最佳匹配</string>
     <string name="search_sort_latest">最新</string>
+    <string name="search_failed">搜索失败</string>
+
+    <string name="settings_title">设置</string>
+    <string name="settings_account_privacy">账号与隐私</string>
+    <string name="settings_change_password_title">修改密码</string>
+    <string name="settings_change_password_subtitle">占位设置，后续接入实际流程</string>
+    <string name="settings_change_password_in_development">修改密码功能开发中</string>
+    <string name="settings_allow_default_pm_title">是否允许默认人 PM</string>
+    <string name="settings_allow_default_pm_subtitle">关闭后只允许互关对象 PM</string>
+    <string name="settings_logout">登出</string>
+    <string name="settings_logout_confirm_title">确认登出</string>
+    <string name="settings_logout_confirm_message">确定要退出当前账号吗？</string>
+
+    <string name="conversation_list_title">私信</string>
+    <string name="conversation_list_load_failed">加载私信失败</string>
+    <string name="conversation_list_empty">暂无私信</string>
+
+    <string name="chat_load_failed">加载消息失败</string>
+    <string name="chat_start_conversation">开始一段对话</string>
+    <string name="chat_input_placeholder">消息</string>
+
+    <string name="user_list_empty_following">还没有关注任何人</string>
+    <string name="user_list_empty_followers">还没有粉丝</string>
+
+    <string name="avatar_crop_title">裁剪头像</string>
+    <string name="avatar_crop_confirm">确认</string>
+
+    <string name="main_tab_home">首页</string>
+    <string name="main_tab_messages">私信</string>
+    <string name="main_tab_search">搜索</string>
+    <string name="main_tab_settings">设置</string>
 </resources>

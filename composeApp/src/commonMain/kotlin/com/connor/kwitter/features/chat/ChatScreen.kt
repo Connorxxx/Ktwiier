@@ -58,6 +58,11 @@ import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.messaging.model.Message
 import kotlinx.coroutines.flow.Flow
+import kwitter.composeapp.generated.resources.Res
+import kwitter.composeapp.generated.resources.chat_input_placeholder
+import kwitter.composeapp.generated.resources.chat_load_failed
+import kwitter.composeapp.generated.resources.chat_start_conversation
+import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,6 +76,9 @@ fun ChatScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
+    val loadFailedText = stringResource(Res.string.chat_load_failed)
+    val emptyHint = stringResource(Res.string.chat_start_conversation)
+    val inputPlaceholder = stringResource(Res.string.chat_input_placeholder)
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -97,7 +105,7 @@ fun ChatScreen(
         val refreshState = lazyPagingItems.loadState.refresh
         if (refreshState is LoadState.Error && lazyPagingItems.itemCount > 0) {
             snackbarHostState.showSnackbar(
-                refreshState.error.message ?: "Failed to load messages"
+                refreshState.error.message ?: loadFailedText
             )
         }
     }
@@ -161,7 +169,7 @@ fun ChatScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Start a conversation",
+                        text = emptyHint,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -329,7 +337,7 @@ private fun ChatInputBar(
                 modifier = Modifier.weight(1f),
                 placeholder = {
                     Text(
-                        text = "Message",
+                        text = inputPlaceholder,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 },

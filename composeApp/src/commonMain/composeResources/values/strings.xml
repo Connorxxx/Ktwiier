@@ -11,6 +11,14 @@
     <string name="register_have_account">Already have an account?</string>
     <string name="register_login_link">Log in</string>
     <string name="register_terms">Terms of Use · Privacy Policy</string>
+    <string name="auth_error_network">Network error: %1$s</string>
+    <string name="auth_error_server">Server error (%1$d): %2$s</string>
+    <string name="auth_error_client">Request error (%1$d): %2$s</string>
+    <string name="auth_error_invalid_credentials">Incorrect email or password</string>
+    <string name="auth_error_invalid_credentials_with_detail">Invalid credentials: %1$s</string>
+    <string name="auth_error_storage">Storage error: %1$s</string>
+    <string name="auth_error_unknown">Unknown error: %1$s</string>
+    <string name="auth_error_session_revoked">Session revoked: %1$s</string>
 
     <string name="login_title">Welcome Back</string>
     <string name="login_email_label">Email</string>
@@ -26,11 +34,22 @@
     <string name="home_logout">Logout</string>
     <string name="home_empty">No posts yet. Be the first to post!</string>
     <string name="home_error_dismiss">Dismiss</string>
+    <string name="home_refresh_failed">Failed to refresh timeline</string>
+    <string name="home_load_failed">Failed to load timeline</string>
+    <string name="home_new_post_single">1 new post</string>
+    <string name="home_new_post_multiple">%1$d new posts</string>
+    <string name="home_top_title">Post</string>
+    <string name="home_retry">Retry</string>
 
     <string name="post_detail_title">Post</string>
     <string name="post_detail_replies_header">Replies</string>
     <string name="post_detail_no_replies">No replies yet</string>
     <string name="post_detail_reply_action">Reply</string>
+    <string name="post_detail_conversation_title">Conversation</string>
+    <string name="post_detail_reply_count">%1$d replies</string>
+    <string name="post_detail_start_first_reply">Start the first reply</string>
+    <string name="post_detail_show_replies">Show replies</string>
+    <string name="post_detail_hide_replies">Hide replies</string>
 
     <string name="create_post_title">New Post</string>
     <string name="create_post_reply_title">Reply</string>
@@ -51,6 +70,7 @@
     <string name="create_post_status_ready">Ready to publish</string>
     <string name="create_post_status_need_text">Enter text to publish</string>
     <string name="create_post_status_limit">Character limit reached</string>
+    <string name="create_post_current_user">You</string>
 
     <string name="time_just_now">Just now</string>
     <string name="time_minutes_ago">%1$d min ago</string>
@@ -73,6 +93,7 @@
     <string name="profile_no_replies">No replies yet</string>
     <string name="profile_no_likes">No likes yet</string>
     <string name="profile_joined">Joined %1$s</string>
+    <string name="profile_message">Message</string>
 
     <string name="search_placeholder">Search posts, replies, users</string>
     <string name="search_posts">Posts</string>
@@ -82,4 +103,35 @@
     <string name="search_empty_hint">Search for posts, replies, or users</string>
     <string name="search_sort_best_match">Best match</string>
     <string name="search_sort_latest">Latest</string>
+    <string name="search_failed">Search failed</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_account_privacy">Account and privacy</string>
+    <string name="settings_change_password_title">Change password</string>
+    <string name="settings_change_password_subtitle">Placeholder setting; real flow will be added later</string>
+    <string name="settings_change_password_in_development">Change password is under development</string>
+    <string name="settings_allow_default_pm_title">Allow direct messages by default</string>
+    <string name="settings_allow_default_pm_subtitle">When off, only mutual followers can send messages</string>
+    <string name="settings_logout">Log out</string>
+    <string name="settings_logout_confirm_title">Confirm log out</string>
+    <string name="settings_logout_confirm_message">Are you sure you want to log out of this account?</string>
+
+    <string name="conversation_list_title">Messages</string>
+    <string name="conversation_list_load_failed">Failed to load conversations</string>
+    <string name="conversation_list_empty">No messages yet</string>
+
+    <string name="chat_load_failed">Failed to load messages</string>
+    <string name="chat_start_conversation">Start a conversation</string>
+    <string name="chat_input_placeholder">Message</string>
+
+    <string name="user_list_empty_following">Not following anyone yet</string>
+    <string name="user_list_empty_followers">No followers yet</string>
+
+    <string name="avatar_crop_title">Crop Avatar</string>
+    <string name="avatar_crop_confirm">Confirm</string>
+
+    <string name="main_tab_home">Home</string>
+    <string name="main_tab_messages">Messages</string>
+    <string name="main_tab_search">Search</string>
+    <string name="main_tab_settings">Settings</string>
 </resources>

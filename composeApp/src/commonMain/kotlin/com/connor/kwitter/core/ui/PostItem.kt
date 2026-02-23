@@ -32,7 +32,8 @@ fun PostItem(
     onLikeClick: () -> Unit,
     onBookmarkClick: () -> Unit,
     onMediaClick: (Int) -> Unit,
-    onAuthorClick: (() -> Unit)? = null
+    onAuthorClick: (() -> Unit)? = null,
+    isVideoPlaying: Boolean = true
 ) {
     Column(
         modifier = Modifier
@@ -96,6 +97,7 @@ fun PostItem(
                     Spacer(modifier = Modifier.height(10.dp))
                     PostMediaGrid(
                         media = post.media,
+                        isVideoPlaying = isVideoPlaying,
                         onMediaClick = onMediaClick
                     )
                 }

@@ -25,6 +25,7 @@ import com.connor.kwitter.domain.post.model.PostMediaType
 fun PostMediaGrid(
     media: List<PostMedia>,
     modifier: Modifier = Modifier,
+    isVideoPlaying: Boolean = true,
     onMediaClick: ((index: Int) -> Unit)? = null
 ) {
     if (media.isEmpty()) return
@@ -42,7 +43,8 @@ fun PostMediaGrid(
                     .heightIn(min = 180.dp, max = 280.dp)
                     .clip(shape)
                     .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    .mediaClickable(0)
+                    .mediaClickable(0),
+                isVideoPlaying = isVideoPlaying
             )
         }
         2 -> {
@@ -58,7 +60,8 @@ fun PostMediaGrid(
                             .heightIn(min = 140.dp, max = 200.dp)
                             .clip(shape)
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .mediaClickable(index)
+                            .mediaClickable(index),
+                        isVideoPlaying = isVideoPlaying
                     )
                 }
             }
@@ -75,7 +78,8 @@ fun PostMediaGrid(
                         .fillMaxSize()
                         .clip(shape)
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .mediaClickable(0)
+                        .mediaClickable(0),
+                    isVideoPlaying = isVideoPlaying
                 )
                 Column(
                     modifier = Modifier.weight(1f).fillMaxSize(),
@@ -88,7 +92,8 @@ fun PostMediaGrid(
                             .fillMaxWidth()
                             .clip(shape)
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .mediaClickable(1)
+                            .mediaClickable(1),
+                        isVideoPlaying = isVideoPlaying
                     )
                     PostMediaItem(
                         media = media[2],
@@ -97,7 +102,8 @@ fun PostMediaGrid(
                             .fillMaxWidth()
                             .clip(shape)
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .mediaClickable(2)
+                            .mediaClickable(2),
+                        isVideoPlaying = isVideoPlaying
                     )
                 }
             }
@@ -120,7 +126,8 @@ fun PostMediaGrid(
                                 .aspectRatio(1.5f)
                                 .clip(shape)
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                .mediaClickable(i)
+                                .mediaClickable(i),
+                            isVideoPlaying = isVideoPlaying
                         )
                     }
                 }
@@ -136,7 +143,8 @@ fun PostMediaGrid(
                                 .aspectRatio(1.5f)
                                 .clip(shape)
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                .mediaClickable(i)
+                                .mediaClickable(i),
+                            isVideoPlaying = isVideoPlaying
                         )
                     }
                 }
@@ -148,7 +156,8 @@ fun PostMediaGrid(
 @Composable
 private fun PostMediaItem(
     media: PostMedia,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isVideoPlaying: Boolean = true
 ) {
     val mediaUrl = resolveMediaUrl(media.url)
     when (media.type) {
@@ -161,7 +170,8 @@ private fun PostMediaItem(
 
         PostMediaType.VIDEO -> AutoPlayVideoPlayer(
             url = mediaUrl,
-            modifier = modifier
+            modifier = modifier,
+            isPlaying = isVideoPlaying
         )
     }
 }

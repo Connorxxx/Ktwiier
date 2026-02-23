@@ -2,7 +2,9 @@ package com.connor.kwitter.core.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitViewController
@@ -29,7 +31,8 @@ import platform.Foundation.NSURL
 @Composable
 actual fun AutoPlayVideoPlayer(
     url: String,
-    modifier: Modifier
+    modifier: Modifier,
+    isPlaying: Boolean
 ) {
     val nsUrl = remember(url) { NSURL.URLWithString(url) } ?: return
     val player = remember(url) {
@@ -37,6 +40,11 @@ actual fun AutoPlayVideoPlayer(
             muted = true
             volume = 0f
         }
+    }
+    val currentIsPlaying = rememberUpdatedState(isPlaying)
+
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) player.play() else player.pause()
     }
 
     DisposableEffect(player) {
@@ -46,15 +54,19 @@ actual fun AutoPlayVideoPlayer(
             error = null
         )
 
-        player.play()
+        if (currentIsPlaying.value) {
+            player.play()
+        }
 
         val loopObserver = NSNotificationCenter.defaultCenter.addObserverForName(
             name = AVPlayerItemDidPlayToEndTimeNotification,
             `object` = player.currentItem,
             queue = null
         ) { _ ->
-            player.seekToTime(CMTimeMake(value = 0L, timescale = 1))
-            player.play()
+            if (currentIsPlaying.value) {
+                player.seekToTime(CMTimeMake(value = 0L, timescale = 1))
+                player.play()
+            }
         }
 
         onDispose {

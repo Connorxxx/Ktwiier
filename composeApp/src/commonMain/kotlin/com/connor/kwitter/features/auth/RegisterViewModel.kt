@@ -12,6 +12,7 @@ import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.repository.AuthRepository
+import com.connor.kwitter.features.auth.toAuthUiError
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -21,7 +22,7 @@ data class RegisterUiState(
     val name: String = "",
     val password: String = "",
     val isLoading: Boolean = false,
-    val error: String? = null,
+    val error: AuthUiError? = null,
     val registerSuccess: Boolean = false
 )
 
@@ -93,13 +94,6 @@ class RegisterViewModel(
         return state
     }
 
-    private fun formatError(error: AuthError): String = when (error) {
-        is AuthError.NetworkError -> "网络错误: ${error.message}"
-        is AuthError.ServerError -> "服务器错误 (${error.code}): ${error.message}"
-        is AuthError.ClientError -> "请求错误 (${error.code}): ${error.message}"
-        is AuthError.InvalidCredentials -> "无效凭证: ${error.message}"
-        is AuthError.StorageError -> "存储错误: ${error.message}"
-        is AuthError.Unknown -> "未知错误: ${error.message}"
-        is AuthError.SessionRevoked -> "会话已撤销: ${error.message}"
-    }
+    private fun formatError(error: AuthError): AuthUiError =
+        error.toAuthUiError(includeInvalidDetail = true)
 }

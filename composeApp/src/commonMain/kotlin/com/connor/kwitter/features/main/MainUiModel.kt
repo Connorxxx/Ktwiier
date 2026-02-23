@@ -2,11 +2,11 @@ package com.connor.kwitter.features.main
 
 import com.connor.kwitter.features.NavigationRoute
 
-enum class MainBottomTab(val label: String) {
-    Home("首页"),
-    Messages("私信"),
-    Search("搜索"),
-    Settings("设置")
+enum class MainBottomTab {
+    Home,
+    Messages,
+    Search,
+    Settings
 }
 
 val mainBottomTabRoutes: List<NavigationRoute> = listOf(

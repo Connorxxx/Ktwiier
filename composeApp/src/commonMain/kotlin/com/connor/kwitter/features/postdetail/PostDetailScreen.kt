@@ -62,8 +62,13 @@ import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.post.model.PostStats
 import kwitter.composeapp.generated.resources.Res
+import kwitter.composeapp.generated.resources.post_detail_conversation_title
+import kwitter.composeapp.generated.resources.post_detail_hide_replies
 import kwitter.composeapp.generated.resources.post_detail_no_replies
+import kwitter.composeapp.generated.resources.post_detail_reply_count
 import kwitter.composeapp.generated.resources.post_detail_replies_header
+import kwitter.composeapp.generated.resources.post_detail_show_replies
+import kwitter.composeapp.generated.resources.post_detail_start_first_reply
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,9 +81,9 @@ fun PostDetailScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val nativeSubtitle = if (state.threadReplies.isNotEmpty()) {
-        "${state.threadReplies.size} replies"
+        stringResource(Res.string.post_detail_reply_count, state.threadReplies.size)
     } else {
-        "Start the first reply"
+        stringResource(Res.string.post_detail_start_first_reply)
     }
 
     LaunchedEffect(state.error) {
@@ -91,7 +96,7 @@ fun PostDetailScreen(
     PublishNativeTopBar(
         onNativeTopBarModel,
         NativeTopBarModel.Title(
-            title = "Conversation",
+            title = stringResource(Res.string.post_detail_conversation_title),
             subtitle = nativeSubtitle,
             leadingButton = NativeTopBarButtons.back()
         )
@@ -302,9 +307,13 @@ private fun ThreadTopBar(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    GlassTopBarTitle(text = "Conversation")
+                    GlassTopBarTitle(text = stringResource(Res.string.post_detail_conversation_title))
                     Text(
-                        text = if (replyCount > 0) "$replyCount replies" else "Start the first reply",
+                        text = if (replyCount > 0) {
+                            stringResource(Res.string.post_detail_reply_count, replyCount)
+                        } else {
+                            stringResource(Res.string.post_detail_start_first_reply)
+                        },
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -526,7 +535,11 @@ private fun ReplyItem(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = if (isRepliesExpanded) "Hide replies" else "Show replies",
+                        text = if (isRepliesExpanded) {
+                            stringResource(Res.string.post_detail_hide_replies)
+                        } else {
+                            stringResource(Res.string.post_detail_show_replies)
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold

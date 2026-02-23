@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -38,6 +39,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,6 +76,7 @@ import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_follow
 import kwitter.composeapp.generated.resources.profile_following
 import kwitter.composeapp.generated.resources.search_empty_hint
+import kwitter.composeapp.generated.resources.search_failed
 import kwitter.composeapp.generated.resources.search_no_results
 import kwitter.composeapp.generated.resources.search_placeholder
 import kwitter.composeapp.generated.resources.search_posts
@@ -323,7 +327,7 @@ private fun PostPagingList(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = refreshState.error.message ?: "Search failed",
+                    text = refreshState.error.message ?: stringResource(Res.string.search_failed),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -347,8 +351,21 @@ private fun PostPagingContent(
     lazyPagingItems: LazyPagingItems<Post>,
     onAction: (SearchIntent) -> Unit
 ) {
+    val listState = rememberLazyListState()
+
+    val activeVideoPostKey by remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+            layoutInfo.visibleItemsInfo
+                .minByOrNull { kotlin.math.abs(it.offset + it.size / 2 - viewportCenter) }
+                ?.key
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
+        state = listState,
         contentPadding = PaddingValues(horizontal = 16.dp)
     ) {
         items(
@@ -381,7 +398,8 @@ private fun PostPagingContent(
                 },
                 onAuthorClick = {
                     onAction(SearchNavAction.AuthorClick(post.author.id))
-                }
+                },
+                isVideoPlaying = activeVideoPostKey == post.id
             )
         }
 
@@ -428,7 +446,7 @@ private fun UserPagingList(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = refreshState.error.message ?: "Search failed",
+                    text = refreshState.error.message ?: stringResource(Res.string.search_failed),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,

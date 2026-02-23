@@ -4,18 +4,24 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.repository.AuthRepository
+import com.connor.kwitter.features.auth.AuthUiError
+import com.connor.kwitter.features.auth.toAuthUiError
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+sealed interface SettingsInfoMessage {
+    data object ChangePasswordInDevelopment : SettingsInfoMessage
+}
+
 data class SettingsUiState(
     val allowDefaultPm: Boolean = true,
     val isLogoutDialogVisible: Boolean = false,
     val isLoggingOut: Boolean = false,
-    val infoMessage: String? = null,
-    val error: String? = null
+    val infoMessage: SettingsInfoMessage? = null,
+    val error: AuthUiError? = null
 )
 
 sealed interface SettingsIntent
@@ -43,7 +49,9 @@ class SettingsViewModel(
                 _uiState.update { it.copy(allowDefaultPm = action.enabled) }
             }
             SettingsAction.ChangePasswordClick -> {
-                _uiState.update { it.copy(infoMessage = "修改密码功能开发中") }
+                _uiState.update {
+                    it.copy(infoMessage = SettingsInfoMessage.ChangePasswordInDevelopment)
+                }
             }
             SettingsAction.ChangePasswordMessageConsumed -> {
                 _uiState.update { it.copy(infoMessage = null) }
@@ -95,13 +103,6 @@ class SettingsViewModel(
         }
     }
 
-    private fun formatAuthError(error: AuthError): String = when (error) {
-        is AuthError.NetworkError -> "Logout failed: network error (${error.message})"
-        is AuthError.ServerError -> "Logout failed: server error (${error.code}) ${error.message}"
-        is AuthError.ClientError -> "Logout failed: request error (${error.code}) ${error.message}"
-        is AuthError.InvalidCredentials -> "Logout failed: invalid credentials (${error.message})"
-        is AuthError.StorageError -> "Logout failed: storage error (${error.message})"
-        is AuthError.Unknown -> "Logout failed: unknown error (${error.message})"
-        is AuthError.SessionRevoked -> "Session revoked: ${error.message}"
-    }
+    private fun formatAuthError(error: AuthError): AuthUiError =
+        error.toAuthUiError(includeInvalidDetail = true)
 }

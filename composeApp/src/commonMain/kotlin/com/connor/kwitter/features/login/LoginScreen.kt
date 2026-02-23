@@ -53,6 +53,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.features.auth.AuthUiError
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -76,6 +77,7 @@ fun LoginScreen(
     val textPrimary = colors.onBackground
     val textSecondary = colors.onSurfaceVariant
     val textMuted = colors.onSurfaceVariant.copy(alpha = 0.7f)
+    val errorMessage = state.error?.let { resolveLoginErrorMessage(it) }
 
     // 监听登录成功
     LaunchedEffect(state.loginSuccess) {
@@ -85,9 +87,9 @@ fun LoginScreen(
     }
 
     // 显示错误信息
-    LaunchedEffect(state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
             onAction(LoginAction.ErrorDismissed)
         }
     }
@@ -338,6 +340,17 @@ private fun LoginTextField(
 private fun filterPasswordInput(raw: String): String {
     if (raw.isEmpty()) return raw
     return raw.filter { it.isAllowedPasswordChar() }
+}
+
+@Composable
+private fun resolveLoginErrorMessage(error: AuthUiError): String = when (error) {
+    is AuthUiError.Network -> stringResource(Res.string.auth_error_network, error.detail)
+    is AuthUiError.Server -> stringResource(Res.string.auth_error_server, error.code, error.detail)
+    is AuthUiError.Client -> stringResource(Res.string.auth_error_client, error.code, error.detail)
+    is AuthUiError.InvalidCredentials -> stringResource(Res.string.auth_error_invalid_credentials)
+    is AuthUiError.Storage -> stringResource(Res.string.auth_error_storage, error.detail)
+    is AuthUiError.Unknown -> stringResource(Res.string.auth_error_unknown, error.detail)
+    is AuthUiError.SessionRevoked -> stringResource(Res.string.auth_error_session_revoked, error.detail)
 }
 
 private fun Char.isAllowedPasswordChar(): Boolean {

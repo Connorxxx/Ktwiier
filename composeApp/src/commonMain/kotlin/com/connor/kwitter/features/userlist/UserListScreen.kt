@@ -60,6 +60,8 @@ import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_follow
 import kwitter.composeapp.generated.resources.profile_followers
 import kwitter.composeapp.generated.resources.profile_following
+import kwitter.composeapp.generated.resources.user_list_empty_followers
+import kwitter.composeapp.generated.resources.user_list_empty_following
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -135,8 +137,8 @@ fun UserListScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     val emptyText = when (state.listType) {
-                        UserListType.FOLLOWING -> "Not following anyone yet"
-                        UserListType.FOLLOWERS -> "No followers yet"
+                        UserListType.FOLLOWING -> stringResource(Res.string.user_list_empty_following)
+                        UserListType.FOLLOWERS -> stringResource(Res.string.user_list_empty_followers)
                     }
                     Text(
                         text = emptyText,

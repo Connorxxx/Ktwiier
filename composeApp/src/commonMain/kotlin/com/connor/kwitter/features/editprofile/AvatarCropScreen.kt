@@ -45,6 +45,10 @@ import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kwitter.composeapp.generated.resources.Res
+import kwitter.composeapp.generated.resources.avatar_crop_confirm
+import kwitter.composeapp.generated.resources.avatar_crop_title
+import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +67,7 @@ fun AvatarCropScreen(
     PublishNativeTopBar(
         onNativeTopBarModel,
         NativeTopBarModel.Title(
-            title = "Crop Avatar",
+            title = stringResource(Res.string.avatar_crop_title),
             leadingButton = NativeTopBarButtons.back(),
             preferLightForeground = true
         )
@@ -173,7 +177,7 @@ fun AvatarCropScreen(
                     .padding(bottom = 32.dp)
             ) {
                 Text(
-                    text = "Confirm",
+                    text = stringResource(Res.string.avatar_crop_confirm),
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -190,7 +194,7 @@ private fun CropTopBar(
         CenterAlignedTopAppBar(
             title = {
                 GlassTopBarTitle(
-                    text = "Crop Avatar",
+                    text = stringResource(Res.string.avatar_crop_title),
                     color = Color.White
                 )
             },

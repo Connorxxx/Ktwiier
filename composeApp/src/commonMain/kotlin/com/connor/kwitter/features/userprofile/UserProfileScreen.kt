@@ -84,6 +84,7 @@ import kwitter.composeapp.generated.resources.profile_no_posts
 import kwitter.composeapp.generated.resources.profile_no_replies
 import kwitter.composeapp.generated.resources.profile_posts
 import kwitter.composeapp.generated.resources.profile_replies
+import kwitter.composeapp.generated.resources.profile_message
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -153,6 +154,16 @@ fun UserProfileScreen(
                 }
                 val listState = rememberLazyListState()
                 val currentState by rememberUpdatedState(state)
+
+                val activeVideoPostKey by remember {
+                    derivedStateOf {
+                        val layoutInfo = listState.layoutInfo
+                        val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                        layoutInfo.visibleItemsInfo
+                            .minByOrNull { kotlin.math.abs(it.offset + it.size / 2 - viewportCenter) }
+                            ?.key
+                    }
+                }
 
                 // Infinite scroll detection
                 val shouldLoadMore = remember {
@@ -264,7 +275,8 @@ fun UserProfileScreen(
                                     onAction(
                                         UserProfileNavAction.AuthorClick(post.author.id)
                                     )
-                                }
+                                },
+                                isVideoPlaying = activeVideoPostKey == post.id
                             )
                         }
 
@@ -471,7 +483,7 @@ private fun ProfileHeader(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text(
-                        text = "Message",
+                        text = stringResource(Res.string.profile_message),
                         fontWeight = FontWeight.SemiBold
                     )
                 }

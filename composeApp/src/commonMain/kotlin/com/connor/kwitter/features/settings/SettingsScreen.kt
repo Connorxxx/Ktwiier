@@ -41,6 +41,28 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.features.auth.AuthUiError
+import kwitter.composeapp.generated.resources.Res
+import kwitter.composeapp.generated.resources.auth_error_client
+import kwitter.composeapp.generated.resources.auth_error_invalid_credentials
+import kwitter.composeapp.generated.resources.auth_error_invalid_credentials_with_detail
+import kwitter.composeapp.generated.resources.auth_error_network
+import kwitter.composeapp.generated.resources.auth_error_server
+import kwitter.composeapp.generated.resources.auth_error_session_revoked
+import kwitter.composeapp.generated.resources.auth_error_storage
+import kwitter.composeapp.generated.resources.auth_error_unknown
+import kwitter.composeapp.generated.resources.profile_cancel_edit
+import kwitter.composeapp.generated.resources.settings_change_password_in_development
+import kwitter.composeapp.generated.resources.settings_account_privacy
+import kwitter.composeapp.generated.resources.settings_allow_default_pm_subtitle
+import kwitter.composeapp.generated.resources.settings_allow_default_pm_title
+import kwitter.composeapp.generated.resources.settings_change_password_subtitle
+import kwitter.composeapp.generated.resources.settings_change_password_title
+import kwitter.composeapp.generated.resources.settings_logout
+import kwitter.composeapp.generated.resources.settings_logout_confirm_message
+import kwitter.composeapp.generated.resources.settings_logout_confirm_title
+import kwitter.composeapp.generated.resources.settings_title
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun SettingsScreen(
@@ -52,17 +74,19 @@ fun SettingsScreen(
     val colors = MaterialTheme.colorScheme
     val textPrimary = colors.onBackground
     val textSecondary = colors.onSurfaceVariant
+    val infoMessage = state.infoMessage?.let { resolveSettingsInfoMessage(it) }
+    val errorMessage = state.error?.let { resolveSettingsAuthError(it) }
 
-    LaunchedEffect(state.infoMessage) {
-        state.infoMessage?.let { message ->
+    LaunchedEffect(infoMessage) {
+        infoMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
             onAction(SettingsAction.ChangePasswordMessageConsumed)
         }
     }
 
-    LaunchedEffect(state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
             onAction(SettingsAction.ErrorDismissed)
         }
     }
@@ -85,7 +109,7 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "设置",
+                    text = stringResource(Res.string.settings_title),
                     style = MaterialTheme.typography.headlineLarge.copy(
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = (-0.5).sp
@@ -93,7 +117,7 @@ fun SettingsScreen(
                     color = textPrimary
                 )
                 Text(
-                    text = "账号与隐私",
+                    text = stringResource(Res.string.settings_account_privacy),
                     style = MaterialTheme.typography.bodyMedium,
                     color = textSecondary
                 )
@@ -101,14 +125,14 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 SettingsActionCard(
-                    title = "修改密码",
-                    subtitle = "占位设置，后续接入实际流程",
+                    title = stringResource(Res.string.settings_change_password_title),
+                    subtitle = stringResource(Res.string.settings_change_password_subtitle),
                     onClick = { onAction(SettingsAction.ChangePasswordClick) }
                 )
 
                 SettingsToggleCard(
-                    title = "是否允许默认人 PM",
-                    subtitle = "关闭后只允许互关对象 PM",
+                    title = stringResource(Res.string.settings_allow_default_pm_title),
+                    subtitle = stringResource(Res.string.settings_allow_default_pm_subtitle),
                     checked = state.allowDefaultPm,
                     onCheckedChange = {
                         onAction(SettingsAction.AllowDefaultPmChanged(it))
@@ -146,7 +170,7 @@ fun SettingsScreen(
                         )
                     } else {
                         Text(
-                            text = "登出",
+                            text = stringResource(Res.string.settings_logout),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -162,20 +186,20 @@ fun SettingsScreen(
     if (state.isLogoutDialogVisible) {
         AlertDialog(
             onDismissRequest = { onAction(SettingsAction.LogoutDismiss) },
-            title = { Text("确认登出") },
-            text = { Text("确定要退出当前账号吗？") },
+            title = { Text(stringResource(Res.string.settings_logout_confirm_title)) },
+            text = { Text(stringResource(Res.string.settings_logout_confirm_message)) },
             confirmButton = {
                 TextButton(
                     onClick = { onAction(SettingsAction.LogoutConfirm) }
                 ) {
-                    Text("登出")
+                    Text(stringResource(Res.string.settings_logout))
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = { onAction(SettingsAction.LogoutDismiss) }
                 ) {
-                    Text("取消")
+                    Text(stringResource(Res.string.profile_cancel_edit))
                 }
             }
         )
@@ -276,6 +300,31 @@ private fun SettingsToggleCard(
             )
         }
     }
+}
+
+@Composable
+private fun resolveSettingsInfoMessage(message: SettingsInfoMessage): String = when (message) {
+    SettingsInfoMessage.ChangePasswordInDevelopment -> {
+        stringResource(Res.string.settings_change_password_in_development)
+    }
+}
+
+@Composable
+private fun resolveSettingsAuthError(error: AuthUiError): String = when (error) {
+    is AuthUiError.Network -> stringResource(Res.string.auth_error_network, error.detail)
+    is AuthUiError.Server -> stringResource(Res.string.auth_error_server, error.code, error.detail)
+    is AuthUiError.Client -> stringResource(Res.string.auth_error_client, error.code, error.detail)
+    is AuthUiError.InvalidCredentials -> {
+        val detail = error.detail
+        if (detail.isNullOrBlank()) {
+            stringResource(Res.string.auth_error_invalid_credentials)
+        } else {
+            stringResource(Res.string.auth_error_invalid_credentials_with_detail, detail)
+        }
+    }
+    is AuthUiError.Storage -> stringResource(Res.string.auth_error_storage, error.detail)
+    is AuthUiError.Unknown -> stringResource(Res.string.auth_error_unknown, error.detail)
+    is AuthUiError.SessionRevoked -> stringResource(Res.string.auth_error_session_revoked, error.detail)
 }
 
 @Preview

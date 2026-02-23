@@ -53,6 +53,11 @@ import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.messaging.model.Conversation
 import kotlinx.coroutines.flow.Flow
+import kwitter.composeapp.generated.resources.Res
+import kwitter.composeapp.generated.resources.conversation_list_empty
+import kwitter.composeapp.generated.resources.conversation_list_load_failed
+import kwitter.composeapp.generated.resources.conversation_list_title
+import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,12 +69,15 @@ fun ConversationListScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
+    val listTitle = stringResource(Res.string.conversation_list_title)
+    val loadFailedText = stringResource(Res.string.conversation_list_load_failed)
+    val emptyText = stringResource(Res.string.conversation_list_empty)
 
     LaunchedEffect(lazyPagingItems.loadState.refresh) {
         val refreshState = lazyPagingItems.loadState.refresh
         if (refreshState is LoadState.Error && lazyPagingItems.itemCount > 0) {
             snackbarHostState.showSnackbar(
-                refreshState.error.message ?: "Failed to load conversations"
+                refreshState.error.message ?: loadFailedText
             )
         }
     }
@@ -77,7 +85,7 @@ fun ConversationListScreen(
     PublishNativeTopBar(
         onNativeTopBarModel,
         NativeTopBarModel.Title(
-            title = "Messages",
+            title = listTitle,
             leadingButton = NativeTopBarButtons.back()
         )
     )
@@ -86,6 +94,7 @@ fun ConversationListScreen(
         topBar = {
             NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 ConversationListTopBar(
+                    title = listTitle,
                     onBackClick = { onAction(ConversationListNavAction.BackClick) }
                 )
             }
@@ -131,7 +140,7 @@ fun ConversationListScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "Failed to load conversations",
+                            text = loadFailedText,
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -149,7 +158,7 @@ fun ConversationListScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "No messages yet",
+                            text = emptyText,
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -205,12 +214,13 @@ fun ConversationListScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ConversationListTopBar(
+    title: String,
     onBackClick: () -> Unit
 ) {
     GlassTopBar {
         CenterAlignedTopAppBar(
             title = {
-                GlassTopBarTitle(text = "Messages")
+                GlassTopBarTitle(text = title)
             },
             navigationIcon = {
                 GlassTopBarBackButton(
