@@ -130,6 +130,7 @@ fun ChatScreen(
         bottomBar = {
             ChatInputBar(
                 input = state.messageInput,
+                inputPlaceholder = inputPlaceholder,
                 isSending = state.isSending,
                 onInputChange = { onAction(ChatAction.UpdateMessageInput(it)) },
                 onSendClick = { onAction(ChatAction.SendMessage) }
@@ -311,6 +312,7 @@ private fun MessageBubble(
 @Composable
 private fun ChatInputBar(
     input: String,
+    inputPlaceholder: String,
     isSending: Boolean,
     onInputChange: (String) -> Unit,
     onSendClick: () -> Unit

@@ -22,13 +22,13 @@ kotlin {
 
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_21)
+            freeCompilerArgs.add("-Xjvm-default=all")
         }
     }
 
     compilerOptions {
         //jvmTarget.set(JvmTarget.JVM_21)
         freeCompilerArgs.addAll(
-            "-Xjvm-default=all",
             "-Xcontext-parameters",
             "-Xwhen-guards"
         )
