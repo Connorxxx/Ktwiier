@@ -53,7 +53,7 @@
 
     <string name="create_post_title">New Post</string>
     <string name="create_post_reply_title">Reply</string>
-    <string name="create_post_placeholder">What\'s happening?</string>
+    <string name="create_post_placeholder">What's happening?</string>
     <string name="create_post_reply_placeholder">Post your reply</string>
     <string name="create_post_replying_to">Replying to a post</string>
     <string name="create_post_button">Post</string>

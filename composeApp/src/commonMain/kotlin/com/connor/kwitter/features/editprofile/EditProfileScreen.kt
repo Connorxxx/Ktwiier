@@ -105,7 +105,6 @@ fun EditProfileScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val nativeTopTitle = stringResource(Res.string.profile_edit)
-    val nativeSaveLabel = stringResource(Res.string.profile_save)
 
     val launchPicker = rememberImagePickerLauncher { media ->
         media?.let { onAction(EditProfileAction.AvatarSelected(it)) }
@@ -128,11 +127,7 @@ fun EditProfileScreen(
         onNativeTopBarModel,
         NativeTopBarModel.Title(
             title = nativeTopTitle,
-            leadingButton = NativeTopBarButtons.back(enabled = !state.isSaving),
-            trailingButton = NativeTopBarButtons.save(
-                label = nativeSaveLabel,
-                enabled = !state.isSaving && !state.isUploadingAvatar
-            )
+            leadingButton = NativeTopBarButtons.back(enabled = !state.isSaving)
         )
     )
 
@@ -154,9 +149,7 @@ fun EditProfileScreen(
                 NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                     EditProfileTopBar(
                         isSaving = state.isSaving,
-                        isUploading = state.isUploadingAvatar,
                         onBackClick = { onAction(EditProfileNavAction.BackClick) },
-                        onSaveClick = { onAction(EditProfileAction.Save) }
                     )
                 }
             },
@@ -299,9 +292,7 @@ fun EditProfileScreen(
 @Composable
 private fun EditProfileTopBar(
     isSaving: Boolean,
-    isUploading: Boolean,
     onBackClick: () -> Unit,
-    onSaveClick: () -> Unit
 ) {
     GlassTopBar {
         CenterAlignedTopAppBar(
@@ -314,27 +305,6 @@ private fun EditProfileTopBar(
                     enabled = !isSaving,
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
-            },
-            actions = {
-                Button(
-                    onClick = onSaveClick,
-                    enabled = !isSaving && !isUploading,
-                    modifier = Modifier.padding(end = 8.dp),
-                    shape = RoundedCornerShape(999.dp)
-                ) {
-                    if (isSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
-                        Text(
-                            text = stringResource(Res.string.profile_save),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
             },
             colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                 containerColor = Color.Transparent,
