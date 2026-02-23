@@ -104,6 +104,7 @@ sealed interface NativeTopBarModel {
 interface NativeTopBarController {
     val actionEvents: Flow<NativeTopBarAction>
     fun setModel(model: NativeTopBarModel)
+    fun dismissKeyboard() = Unit
     fun setInteractiveModelTransition(
         fromModel: NativeTopBarModel,
         toModel: NativeTopBarModel,

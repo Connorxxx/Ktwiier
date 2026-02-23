@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -50,7 +51,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -70,6 +73,7 @@ import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
+import com.connor.kwitter.features.glass.getNativeTopBarController
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.user.model.UserListItem
 import kotlinx.coroutines.flow.Flow
@@ -100,7 +104,13 @@ fun SearchScreen(
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val nativeTopBarController = remember { getNativeTopBarController() }
     val nativeSearchPlaceholder = stringResource(Res.string.search_placeholder)
+    val dismissKeyboard: () -> Unit = {
+        focusManager.clearFocus(force = true)
+        nativeTopBarController?.dismissKeyboard()
+    }
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -130,8 +140,14 @@ fun SearchScreen(
                 SearchTopBar(
                     queryText = state.query,
                     onQueryChange = { onAction(SearchAction.UpdateQuery(it)) },
-                    onSearch = { onAction(SearchAction.SubmitSearch) },
-                    onBackClick = { onAction(SearchNavAction.BackClick) },
+                    onSearch = {
+                        dismissKeyboard()
+                        onAction(SearchAction.SubmitSearch)
+                    },
+                    onBackClick = {
+                        dismissKeyboard()
+                        onAction(SearchNavAction.BackClick)
+                    },
                     focusRequester = focusRequester
                 )
             }
@@ -147,34 +163,52 @@ fun SearchScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = bottomInsetPadding)
+                .pointerInput(Unit) {
+                    detectTapGestures { dismissKeyboard() }
+                }
         ) {
             Spacer(modifier = Modifier.height(topOverlayPadding))
 
             if (state.hasSearched) {
                 SearchTabRow(
                     selectedTab = state.selectedTab,
-                    onTabSelected = { onAction(SearchAction.SelectTab(it)) }
+                    onTabSelected = {
+                        dismissKeyboard()
+                        onAction(SearchAction.SelectTab(it))
+                    }
                 )
 
                 if (state.selectedTab != SearchTab.USERS) {
                     SortChips(
                         selectedSort = state.sortOrder,
-                        onSortSelected = { onAction(SearchAction.SetSortOrder(it)) }
+                        onSortSelected = {
+                            dismissKeyboard()
+                            onAction(SearchAction.SetSortOrder(it))
+                        }
                     )
                 }
 
                 when (state.selectedTab) {
                     SearchTab.POSTS -> PostPagingList(
                         pagingFlow = postsPaging,
-                        onAction = onAction
+                        onAction = {
+                            dismissKeyboard()
+                            onAction(it)
+                        }
                     )
                     SearchTab.REPLIES -> PostPagingList(
                         pagingFlow = repliesPaging,
-                        onAction = onAction
+                        onAction = {
+                            dismissKeyboard()
+                            onAction(it)
+                        }
                     )
                     SearchTab.USERS -> UserPagingList(
                         pagingFlow = usersPaging,
-                        onAction = onAction
+                        onAction = {
+                            dismissKeyboard()
+                            onAction(it)
+                        }
                     )
                 }
             } else {

@@ -35,6 +35,7 @@ import platform.UIKit.UIImage
 import platform.UIKit.UIImageRenderingMode
 import platform.UIKit.UILabel
 import platform.UIKit.UITextField
+import platform.UIKit.UITextFieldViewMode
 import platform.UIKit.UIView
 import platform.UIKit.UIVisualEffect
 import platform.UIKit.UIVisualEffectView
@@ -80,6 +81,10 @@ object NativeTopBarBridge : NativeTopBarController {
         topBarView?.applyModel(model, animate = true)
     }
 
+    override fun dismissKeyboard() {
+        topBarView?.dismissKeyboard()
+    }
+
     override fun setInteractiveModelTransition(
         fromModel: NativeTopBarModel,
         toModel: NativeTopBarModel,
@@ -122,6 +127,11 @@ private class NativeTopBarContainerView(
     fun updateTheme(isDarkTheme: Boolean) {
         fromView.updateTheme(isDarkTheme)
         toView.updateTheme(isDarkTheme)
+    }
+
+    fun dismissKeyboard() {
+        fromView.dismissSearchKeyboard()
+        toView.dismissSearchKeyboard()
     }
 
     fun applyModel(model: NativeTopBarModel, animate: Boolean) {
@@ -314,6 +324,8 @@ private class NativeOverlayTopBarView(
             layer.borderWidth = 1.0
             clipsToBounds = true
             font = UIFont.systemFontOfSize(17.0)
+            leftView = UIView(frame = CGRectMake(0.0, 0.0, 12.0, 1.0))
+            leftViewMode = UITextFieldViewMode.UITextFieldViewModeAlways
             addTarget(
                 searchChangeTarget,
                 NSSelectorFromString("onTap"),
@@ -438,6 +450,10 @@ private class NativeOverlayTopBarView(
     fun updateTheme(isDarkTheme: Boolean) {
         this.isDarkTheme = isDarkTheme
         updateModel(currentModel)
+    }
+
+    fun dismissSearchKeyboard() {
+        searchField.resignFirstResponder()
     }
 
     private fun setAllElementsHidden() {

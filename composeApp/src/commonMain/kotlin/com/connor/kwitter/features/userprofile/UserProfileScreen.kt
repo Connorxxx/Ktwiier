@@ -54,12 +54,8 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.theme.KwitterTheme
-import com.connor.kwitter.core.ui.EditPenIcon
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
-import com.connor.kwitter.core.ui.GlassTopBarIconContentColor
-import com.connor.kwitter.core.ui.GlassTopBarIconButton
-import com.connor.kwitter.core.ui.GlassTopBarInnerIconSize
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.core.util.resolveBackendUrl
@@ -116,8 +112,7 @@ fun UserProfileScreen(
         onNativeTopBarModel,
         NativeTopBarModel.Title(
             title = state.profile?.displayName.orEmpty(),
-            leadingButton = NativeTopBarButtons.back(),
-            trailingButton = if (state.isOwnProfile) NativeTopBarButtons.edit() else null
+            leadingButton = NativeTopBarButtons.back()
         )
     )
 
@@ -136,9 +131,7 @@ fun UserProfileScreen(
             NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 ProfileTopBar(
                     displayName = state.profile?.displayName ?: "",
-                    isOwnProfile = state.isOwnProfile,
-                    onBackClick = { onAction(UserProfileNavAction.BackClick) },
-                    onEditClick = { onAction(UserProfileNavAction.EditProfileClick) }
+                    onBackClick = { onAction(UserProfileNavAction.BackClick) }
                 )
             }
         },
@@ -306,12 +299,9 @@ fun UserProfileScreen(
 @Composable
 private fun ProfileTopBar(
     displayName: String,
-    isOwnProfile: Boolean,
-    onBackClick: () -> Unit,
-    onEditClick: () -> Unit
+    onBackClick: () -> Unit
 ) {
     GlassTopBar {
-        val actionIconColor = GlassTopBarIconContentColor()
         CenterAlignedTopAppBar(
             title = {
                 GlassTopBarTitle(
@@ -325,19 +315,6 @@ private fun ProfileTopBar(
                     onClick = onBackClick,
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
-            },
-            actions = {
-                if (isOwnProfile) {
-                    GlassTopBarIconButton(
-                        onClick = onEditClick,
-                        modifier = Modifier.padding(end = 8.dp)
-                    ) {
-                        EditPenIcon(
-                            modifier = Modifier.size(GlassTopBarInnerIconSize),
-                            color = actionIconColor
-                        )
-                    }
-                }
             },
             colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                 containerColor = Color.Transparent,
