@@ -65,11 +65,10 @@ class SearchRemoteDataSource(
                 parameter("offset", offset)
             }
             handleResponse(response) {
-                val dto = it.body<SearchPostsResponseDto>()
+                val dto = it.body<SearchRepliesResponseDto>()
                 PostList(
-                    posts = dto.posts,
-                    hasMore = dto.hasMore,
-                    total = dto.total
+                    posts = dto.replies,
+                    hasMore = dto.hasMore
                 )
             }
         } catch (e: Exception) {
@@ -149,6 +148,12 @@ private data class SearchPostsResponseDto(
     val posts: List<Post>,
     val hasMore: Boolean,
     val total: Int? = null
+)
+
+@Serializable
+private data class SearchRepliesResponseDto(
+    val replies: List<Post>,
+    val hasMore: Boolean
 )
 
 @Serializable

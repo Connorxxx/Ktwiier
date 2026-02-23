@@ -291,13 +291,13 @@ private fun SortChips(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         FilterChip(
-            selected = selectedSort == "best_match",
-            onClick = { onSortSelected("best_match") },
+            selected = selectedSort == "relevance",
+            onClick = { onSortSelected("relevance") },
             label = { Text(stringResource(Res.string.search_sort_best_match)) }
         )
         FilterChip(
-            selected = selectedSort == "latest",
-            onClick = { onSortSelected("latest") },
+            selected = selectedSort == "recent",
+            onClick = { onSortSelected("recent") },
             label = { Text(stringResource(Res.string.search_sort_latest)) }
         )
     }

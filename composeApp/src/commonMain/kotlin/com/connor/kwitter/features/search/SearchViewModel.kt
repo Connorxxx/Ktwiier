@@ -39,7 +39,7 @@ enum class SearchTab { POSTS, REPLIES, USERS }
 data class SearchUiState(
     val query: String = "",
     val selectedTab: SearchTab = SearchTab.POSTS,
-    val sortOrder: String = "best_match",
+    val sortOrder: String = "relevance",
     val hasSearched: Boolean = false,
     val error: String? = null
 )
@@ -85,7 +85,7 @@ class SearchViewModel(
     private val userRepository: UserRepository
 ) : ViewModel() {
 
-    private data class SearchQuery(val query: String = "", val sort: String = "best_match")
+    private data class SearchQuery(val query: String = "", val sort: String = "relevance")
 
     private data class PostModification(
         val isLikedByCurrentUser: Boolean? = null,
