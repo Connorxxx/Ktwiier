@@ -1,12 +1,13 @@
 package com.connor.kwitter.domain.user.repository
 
+import androidx.paging.PagingData
 import arrow.core.Either
-import com.connor.kwitter.domain.post.model.PostList
-import com.connor.kwitter.domain.post.model.PostPageQuery
+import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.user.model.UserError
-import com.connor.kwitter.domain.user.model.UserList
+import com.connor.kwitter.domain.user.model.UserListItem
 import com.connor.kwitter.domain.user.model.UserProfile
 import com.connor.kwitter.domain.user.model.UpdateProfileRequest
+import kotlinx.coroutines.flow.Flow
 
 interface UserRepository {
     suspend fun getUserProfile(userId: String): Either<UserError, UserProfile>
@@ -18,9 +19,10 @@ interface UserRepository {
     ): Either<UserError, String>
     suspend fun followUser(userId: String): Either<UserError, Unit>
     suspend fun unfollowUser(userId: String): Either<UserError, Unit>
-    suspend fun getUserPosts(userId: String, query: PostPageQuery): Either<UserError, PostList>
-    suspend fun getUserReplies(userId: String, query: PostPageQuery): Either<UserError, PostList>
-    suspend fun getUserLikes(userId: String, query: PostPageQuery): Either<UserError, PostList>
-    suspend fun getUserFollowing(userId: String, limit: Int = 20, offset: Int = 0): Either<UserError, UserList>
-    suspend fun getUserFollowers(userId: String, limit: Int = 20, offset: Int = 0): Either<UserError, UserList>
+
+    fun userPostsPaging(userId: String): Flow<PagingData<Post>>
+    fun userRepliesPaging(userId: String): Flow<PagingData<Post>>
+    fun userLikesPaging(userId: String): Flow<PagingData<Post>>
+    fun userFollowingPaging(userId: String): Flow<PagingData<UserListItem>>
+    fun userFollowersPaging(userId: String): Flow<PagingData<UserListItem>>
 }

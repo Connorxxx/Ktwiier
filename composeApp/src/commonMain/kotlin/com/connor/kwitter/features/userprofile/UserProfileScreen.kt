@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,8 +36,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +47,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.paging.LoadState
+import androidx.paging.PagingData
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.EditPenIcon
@@ -69,6 +71,8 @@ import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
 import com.connor.kwitter.domain.user.model.UserProfile
 import com.connor.kwitter.domain.user.model.UserStats
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
@@ -91,6 +95,9 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun UserProfileScreen(
     state: UserProfileUiState,
+    postsPaging: Flow<PagingData<Post>>,
+    repliesPaging: Flow<PagingData<Post>>,
+    likesPaging: Flow<PagingData<Post>>,
     useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (UserProfileIntent) -> Unit
@@ -112,6 +119,16 @@ fun UserProfileScreen(
             trailingButton = if (state.isOwnProfile) NativeTopBarButtons.edit() else null
         )
     )
+
+    val postsPagingItems = postsPaging.collectAsLazyPagingItems()
+    val repliesPagingItems = repliesPaging.collectAsLazyPagingItems()
+    val likesPagingItems = likesPaging.collectAsLazyPagingItems()
+
+    val activeItems = when (state.selectedTab) {
+        ProfileTab.POSTS -> postsPagingItems
+        ProfileTab.REPLIES -> repliesPagingItems
+        ProfileTab.LIKES -> likesPagingItems
+    }
 
     Scaffold(
         topBar = {
@@ -147,13 +164,7 @@ fun UserProfileScreen(
             }
 
             state.profile != null -> {
-                val currentTabPosts = when (state.selectedTab) {
-                    ProfileTab.POSTS -> state.posts
-                    ProfileTab.REPLIES -> state.replies
-                    ProfileTab.LIKES -> state.likes
-                }
                 val listState = rememberLazyListState()
-                val currentState by rememberUpdatedState(state)
 
                 val activeVideoPostKey by remember {
                     derivedStateOf {
@@ -162,26 +173,6 @@ fun UserProfileScreen(
                         layoutInfo.visibleItemsInfo
                             .minByOrNull { kotlin.math.abs(it.offset + it.size / 2 - viewportCenter) }
                             ?.key
-                    }
-                }
-
-                // Infinite scroll detection
-                val shouldLoadMore = remember {
-                    derivedStateOf {
-                        val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
-                            ?: return@derivedStateOf false
-                        lastVisibleItem.index >= listState.layoutInfo.totalItemsCount - 3
-                    }
-                }
-                LaunchedEffect(state.selectedTab) {
-                    snapshotFlow {
-                        shouldLoadMore.value &&
-                            !currentState.isLoadingMore &&
-                            !currentState.isLoadingTab
-                    }.collect { shouldLoad ->
-                        if (shouldLoad) {
-                            onAction(UserProfileAction.LoadMore)
-                        }
                     }
                 }
 
@@ -226,8 +217,10 @@ fun UserProfileScreen(
                         )
                     }
 
-                    // Tab loading state
-                    if (state.isLoadingTab) {
+                    // Tab content via Paging 3
+                    val refreshState = activeItems.loadState.refresh
+
+                    if (refreshState is LoadState.Loading && activeItems.itemCount == 0) {
                         item(key = "tab_loading") {
                             Box(
                                 modifier = Modifier
@@ -238,49 +231,54 @@ fun UserProfileScreen(
                                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
                             }
                         }
-                    } else if (currentTabPosts.isEmpty()) {
+                    } else if (activeItems.itemCount == 0 && refreshState is LoadState.NotLoading) {
                         item(key = "empty_tab") {
                             EmptyTabState(tab = state.selectedTab)
                         }
                     } else {
-                        items(currentTabPosts, key = { it.id }) { post ->
-                            PostItem(
-                                post = post,
-                                onClick = {
-                                    onAction(UserProfileNavAction.PostClick(post.id))
-                                },
-                                onLikeClick = {
-                                    onAction(
-                                        UserProfileAction.ToggleLike(
-                                            postId = post.id,
-                                            isCurrentlyLiked = post.isLikedByCurrentUser == true,
-                                            currentLikeCount = post.stats.likeCount
+                        items(
+                            count = activeItems.itemCount,
+                            key = activeItems.itemKey { it.id }
+                        ) { index ->
+                            activeItems[index]?.let { post ->
+                                PostItem(
+                                    post = post,
+                                    onClick = {
+                                        onAction(UserProfileNavAction.PostClick(post.id))
+                                    },
+                                    onLikeClick = {
+                                        onAction(
+                                            UserProfileAction.ToggleLike(
+                                                postId = post.id,
+                                                isCurrentlyLiked = post.isLikedByCurrentUser == true,
+                                                currentLikeCount = post.stats.likeCount
+                                            )
                                         )
-                                    )
-                                },
-                                onBookmarkClick = {
-                                    onAction(
-                                        UserProfileAction.ToggleBookmark(
-                                            postId = post.id,
-                                            isCurrentlyBookmarked = post.isBookmarkedByCurrentUser == true
+                                    },
+                                    onBookmarkClick = {
+                                        onAction(
+                                            UserProfileAction.ToggleBookmark(
+                                                postId = post.id,
+                                                isCurrentlyBookmarked = post.isBookmarkedByCurrentUser == true
+                                            )
                                         )
-                                    )
-                                },
-                                onMediaClick = { index ->
-                                    onAction(
-                                        UserProfileNavAction.MediaClick(post.media, index)
-                                    )
-                                },
-                                onAuthorClick = {
-                                    onAction(
-                                        UserProfileNavAction.AuthorClick(post.author.id)
-                                    )
-                                },
-                                isVideoPlaying = activeVideoPostKey == post.id
-                            )
+                                    },
+                                    onMediaClick = { mediaIndex ->
+                                        onAction(
+                                            UserProfileNavAction.MediaClick(post.media, mediaIndex)
+                                        )
+                                    },
+                                    onAuthorClick = {
+                                        onAction(
+                                            UserProfileNavAction.AuthorClick(post.author.id)
+                                        )
+                                    },
+                                    isVideoPlaying = activeVideoPostKey == post.id
+                                )
+                            }
                         }
 
-                        if (state.isLoadingMore) {
+                        if (activeItems.loadState.append is LoadState.Loading) {
                             item(key = "loading_more") {
                                 Box(
                                     modifier = Modifier
@@ -728,10 +726,11 @@ private fun UserProfileScreenPreview() {
         UserProfileScreen(
             state = UserProfileUiState(
                 profile = previewProfile,
-                currentUserId = "viewer_1",
-                posts = previewPosts,
-                postsHasMore = true
+                currentUserId = "viewer_1"
             ),
+            postsPaging = flowOf(PagingData.from(previewPosts)),
+            repliesPaging = flowOf(PagingData.empty()),
+            likesPaging = flowOf(PagingData.empty()),
             onAction = {}
         )
     }
@@ -746,9 +745,11 @@ private fun UserProfileScreenOwnPreview() {
         UserProfileScreen(
             state = UserProfileUiState(
                 profile = ownProfile,
-                currentUserId = "viewer_1",
-                posts = previewPosts
+                currentUserId = "viewer_1"
             ),
+            postsPaging = flowOf(PagingData.from(previewPosts)),
+            repliesPaging = flowOf(PagingData.empty()),
+            likesPaging = flowOf(PagingData.empty()),
             onAction = {}
         )
     }

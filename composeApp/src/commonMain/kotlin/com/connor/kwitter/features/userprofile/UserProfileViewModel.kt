@@ -8,19 +8,28 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.PagingData
+import androidx.paging.cachedIn
+import androidx.paging.map
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
-import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostMedia
-import com.connor.kwitter.domain.post.model.PostPageQuery
+import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.domain.post.repository.PostRepository
 import com.connor.kwitter.domain.user.model.UserError
 import com.connor.kwitter.domain.user.repository.UserRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.update
 
 enum class ProfileTab { POSTS, REPLIES, LIKES }
 
@@ -28,15 +37,7 @@ data class UserProfileUiState(
     val profile: com.connor.kwitter.domain.user.model.UserProfile? = null,
     val currentUserId: String? = null,
     val selectedTab: ProfileTab = ProfileTab.POSTS,
-    val posts: List<Post> = emptyList(),
-    val postsHasMore: Boolean = false,
-    val replies: List<Post> = emptyList(),
-    val repliesHasMore: Boolean = false,
-    val likes: List<Post> = emptyList(),
-    val likesHasMore: Boolean = false,
     val isLoadingProfile: Boolean = false,
-    val isLoadingTab: Boolean = false,
-    val isLoadingMore: Boolean = false,
     val isFollowLoading: Boolean = false,
     val error: String? = null
 ) {
@@ -49,7 +50,6 @@ sealed interface UserProfileAction : UserProfileIntent {
     data class Load(val userId: String) : UserProfileAction
     data object Refresh : UserProfileAction
     data class SelectTab(val tab: ProfileTab) : UserProfileAction
-    data object LoadMore : UserProfileAction
     data object ToggleFollow : UserProfileAction
     data class ToggleLike(
         val postId: String,
@@ -74,23 +74,64 @@ sealed interface UserProfileNavAction : UserProfileIntent {
     data class MessageClick(val userId: String, val displayName: String) : UserProfileNavAction
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class UserProfileViewModel(
     private val userRepository: UserRepository,
     private val postRepository: PostRepository,
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    private companion object {
-        const val PAGE_SIZE = 20
-    }
+    private data class PostModification(
+        val isLikedByCurrentUser: Boolean? = null,
+        val likeCount: Int? = null,
+        val isBookmarkedByCurrentUser: Boolean? = null
+    )
 
     private val _events = Channel<UserProfileAction>(Channel.UNLIMITED)
+    private val _userId = MutableStateFlow("")
+    private val _refreshTrigger = MutableStateFlow(0)
+    private val _postMods = MutableStateFlow<Map<String, PostModification>>(emptyMap())
 
     val uiState: StateFlow<UserProfileUiState> = viewModelScope.launchMolecule(
         mode = RecompositionMode.Immediate
     ) {
         UserProfilePresenter()
     }
+
+    private val pagingTrigger = combine(_userId, _refreshTrigger) { userId, _ -> userId }
+
+    val postsPaging: Flow<PagingData<Post>> = pagingTrigger
+        .flatMapLatest { userId ->
+            if (userId.isBlank()) flowOf(PagingData.empty())
+            else userRepository.userPostsPaging(userId)
+        }
+        .cachedIn(viewModelScope)
+        .combine(_postMods) { pagingData, mods ->
+            if (mods.isEmpty()) pagingData
+            else pagingData.map { it.applyMods(mods) }
+        }
+
+    val repliesPaging: Flow<PagingData<Post>> = pagingTrigger
+        .flatMapLatest { userId ->
+            if (userId.isBlank()) flowOf(PagingData.empty())
+            else userRepository.userRepliesPaging(userId)
+        }
+        .cachedIn(viewModelScope)
+        .combine(_postMods) { pagingData, mods ->
+            if (mods.isEmpty()) pagingData
+            else pagingData.map { it.applyMods(mods) }
+        }
+
+    val likesPaging: Flow<PagingData<Post>> = pagingTrigger
+        .flatMapLatest { userId ->
+            if (userId.isBlank()) flowOf(PagingData.empty())
+            else userRepository.userLikesPaging(userId)
+        }
+        .cachedIn(viewModelScope)
+        .combine(_postMods) { pagingData, mods ->
+            if (mods.isEmpty()) pagingData
+            else pagingData.map { it.applyMods(mods) }
+        }
 
     fun onEvent(event: UserProfileAction) {
         _events.trySend(event)
@@ -103,16 +144,16 @@ class UserProfileViewModel(
         LaunchedEffect(Unit) {
             _events.receiveAsFlow().collect { action ->
                 state = when (action) {
-                    is UserProfileAction.Load -> loadProfile(
-                        userId = action.userId,
-                        previousState = state
-                    )
+                    is UserProfileAction.Load -> loadProfile(action.userId, state)
                     is UserProfileAction.Refresh -> {
                         val userId = state.profile?.id
-                        if (userId != null) loadProfile(userId, state) else state
+                        if (userId != null) {
+                            _postMods.value = emptyMap()
+                            _refreshTrigger.value++
+                            loadProfile(userId, state)
+                        } else state
                     }
-                    is UserProfileAction.SelectTab -> selectTab(action.tab, state)
-                    is UserProfileAction.LoadMore -> loadMore(state)
+                    is UserProfileAction.SelectTab -> state.copy(selectedTab = action.tab)
                     is UserProfileAction.ToggleFollow -> toggleFollow(state)
                     is UserProfileAction.ToggleLike -> handleToggleLike(action, state)
                     is UserProfileAction.ToggleBookmark -> handleToggleBookmark(action, state)
@@ -128,6 +169,8 @@ class UserProfileViewModel(
         userId: String,
         previousState: UserProfileUiState
     ): UserProfileUiState {
+        _userId.value = userId
+        _postMods.value = emptyMap()
         val currentUserId = authRepository.currentUserId.first()
         val loadingState = previousState.copy(
             isLoadingProfile = true,
@@ -144,126 +187,11 @@ class UserProfileViewModel(
                 )
             },
             ifRight = { profile ->
-                val stateWithProfile = loadingState.copy(
+                loadingState.copy(
                     isLoadingProfile = false,
                     profile = profile,
-                    selectedTab = ProfileTab.POSTS,
-                    posts = emptyList(),
-                    postsHasMore = false,
-                    replies = emptyList(),
-                    repliesHasMore = false,
-                    likes = emptyList(),
-                    likesHasMore = false
+                    selectedTab = ProfileTab.POSTS
                 )
-                loadTabContent(ProfileTab.POSTS, userId, stateWithProfile)
-            }
-        )
-    }
-
-    private suspend fun selectTab(
-        tab: ProfileTab,
-        currentState: UserProfileUiState
-    ): UserProfileUiState {
-        val userId = currentState.profile?.id ?: return currentState
-        if (tab == currentState.selectedTab) return currentState
-
-        val newState = currentState.copy(selectedTab = tab)
-
-        val hasContent = when (tab) {
-            ProfileTab.POSTS -> newState.posts.isNotEmpty()
-            ProfileTab.REPLIES -> newState.replies.isNotEmpty()
-            ProfileTab.LIKES -> newState.likes.isNotEmpty()
-        }
-        if (hasContent) return newState
-
-        return loadTabContent(tab, userId, newState)
-    }
-
-    private suspend fun loadTabContent(
-        tab: ProfileTab,
-        userId: String,
-        currentState: UserProfileUiState
-    ): UserProfileUiState {
-        val loadingState = currentState.copy(isLoadingTab = true)
-        val query = PostPageQuery(limit = PAGE_SIZE, offset = 0)
-
-        val result = when (tab) {
-            ProfileTab.POSTS -> userRepository.getUserPosts(userId, query)
-            ProfileTab.REPLIES -> userRepository.getUserReplies(userId, query)
-            ProfileTab.LIKES -> userRepository.getUserLikes(userId, query)
-        }
-
-        return result.fold(
-            ifLeft = { error ->
-                loadingState.copy(
-                    isLoadingTab = false,
-                    error = formatError(error)
-                )
-            },
-            ifRight = { postList ->
-                val updated = when (tab) {
-                    ProfileTab.POSTS -> loadingState.copy(
-                        posts = postList.posts,
-                        postsHasMore = postList.hasMore
-                    )
-                    ProfileTab.REPLIES -> loadingState.copy(
-                        replies = postList.posts,
-                        repliesHasMore = postList.hasMore
-                    )
-                    ProfileTab.LIKES -> loadingState.copy(
-                        likes = postList.posts,
-                        likesHasMore = postList.hasMore
-                    )
-                }
-                updated.copy(isLoadingTab = false)
-            }
-        )
-    }
-
-    private suspend fun loadMore(currentState: UserProfileUiState): UserProfileUiState {
-        val userId = currentState.profile?.id ?: return currentState
-        if (currentState.isLoadingMore) return currentState
-
-        val (currentList, hasMore) = when (currentState.selectedTab) {
-            ProfileTab.POSTS -> currentState.posts to currentState.postsHasMore
-            ProfileTab.REPLIES -> currentState.replies to currentState.repliesHasMore
-            ProfileTab.LIKES -> currentState.likes to currentState.likesHasMore
-        }
-
-        if (!hasMore) return currentState
-
-        val loadingState = currentState.copy(isLoadingMore = true)
-        val query = PostPageQuery(limit = PAGE_SIZE, offset = currentList.size)
-
-        val result = when (currentState.selectedTab) {
-            ProfileTab.POSTS -> userRepository.getUserPosts(userId, query)
-            ProfileTab.REPLIES -> userRepository.getUserReplies(userId, query)
-            ProfileTab.LIKES -> userRepository.getUserLikes(userId, query)
-        }
-
-        return result.fold(
-            ifLeft = { error ->
-                loadingState.copy(
-                    isLoadingMore = false,
-                    error = formatError(error)
-                )
-            },
-            ifRight = { postList ->
-                val updated = when (currentState.selectedTab) {
-                    ProfileTab.POSTS -> loadingState.copy(
-                        posts = currentList + postList.posts,
-                        postsHasMore = postList.hasMore
-                    )
-                    ProfileTab.REPLIES -> loadingState.copy(
-                        replies = currentList + postList.posts,
-                        repliesHasMore = postList.hasMore
-                    )
-                    ProfileTab.LIKES -> loadingState.copy(
-                        likes = currentList + postList.posts,
-                        likesHasMore = postList.hasMore
-                    )
-                }
-                updated.copy(isLoadingMore = false)
             }
         )
     }
@@ -320,11 +248,12 @@ class UserProfileViewModel(
             action.currentLikeCount + 1
         }
 
-        val optimisticState = updatePostInState(currentState, action.postId) {
-            copy(
+        _postMods.update { mods ->
+            val existing = mods[action.postId] ?: PostModification()
+            mods + (action.postId to existing.copy(
                 isLikedByCurrentUser = newLiked,
-                stats = stats.copy(likeCount = newCount)
-            )
+                likeCount = newCount
+            ))
         }
 
         val result = if (action.isCurrentlyLiked) {
@@ -335,17 +264,24 @@ class UserProfileViewModel(
 
         return result.fold(
             ifLeft = { error ->
-                updatePostInState(optimisticState, action.postId) {
-                    copy(
+                _postMods.update { mods ->
+                    val existing = mods[action.postId] ?: PostModification()
+                    mods + (action.postId to existing.copy(
                         isLikedByCurrentUser = action.isCurrentlyLiked,
-                        stats = stats.copy(likeCount = action.currentLikeCount)
-                    )
-                }.copy(error = formatPostError(error))
+                        likeCount = action.currentLikeCount
+                    ))
+                }
+                currentState.copy(error = formatPostError(error))
             },
             ifRight = { updatedStats ->
-                updatePostInState(optimisticState, action.postId) {
-                    copy(stats = updatedStats)
+                _postMods.update { mods ->
+                    val existing = mods[action.postId] ?: PostModification()
+                    mods + (action.postId to existing.copy(
+                        isLikedByCurrentUser = newLiked,
+                        likeCount = updatedStats.likeCount
+                    ))
                 }
+                currentState
             }
         )
     }
@@ -356,8 +292,9 @@ class UserProfileViewModel(
     ): UserProfileUiState {
         val newBookmarked = !action.isCurrentlyBookmarked
 
-        val optimisticState = updatePostInState(currentState, action.postId) {
-            copy(isBookmarkedByCurrentUser = newBookmarked)
+        _postMods.update { mods ->
+            val existing = mods[action.postId] ?: PostModification()
+            mods + (action.postId to existing.copy(isBookmarkedByCurrentUser = newBookmarked))
         }
 
         val result = if (action.isCurrentlyBookmarked) {
@@ -368,23 +305,24 @@ class UserProfileViewModel(
 
         return result.fold(
             ifLeft = { error ->
-                updatePostInState(optimisticState, action.postId) {
-                    copy(isBookmarkedByCurrentUser = action.isCurrentlyBookmarked)
-                }.copy(error = formatPostError(error))
+                _postMods.update { mods ->
+                    val existing = mods[action.postId] ?: PostModification()
+                    mods + (action.postId to existing.copy(
+                        isBookmarkedByCurrentUser = action.isCurrentlyBookmarked
+                    ))
+                }
+                currentState.copy(error = formatPostError(error))
             },
-            ifRight = { optimisticState }
+            ifRight = { currentState }
         )
     }
 
-    private fun updatePostInState(
-        state: UserProfileUiState,
-        postId: String,
-        transform: Post.() -> Post
-    ): UserProfileUiState {
-        return state.copy(
-            posts = state.posts.map { if (it.id == postId) it.transform() else it },
-            replies = state.replies.map { if (it.id == postId) it.transform() else it },
-            likes = state.likes.map { if (it.id == postId) it.transform() else it }
+    private fun Post.applyMods(mods: Map<String, PostModification>): Post {
+        val mod = mods[id] ?: return this
+        return copy(
+            isLikedByCurrentUser = mod.isLikedByCurrentUser ?: isLikedByCurrentUser,
+            stats = if (mod.likeCount != null) stats.copy(likeCount = mod.likeCount) else stats,
+            isBookmarkedByCurrentUser = mod.isBookmarkedByCurrentUser ?: isBookmarkedByCurrentUser
         )
     }
 

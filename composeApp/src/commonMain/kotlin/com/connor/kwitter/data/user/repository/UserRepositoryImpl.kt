@@ -1,18 +1,27 @@
 package com.connor.kwitter.data.user.repository
 
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
 import arrow.core.Either
+import com.connor.kwitter.core.paging.OffsetPagingSource
 import com.connor.kwitter.data.user.datasource.UserRemoteDataSource
-import com.connor.kwitter.domain.post.model.PostList
+import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.user.model.UserError
-import com.connor.kwitter.domain.user.model.UserList
+import com.connor.kwitter.domain.user.model.UserListItem
 import com.connor.kwitter.domain.user.model.UserProfile
 import com.connor.kwitter.domain.user.model.UpdateProfileRequest
 import com.connor.kwitter.domain.user.repository.UserRepository
+import kotlinx.coroutines.flow.Flow
 
 class UserRepositoryImpl(
     private val remoteDataSource: UserRemoteDataSource
 ) : UserRepository {
+
+    private companion object {
+        const val PAGE_SIZE = 20
+    }
 
     override suspend fun getUserProfile(userId: String): Either<UserError, UserProfile> {
         return remoteDataSource.getUserProfile(userId)
@@ -40,40 +49,48 @@ class UserRepositoryImpl(
         return remoteDataSource.unfollowUser(userId)
     }
 
-    override suspend fun getUserPosts(
-        userId: String,
-        query: PostPageQuery
-    ): Either<UserError, PostList> {
-        return remoteDataSource.getUserPosts(userId, query)
-    }
+    override fun userPostsPaging(userId: String): Flow<PagingData<Post>> = Pager(
+        config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
+    ) {
+        OffsetPagingSource { limit, offset ->
+            remoteDataSource.getUserPosts(userId, PostPageQuery(limit, offset))
+                .map { it.posts to it.hasMore }
+        }
+    }.flow
 
-    override suspend fun getUserReplies(
-        userId: String,
-        query: PostPageQuery
-    ): Either<UserError, PostList> {
-        return remoteDataSource.getUserReplies(userId, query)
-    }
+    override fun userRepliesPaging(userId: String): Flow<PagingData<Post>> = Pager(
+        config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
+    ) {
+        OffsetPagingSource { limit, offset ->
+            remoteDataSource.getUserReplies(userId, PostPageQuery(limit, offset))
+                .map { it.posts to it.hasMore }
+        }
+    }.flow
 
-    override suspend fun getUserLikes(
-        userId: String,
-        query: PostPageQuery
-    ): Either<UserError, PostList> {
-        return remoteDataSource.getUserLikes(userId, query)
-    }
+    override fun userLikesPaging(userId: String): Flow<PagingData<Post>> = Pager(
+        config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
+    ) {
+        OffsetPagingSource { limit, offset ->
+            remoteDataSource.getUserLikes(userId, PostPageQuery(limit, offset))
+                .map { it.posts to it.hasMore }
+        }
+    }.flow
 
-    override suspend fun getUserFollowing(
-        userId: String,
-        limit: Int,
-        offset: Int
-    ): Either<UserError, UserList> {
-        return remoteDataSource.getUserFollowing(userId, limit, offset)
-    }
+    override fun userFollowingPaging(userId: String): Flow<PagingData<UserListItem>> = Pager(
+        config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
+    ) {
+        OffsetPagingSource { limit, offset ->
+            remoteDataSource.getUserFollowing(userId, limit, offset)
+                .map { it.users to it.hasMore }
+        }
+    }.flow
 
-    override suspend fun getUserFollowers(
-        userId: String,
-        limit: Int,
-        offset: Int
-    ): Either<UserError, UserList> {
-        return remoteDataSource.getUserFollowers(userId, limit, offset)
-    }
+    override fun userFollowersPaging(userId: String): Flow<PagingData<UserListItem>> = Pager(
+        config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
+    ) {
+        OffsetPagingSource { limit, offset ->
+            remoteDataSource.getUserFollowers(userId, limit, offset)
+                .map { it.users to it.hasMore }
+        }
+    }.flow
 }

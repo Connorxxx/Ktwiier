@@ -442,6 +442,9 @@ fun MainScreen(
 
                 UserProfileScreen(
                     state = state,
+                    postsPaging = vm.postsPaging,
+                    repliesPaging = vm.repliesPaging,
+                    likesPaging = vm.likesPaging,
                     useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = onNativeTopBarModel,
                     onAction = { action ->
@@ -570,6 +573,7 @@ fun MainScreen(
 
                 UserListScreen(
                     state = state,
+                    usersPaging = vm.usersPaging,
                     useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = onNativeTopBarModel,
                     onAction = { action ->

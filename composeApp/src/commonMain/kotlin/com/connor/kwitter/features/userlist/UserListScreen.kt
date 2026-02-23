@@ -16,12 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -33,11 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +40,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.paging.LoadState
+import androidx.paging.PagingData
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
@@ -56,6 +53,7 @@ import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.user.model.UserListItem
+import kotlinx.coroutines.flow.Flow
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_follow
 import kwitter.composeapp.generated.resources.profile_followers
@@ -68,6 +66,7 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun UserListScreen(
     state: UserListUiState,
+    usersPaging: Flow<PagingData<UserListItem>>,
     useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (UserListIntent) -> Unit
@@ -94,6 +93,9 @@ fun UserListScreen(
         )
     )
 
+    val pagingItems = usersPaging.collectAsLazyPagingItems()
+    val refreshState = pagingItems.loadState.refresh
+
     Scaffold(
         topBar = {
             NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
@@ -112,7 +114,7 @@ fun UserListScreen(
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
 
         when {
-            state.isLoading -> {
+            (refreshState is LoadState.Loading || state.userId.isBlank()) && pagingItems.itemCount == 0 -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -126,7 +128,7 @@ fun UserListScreen(
                 }
             }
 
-            state.users.isEmpty() && !state.isLoading -> {
+            pagingItems.itemCount == 0 && refreshState is LoadState.NotLoading -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -149,31 +151,7 @@ fun UserListScreen(
             }
 
             else -> {
-                val listState = rememberLazyListState()
-                val currentState by rememberUpdatedState(state)
-
-                val shouldLoadMore = remember {
-                    derivedStateOf {
-                        val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
-                            ?: return@derivedStateOf false
-                        lastVisibleItem.index >= listState.layoutInfo.totalItemsCount - 3
-                    }
-                }
-
-                LaunchedEffect(Unit) {
-                    snapshotFlow {
-                        shouldLoadMore.value &&
-                            !currentState.isLoadingMore &&
-                            currentState.hasMore
-                    }.collect { shouldLoad ->
-                        if (shouldLoad) {
-                            onAction(UserListAction.LoadMore)
-                        }
-                    }
-                }
-
                 LazyColumn(
-                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(bottom = bottomInsetPadding),
@@ -182,22 +160,27 @@ fun UserListScreen(
                         bottom = 8.dp
                     )
                 ) {
-                    items(state.users, key = { it.id }) { user ->
-                        UserListItemRow(
-                            user = user,
-                            onClick = { onAction(UserListNavAction.UserClick(user.id)) },
-                            onFollowClick = {
-                                onAction(
-                                    UserListAction.ToggleFollow(
-                                        targetUserId = user.id,
-                                        isCurrentlyFollowing = user.isFollowedByCurrentUser == true
+                    items(
+                        count = pagingItems.itemCount,
+                        key = pagingItems.itemKey { it.id }
+                    ) { index ->
+                        pagingItems[index]?.let { user ->
+                            UserListItemRow(
+                                user = user,
+                                onClick = { onAction(UserListNavAction.UserClick(user.id)) },
+                                onFollowClick = {
+                                    onAction(
+                                        UserListAction.ToggleFollow(
+                                            targetUserId = user.id,
+                                            isCurrentlyFollowing = user.isFollowedByCurrentUser == true
+                                        )
                                     )
-                                )
-                            }
-                        )
+                                }
+                            )
+                        }
                     }
 
-                    if (state.isLoadingMore) {
+                    if (pagingItems.loadState.append is LoadState.Loading) {
                         item(key = "loading_more") {
                             Box(
                                 modifier = Modifier
