@@ -17,12 +17,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.connor.kwitter.core.util.formatPostTime
+import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.domain.post.model.Post
 
 @Composable
@@ -49,6 +53,7 @@ fun PostItem(
         ) {
             AuthorAvatar(
                 name = post.authorName,
+                avatarUrl = post.author.avatarUrl,
                 onClick = onAuthorClick
             )
 
@@ -128,6 +133,7 @@ fun PostItem(
 @Composable
 fun AuthorAvatar(
     name: String,
+    avatarUrl: String? = null,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
@@ -137,24 +143,36 @@ fun AuthorAvatar(
         MaterialTheme.colorScheme.tertiaryContainer
     )
 
-    Box(
-        modifier = modifier
-            .size(44.dp)
-            .background(
+    val avatarModifier = modifier
+        .size(44.dp)
+        .then(
+            if (onClick != null) Modifier.clickable(onClick = onClick)
+            else Modifier
+        )
+
+    if (!avatarUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = resolveBackendUrl(avatarUrl),
+            contentDescription = name,
+            contentScale = ContentScale.Crop,
+            modifier = avatarModifier
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        )
+    } else {
+        Box(
+            modifier = avatarModifier.background(
                 brush = Brush.linearGradient(gradient),
                 shape = CircleShape
-            )
-            .then(
-                if (onClick != null) Modifier.clickable(onClick = onClick)
-                else Modifier
             ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = initial,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
-        )
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
     }
 }

@@ -53,13 +53,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ImageBitmap
 import coil3.compose.AsyncImage
-import com.connor.kwitter.core.di.BASE_URL
 import com.connor.kwitter.core.media.decodeToImageBitmap
 import com.connor.kwitter.core.media.rememberImagePickerLauncher
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
@@ -71,10 +71,6 @@ import kwitter.composeapp.generated.resources.profile_edit
 import kwitter.composeapp.generated.resources.profile_save
 import kwitter.composeapp.generated.resources.profile_username_label
 import org.jetbrains.compose.resources.stringResource
-
-private fun resolveAvatarUrl(url: String): String {
-    return if (url.startsWith("http")) url else "$BASE_URL$url"
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -350,7 +346,7 @@ private fun EditProfileAvatar(
             }
             !avatarUrl.isNullOrBlank() -> {
                 AsyncImage(
-                    model = resolveAvatarUrl(avatarUrl),
+                    model = resolveBackendUrl(avatarUrl),
                     contentDescription = displayName,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier

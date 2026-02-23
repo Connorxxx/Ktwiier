@@ -20,6 +20,7 @@ import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.post.repository.PostRepository
+import com.connor.kwitter.domain.user.repository.UserRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 
 data class HomeUiState(
     val currentUserId: String? = null,
+    val currentUserAvatarUrl: String? = null,
     val isRefreshing: Boolean = false,
     val error: String? = null,
     val newPostCount: Int = 0
@@ -62,7 +64,8 @@ sealed interface HomeNavAction : HomeIntent {
 class HomeViewModel(
     private val postRepository: PostRepository,
     private val authRepository: AuthRepository,
-    private val notificationRepository: NotificationRepository
+    private val notificationRepository: NotificationRepository,
+    private val userRepository: UserRepository
 ) : ViewModel() {
 
     private val _events = Channel<HomeAction>(Channel.UNLIMITED)
@@ -86,6 +89,22 @@ class HomeViewModel(
         var state by remember { mutableStateOf(HomeUiState()) }
         var newPostCount by remember { mutableIntStateOf(0) }
         val currentUserId by authRepository.currentUserId.collectAsState(initial = null)
+
+        LaunchedEffect(currentUserId) {
+            val userId = currentUserId ?: run {
+                state = state.copy(currentUserAvatarUrl = null)
+                return@LaunchedEffect
+            }
+
+            userRepository.getUserProfile(userId).fold(
+                ifLeft = {
+                    state = state.copy(currentUserAvatarUrl = null)
+                },
+                ifRight = { profile ->
+                    state = state.copy(currentUserAvatarUrl = profile.avatarUrl)
+                }
+            )
+        }
 
         LaunchedEffect(Unit) {
             notificationRepository.newPostEvents.collect { event ->
@@ -165,7 +184,10 @@ class HomeViewModel(
             }
         }
 
-        return state.copy(currentUserId = currentUserId, newPostCount = newPostCount)
+        return state.copy(
+            currentUserId = currentUserId,
+            newPostCount = newPostCount
+        )
     }
 
     private fun formatError(error: PostError): String = when (error) {

@@ -2,6 +2,7 @@ package com.connor.kwitter.features.createpost
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -12,6 +13,7 @@ import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import com.connor.kwitter.core.media.SelectedMedia
 import com.connor.kwitter.core.media.readBytes
+import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.domain.media.model.MediaError
 import com.connor.kwitter.domain.media.repository.MediaRepository
 import com.connor.kwitter.domain.post.model.CreatePostRequest
@@ -19,6 +21,7 @@ import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.post.model.PostMediaType
 import com.connor.kwitter.domain.post.repository.PostRepository
+import com.connor.kwitter.domain.user.repository.UserRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -31,6 +34,8 @@ data class CreatePostUiState(
     val parentId: String? = null,
     val replyTargetAuthorName: String? = null,
     val replyTargetContent: String? = null,
+    val replyTargetAvatarUrl: String? = null,
+    val currentUserAvatarUrl: String? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
     val isSuccess: Boolean = false,
@@ -46,7 +51,8 @@ sealed interface CreatePostAction : CreatePostIntent {
     data class SetReplyTarget(
         val parentId: String?,
         val authorName: String? = null,
-        val content: String? = null
+        val content: String? = null,
+        val avatarUrl: String? = null
     ) : CreatePostAction
     data object SubmitClicked : CreatePostAction
     data object ErrorDismissed : CreatePostAction
@@ -61,7 +67,9 @@ sealed interface CreatePostNavAction : CreatePostIntent {
 
 class CreatePostViewModel(
     private val postRepository: PostRepository,
-    private val mediaRepository: MediaRepository
+    private val mediaRepository: MediaRepository,
+    private val authRepository: AuthRepository,
+    private val userRepository: UserRepository
 ) : ViewModel() {
 
     private val _events = Channel<CreatePostAction>(Channel.UNLIMITED)
@@ -79,6 +87,23 @@ class CreatePostViewModel(
     @Composable
     private fun CreatePostPresenter(): CreatePostUiState {
         var state by remember { mutableStateOf(CreatePostUiState()) }
+        val currentUserId by authRepository.currentUserId.collectAsState(initial = null)
+
+        LaunchedEffect(currentUserId) {
+            val userId = currentUserId ?: run {
+                state = state.copy(currentUserAvatarUrl = null)
+                return@LaunchedEffect
+            }
+
+            userRepository.getUserProfile(userId).fold(
+                ifLeft = {
+                    state = state.copy(currentUserAvatarUrl = null)
+                },
+                ifRight = { profile ->
+                    state = state.copy(currentUserAvatarUrl = profile.avatarUrl)
+                }
+            )
+        }
 
         LaunchedEffect(Unit) {
             _events.receiveAsFlow().collect { action ->
@@ -87,7 +112,8 @@ class CreatePostViewModel(
                     is CreatePostAction.SetReplyTarget -> state.copy(
                         parentId = action.parentId,
                         replyTargetAuthorName = action.authorName,
-                        replyTargetContent = action.content
+                        replyTargetContent = action.content,
+                        replyTargetAvatarUrl = action.avatarUrl
                     )
                     is CreatePostAction.MediaSelected -> {
                         val maxAllowed = 4 - state.selectedMedia.size

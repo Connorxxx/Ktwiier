@@ -363,7 +363,8 @@ fun MainScreen(
                                         parentId = action.postId,
                                         returnToPostId = route.postId,
                                         replyToAuthorName = action.authorName,
-                                        replyToContent = action.content
+                                        replyToContent = action.content,
+                                        replyToAvatarUrl = action.avatarUrl
                                     )
                                 )
                                 PostDetailNavAction.BackClick -> mainState.onBack()
@@ -388,12 +389,18 @@ fun MainScreen(
                     onBack = mainState.onBack
                 )
 
-                LaunchedEffect(route.parentId, route.replyToAuthorName, route.replyToContent) {
+                LaunchedEffect(
+                    route.parentId,
+                    route.replyToAuthorName,
+                    route.replyToContent,
+                    route.replyToAvatarUrl
+                ) {
                     vm.onEvent(
                         CreatePostAction.SetReplyTarget(
                             parentId = route.parentId,
                             authorName = route.replyToAuthorName,
-                            content = route.replyToContent
+                            content = route.replyToContent,
+                            avatarUrl = route.replyToAvatarUrl
                         )
                     )
                 }

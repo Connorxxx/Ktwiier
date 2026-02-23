@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.connor.kwitter.core.media.MediaThumbnailImage
 import com.connor.kwitter.core.media.SelectedMedia
 import com.connor.kwitter.core.media.rememberMediaPickerLauncher
@@ -68,6 +69,7 @@ import com.connor.kwitter.core.ui.GlassTopBarIconContentColor
 import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import com.connor.kwitter.core.ui.GlassTopBarInnerIconSize
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
@@ -167,6 +169,7 @@ fun CreatePostScreen(
                 ReplyContextCard(
                     parentId = state.parentId,
                     authorName = state.replyTargetAuthorName,
+                    avatarUrl = state.replyTargetAvatarUrl,
                     content = state.replyTargetContent
                 )
             }
@@ -174,6 +177,7 @@ fun CreatePostScreen(
             ComposerInputCard(
                 content = state.content,
                 isReply = isReply,
+                currentUserAvatarUrl = state.currentUserAvatarUrl,
                 isEnabled = !state.isLoading,
                 onContentChanged = { input ->
                     if (input.length <= MAX_POST_LENGTH) {
@@ -288,6 +292,7 @@ private fun CreatePostTopBar(
 private fun ReplyContextCard(
     parentId: String?,
     authorName: String?,
+    avatarUrl: String?,
     content: String?
 ) {
     val resolvedAuthor = authorName?.trim().orEmpty().ifBlank {
@@ -319,6 +324,7 @@ private fun ReplyContextCard(
             ) {
                 ConversationAvatar(
                     name = resolvedAuthor,
+                    avatarUrl = avatarUrl,
                     size = 38.dp
                 )
 
@@ -361,6 +367,7 @@ private fun ReplyContextCard(
 private fun ComposerInputCard(
     content: String,
     isReply: Boolean,
+    currentUserAvatarUrl: String?,
     isEnabled: Boolean,
     onContentChanged: (String) -> Unit
 ) {
@@ -376,7 +383,11 @@ private fun ComposerInputCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                ConversationAvatar(name = stringResource(Res.string.create_post_current_user), size = 36.dp)
+                ConversationAvatar(
+                    name = stringResource(Res.string.create_post_current_user),
+                    avatarUrl = currentUserAvatarUrl,
+                    size = 36.dp
+                )
                 Text(
                     text = stringResource(Res.string.create_post_current_user),
                     style = MaterialTheme.typography.labelLarge,
@@ -604,31 +615,43 @@ private fun ComposerStatusSection(
 @Composable
 private fun ConversationAvatar(
     name: String,
+    avatarUrl: String? = null,
     size: Dp,
     modifier: Modifier = Modifier
 ) {
     val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    val avatarModifier = modifier.size(size)
 
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        MaterialTheme.colorScheme.tertiaryContainer
-                    )
-                )
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = initial,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+    if (!avatarUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = resolveBackendUrl(avatarUrl),
+            contentDescription = name,
+            contentScale = ContentScale.Crop,
+            modifier = avatarModifier
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         )
+    } else {
+        Box(
+            modifier = avatarModifier
+                .clip(CircleShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            MaterialTheme.colorScheme.tertiaryContainer
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
     }
 }
 

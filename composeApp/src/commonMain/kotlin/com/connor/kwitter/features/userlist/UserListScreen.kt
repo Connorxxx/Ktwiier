@@ -48,6 +48,7 @@ import coil3.compose.AsyncImage
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
@@ -339,7 +340,7 @@ private fun UserAvatar(
 
     if (!avatarUrl.isNullOrBlank()) {
         AsyncImage(
-            model = avatarUrl,
+            model = resolveBackendUrl(avatarUrl),
             contentDescription = name,
             contentScale = ContentScale.Crop,
             modifier = modifier

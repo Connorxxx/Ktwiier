@@ -2,6 +2,7 @@
 
 package com.connor.kwitter.features.glass
 
+import com.connor.kwitter.core.util.resolveBackendUrl
 import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCAction
@@ -13,6 +14,9 @@ import platform.CoreGraphics.CGRectMake
 import platform.CoreGraphics.CGRectZero
 import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSSelectorFromString
+import platform.Foundation.NSURL
+import platform.Foundation.NSURLSession
+import platform.Foundation.dataTaskWithURL
 import platform.QuartzCore.kCALayerMaxXMaxYCorner
 import platform.QuartzCore.kCALayerMinXMaxYCorner
 import platform.UIKit.NSTextAlignmentCenter
@@ -28,12 +32,15 @@ import platform.UIKit.UIControlStateNormal
 import platform.UIKit.UIFont
 import platform.UIKit.UIGlassEffect
 import platform.UIKit.UIImage
+import platform.UIKit.UIImageRenderingMode
 import platform.UIKit.UILabel
 import platform.UIKit.UITextField
 import platform.UIKit.UIView
 import platform.UIKit.UIVisualEffect
 import platform.UIKit.UIVisualEffectView
 import platform.darwin.NSObject
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_main_queue
 
 private val isLiquidGlassAvailable: Boolean by lazy {
     NSProcessInfo.processInfo.operatingSystemVersion.useContents {
@@ -235,6 +242,8 @@ private class NativeOverlayTopBarView(
 
     private var leadingAction: NativeTopBarButtonAction? = null
     private var trailingAction: NativeTopBarButtonAction? = null
+    private val profileAvatarCache = mutableMapOf<String, UIImage>()
+    private var activeProfileAvatarUrl: String? = null
 
     private val leadingTapTarget = NativeTopBarTapTarget {
         leadingAction?.let { action ->
@@ -339,7 +348,7 @@ private class NativeOverlayTopBarView(
 
         when (currentModel) {
             NativeTopBarModel.Hidden -> Unit
-            NativeTopBarModel.HomeInteractive -> layoutHome(width, contentTop, contentHeight, sidePadding)
+            is NativeTopBarModel.HomeInteractive -> layoutHome(width, contentTop, contentHeight, sidePadding)
             is NativeTopBarModel.Title -> layoutTitle(width, contentTop, contentHeight, sidePadding)
             is NativeTopBarModel.Search -> layoutSearch(width, contentTop, contentHeight, sidePadding)
         }
@@ -353,6 +362,7 @@ private class NativeOverlayTopBarView(
     fun updateModel(model: NativeTopBarModel) {
         val previousModel = currentModel
         currentModel = model
+        activeProfileAvatarUrl = null
         setAllElementsHidden()
 
         when (model) {
@@ -362,7 +372,7 @@ private class NativeOverlayTopBarView(
                 trailingAction = null
             }
 
-            NativeTopBarModel.HomeInteractive -> {
+            is NativeTopBarModel.HomeInteractive -> {
                 preferLightForeground = false
                 titleLabel.hidden = false
                 titleLabel.text = "Post"
@@ -370,7 +380,7 @@ private class NativeOverlayTopBarView(
 
                 leadingAction = NativeTopBarButtonAction.Profile
                 trailingAction = NativeTopBarButtonAction.CreatePost
-                configureIconButton(leadingButton, NativeTopBarButtons.profile())
+                configureHomeProfileButton(leadingButton, model.avatarUrl)
                 configureIconButton(trailingIconButton, NativeTopBarButtons.createPost())
             }
 
@@ -573,11 +583,97 @@ private class NativeOverlayTopBarView(
         )
     }
 
+    private fun configureHomeProfileButton(button: UIButton, avatarUrl: String?) {
+        val resolvedAvatarUrl = avatarUrl
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+            ?.let(::resolveBackendUrl)
+
+        activeProfileAvatarUrl = resolvedAvatarUrl
+        if (resolvedAvatarUrl == null) {
+            configureIconButton(button, NativeTopBarButtons.profile())
+            return
+        }
+
+        button.hidden = false
+        button.enabled = true
+        button.alpha = 1.0
+        button.layer.cornerRadius = 20.0
+        button.clipsToBounds = true
+        button.layer.borderWidth = 1.0
+        button.layer.borderColor = profileAvatarBorderColor().CGColor
+
+        profileAvatarCache[resolvedAvatarUrl]?.let { cachedImage ->
+            applyProfileAvatarImage(button, cachedImage)
+            return
+        }
+
+        applyProfileAvatarPlaceholder(button)
+
+        val nsUrl = NSURL.URLWithString(resolvedAvatarUrl) ?: return
+        NSURLSession.sharedSession
+            .dataTaskWithURL(
+                url = nsUrl,
+                completionHandler = { data, _, _ ->
+                    val avatarData = data ?: return@dataTaskWithURL
+                    val avatarImage = UIImage.imageWithData(avatarData) ?: return@dataTaskWithURL
+                    profileAvatarCache[resolvedAvatarUrl] = avatarImage
+
+                    dispatch_async(dispatch_get_main_queue()) {
+                        if (activeProfileAvatarUrl == resolvedAvatarUrl) {
+                            applyProfileAvatarImage(button, avatarImage)
+                        }
+                    }
+                }
+            )
+            .resume()
+    }
+
+    private fun applyProfileAvatarPlaceholder(button: UIButton) {
+        button.setBackgroundImage(
+            image = null,
+            forState = UIControlStateNormal
+        )
+        button.backgroundColor = if (useDarkPalette()) {
+            UIColor.whiteColor.colorWithAlphaComponent(0.12)
+        } else {
+            UIColor.blackColor.colorWithAlphaComponent(0.06)
+        }
+        button.tintColor = if (useDarkPalette()) {
+            UIColor.whiteColor.colorWithAlphaComponent(0.9)
+        } else {
+            UIColor.blackColor.colorWithAlphaComponent(0.8)
+        }
+        button.setImage(UIImage.systemImageNamed("person.fill"), UIControlStateNormal)
+    }
+
+    private fun applyProfileAvatarImage(button: UIButton, image: UIImage) {
+        val originalImage = image.imageWithRenderingMode(UIImageRenderingMode.UIImageRenderingModeAlwaysOriginal)
+        button.backgroundColor = UIColor.clearColor
+        button.setImage(null, UIControlStateNormal)
+        button.setBackgroundImage(
+            image = originalImage,
+            forState = UIControlStateNormal
+        )
+    }
+
+    private fun profileAvatarBorderColor(): UIColor =
+        if (useDarkPalette()) {
+            UIColor.whiteColor.colorWithAlphaComponent(0.28)
+        } else {
+            UIColor.blackColor.colorWithAlphaComponent(0.14)
+        }
+
     private fun configureIconButton(button: UIButton, config: NativeTopBarButtonConfig) {
+        button.setBackgroundImage(
+            image = null,
+            forState = UIControlStateNormal
+        )
         button.hidden = false
         button.enabled = config.enabled
         button.layer.cornerRadius = 20.0
         button.clipsToBounds = true
+        button.layer.borderWidth = 0.0
 
         iconNameFor(config.style)?.let { symbol ->
             button.setImage(UIImage.systemImageNamed(symbol), UIControlStateNormal)

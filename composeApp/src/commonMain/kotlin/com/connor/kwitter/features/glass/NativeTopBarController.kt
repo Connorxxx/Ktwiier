@@ -81,7 +81,9 @@ object NativeTopBarButtons {
 sealed interface NativeTopBarModel {
     data object Hidden : NativeTopBarModel
 
-    data object HomeInteractive : NativeTopBarModel
+    data class HomeInteractive(
+        val avatarUrl: String? = null
+    ) : NativeTopBarModel
 
     data class Title(
         val title: String,

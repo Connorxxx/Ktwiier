@@ -62,6 +62,7 @@ import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import com.connor.kwitter.core.ui.GlassTopBarInnerIconSize
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.ui.PostItem
+import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
@@ -504,7 +505,7 @@ private fun ProfileAvatar(
 
     if (!avatarUrl.isNullOrBlank()) {
         AsyncImage(
-            model = avatarUrl,
+            model = resolveBackendUrl(avatarUrl),
             contentDescription = name,
             contentScale = ContentScale.Crop,
             modifier = modifier

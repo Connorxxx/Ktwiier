@@ -28,7 +28,8 @@ sealed interface NavigationRoute {
         val parentId: String? = null,
         val returnToPostId: String? = null,
         val replyToAuthorName: String? = null,
-        val replyToContent: String? = null
+        val replyToContent: String? = null,
+        val replyToAvatarUrl: String? = null
     ) : NavigationRoute
 
     @Serializable

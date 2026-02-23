@@ -51,6 +51,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -60,10 +61,12 @@ import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
+import coil3.compose.AsyncImage
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.theme.LocalIsDarkTheme
 import com.connor.kwitter.core.ui.PostItem
+import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
@@ -127,12 +130,18 @@ fun HomeScreen(
         }
     }
 
-    PublishNativeTopBar(onNativeTopBarModel, NativeTopBarModel.HomeInteractive)
+    PublishNativeTopBar(
+        onNativeTopBarModel,
+        NativeTopBarModel.HomeInteractive(
+            avatarUrl = state.currentUserAvatarUrl?.trim()?.ifBlank { null }
+        )
+    )
 
     Scaffold(
         topBar = {
             NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 HomeTopBar(
+                    avatarUrl = state.currentUserAvatarUrl,
                     onCreatePostClick = { onAction(HomeNavAction.CreatePostClick) },
                     onProfileClick = onProfileClick
                 )
@@ -291,6 +300,7 @@ private fun NewPostsBanner(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeTopBar(
+    avatarUrl: String?,
     onCreatePostClick: () -> Unit,
     onProfileClick: (() -> Unit)?
 ) {
@@ -305,7 +315,10 @@ private fun HomeTopBar(
             },
             navigationIcon = {
                 Box(modifier = Modifier.padding(start = 14.dp)) {
-                    ProfilePlaceholder(onClick = onProfileClick)
+                    HomeProfileAvatar(
+                        avatarUrl = avatarUrl,
+                        onClick = onProfileClick
+                    )
                 }
             },
             actions = {
@@ -448,58 +461,70 @@ private fun TimelineLoadErrorState(
 }
 
 @Composable
-private fun ProfilePlaceholder(
+private fun HomeProfileAvatar(
+    avatarUrl: String?,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
     val isEnabled = onClick != null
-    val backgroundBrush = Brush.linearGradient(
-        listOf(
-            MaterialTheme.colorScheme.surfaceContainerHigh,
-            MaterialTheme.colorScheme.surfaceContainer
+    val avatarModifier = modifier
+        .size(40.dp)
+        .clip(CircleShape)
+        .border(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isEnabled) 0.72f else 0.45f),
+            shape = CircleShape
         )
-    )
-    val innerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = if (isEnabled) 0.2f else 0.1f)
+        .then(
+            if (onClick != null) Modifier.clickable(onClick = onClick)
+            else Modifier
+        )
 
-    Box(
-        modifier = modifier
-            .size(40.dp)
-            .background(
+    if (!avatarUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = resolveBackendUrl(avatarUrl),
+            contentDescription = "Home profile avatar",
+            contentScale = ContentScale.Crop,
+            modifier = avatarModifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        )
+    } else {
+        val backgroundBrush = Brush.linearGradient(
+            listOf(
+                MaterialTheme.colorScheme.surfaceContainerHigh,
+                MaterialTheme.colorScheme.surfaceContainer
+            )
+        )
+        val innerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = if (isEnabled) 0.2f else 0.1f)
+
+        Box(
+            modifier = avatarModifier.background(
                 brush = backgroundBrush,
                 shape = CircleShape
-            )
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (isEnabled) 0.72f else 0.45f),
-                shape = CircleShape
-            )
-            .then(
-                if (onClick != null) Modifier.clickable(onClick = onClick)
-                else Modifier
             ),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .background(color = innerColor, shape = CircleShape)
-            )
-            Box(
-                modifier = Modifier
-                    .padding(top = 2.dp)
-                    .width(16.dp)
-                    .height(8.dp)
-                    .background(
-                        color = innerColor,
-                        shape = RoundedCornerShape(
-                            topStart = 8.dp,
-                            topEnd = 8.dp,
-                            bottomStart = 6.dp,
-                            bottomEnd = 6.dp
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(color = innerColor, shape = CircleShape)
+                )
+                Box(
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .width(16.dp)
+                        .height(8.dp)
+                        .background(
+                            color = innerColor,
+                            shape = RoundedCornerShape(
+                                topStart = 8.dp,
+                                topEnd = 8.dp,
+                                bottomStart = 6.dp,
+                                bottomEnd = 6.dp
+                            )
                         )
-                    )
-            )
+                )
+            }
         }
     }
 }

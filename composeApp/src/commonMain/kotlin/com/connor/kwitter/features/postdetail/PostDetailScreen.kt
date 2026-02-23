@@ -41,11 +41,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.PostActionBar
 import com.connor.kwitter.core.ui.PostMediaGrid
@@ -53,6 +55,7 @@ import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.util.formatPostTime
+import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
@@ -119,7 +122,8 @@ fun PostDetailScreen(
                             PostDetailNavAction.ReplyClick(
                                 postId = post.id,
                                 authorName = post.authorName,
-                                content = post.content
+                                content = post.content,
+                                avatarUrl = post.author.avatarUrl
                             )
                         )
                     },
@@ -191,7 +195,8 @@ fun PostDetailScreen(
                                     PostDetailNavAction.ReplyClick(
                                         postId = targetPost.id,
                                         authorName = targetPost.authorName,
-                                        content = targetPost.content
+                                        content = targetPost.content,
+                                        avatarUrl = targetPost.author.avatarUrl
                                     )
                                 )
                             },
@@ -265,7 +270,8 @@ fun PostDetailScreen(
                                         PostDetailNavAction.ReplyClick(
                                             postId = targetPost.id,
                                             authorName = targetPost.authorName,
-                                            content = targetPost.content
+                                            content = targetPost.content,
+                                            avatarUrl = targetPost.author.avatarUrl
                                         )
                                     )
                                 },
@@ -351,6 +357,7 @@ private fun RootPostItem(
     ) {
         ThreadAvatar(
             name = post.authorName,
+            avatarUrl = post.author.avatarUrl,
             size = 46.dp,
             gradient = listOf(
                 MaterialTheme.colorScheme.primaryContainer,
@@ -447,6 +454,7 @@ private fun ReplyItem(
     ) {
         ThreadAvatar(
             name = reply.authorName,
+            avatarUrl = reply.author.avatarUrl,
             size = replyAvatarSize,
             gradient = listOf(
                 MaterialTheme.colorScheme.secondaryContainer,
@@ -558,6 +566,7 @@ private fun ReplyItem(
 @Composable
 private fun ThreadAvatar(
     name: String,
+    avatarUrl: String?,
     size: androidx.compose.ui.unit.Dp,
     gradient: List<Color>,
     contentColor: Color,
@@ -566,25 +575,37 @@ private fun ThreadAvatar(
 ) {
     val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
 
-    Box(
-        modifier = modifier
-            .size(size)
-            .background(
+    val avatarModifier = modifier
+        .size(size)
+        .then(
+            if (onClick != null) Modifier.clickable(onClick = onClick)
+            else Modifier
+        )
+
+    if (!avatarUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = resolveBackendUrl(avatarUrl),
+            contentDescription = name,
+            contentScale = ContentScale.Crop,
+            modifier = avatarModifier
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+        )
+    } else {
+        Box(
+            modifier = avatarModifier.background(
                 brush = Brush.linearGradient(gradient),
                 shape = CircleShape
-            )
-            .then(
-                if (onClick != null) Modifier.clickable(onClick = onClick)
-                else Modifier
             ),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = initial,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = contentColor
-        )
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = contentColor
+            )
+        }
     }
 }
 

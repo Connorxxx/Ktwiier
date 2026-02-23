@@ -51,7 +51,8 @@ sealed interface PostDetailNavAction : PostDetailIntent {
     data class ReplyClick(
         val postId: String,
         val authorName: String,
-        val content: String
+        val content: String,
+        val avatarUrl: String? = null
     ) : PostDetailNavAction
     data object BackClick : PostDetailNavAction
     data class MediaClick(val media: List<PostMedia>, val index: Int) : PostDetailNavAction
