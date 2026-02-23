@@ -56,6 +56,7 @@ import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostMedia
@@ -87,15 +88,14 @@ fun PostDetailScreen(
         }
     }
 
-    LaunchedEffect(onNativeTopBarModel, nativeSubtitle) {
-        onNativeTopBarModel(
-            NativeTopBarModel.Title(
-                title = "Conversation",
-                subtitle = nativeSubtitle,
-                leadingButton = NativeTopBarButtons.back()
-            )
+    PublishNativeTopBar(
+        onNativeTopBarModel,
+        NativeTopBarModel.Title(
+            title = "Conversation",
+            subtitle = nativeSubtitle,
+            leadingButton = NativeTopBarButtons.back()
         )
-    }
+    )
 
     Scaffold(
         topBar = {

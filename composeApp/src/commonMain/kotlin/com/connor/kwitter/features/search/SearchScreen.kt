@@ -65,6 +65,7 @@ import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.user.model.UserListItem
 import kotlinx.coroutines.flow.Flow
@@ -109,15 +110,14 @@ fun SearchScreen(
         }
     }
 
-    LaunchedEffect(onNativeTopBarModel, state.query, nativeSearchPlaceholder) {
-        onNativeTopBarModel(
-            NativeTopBarModel.Search(
-                query = state.query,
-                placeholder = nativeSearchPlaceholder,
-                leadingButton = NativeTopBarButtons.back()
-            )
+    PublishNativeTopBar(
+        onNativeTopBarModel,
+        NativeTopBarModel.Search(
+            query = state.query,
+            placeholder = nativeSearchPlaceholder,
+            leadingButton = NativeTopBarButtons.back()
         )
-    }
+    )
 
     Scaffold(
         topBar = {

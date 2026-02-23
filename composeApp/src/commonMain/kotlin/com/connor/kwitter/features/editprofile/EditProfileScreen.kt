@@ -63,6 +63,7 @@ import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.PublishNativeTopBar
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_bio_label
 import kwitter.composeapp.generated.resources.profile_display_name_label
@@ -123,24 +124,17 @@ fun EditProfileScreen(
         }
     }
 
-    LaunchedEffect(
+    PublishNativeTopBar(
         onNativeTopBarModel,
-        nativeTopTitle,
-        nativeSaveLabel,
-        state.isSaving,
-        state.isUploadingAvatar
-    ) {
-        onNativeTopBarModel(
-            NativeTopBarModel.Title(
-                title = nativeTopTitle,
-                leadingButton = NativeTopBarButtons.back(enabled = !state.isSaving),
-                trailingButton = NativeTopBarButtons.save(
-                    label = nativeSaveLabel,
-                    enabled = !state.isSaving && !state.isUploadingAvatar
-                )
+        NativeTopBarModel.Title(
+            title = nativeTopTitle,
+            leadingButton = NativeTopBarButtons.back(enabled = !state.isSaving),
+            trailingButton = NativeTopBarButtons.save(
+                label = nativeSaveLabel,
+                enabled = !state.isSaving && !state.isUploadingAvatar
             )
         )
-    }
+    )
 
     Box(
         modifier = Modifier

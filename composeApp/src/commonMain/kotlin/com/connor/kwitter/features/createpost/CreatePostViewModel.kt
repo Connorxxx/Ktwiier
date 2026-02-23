@@ -23,6 +23,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class CreatePostUiState(
     val content: String = "",
@@ -98,7 +100,7 @@ class CreatePostViewModel(
                                 selectedMedia = updatedSelected,
                                 isUploading = true
                             )
-                            // Upload each new media file
+                            val uploadMutex = Mutex()
                             newMedia.forEach { media ->
                                 launch {
                                     val bytes = media.readBytes()
@@ -107,25 +109,29 @@ class CreatePostViewModel(
                                         fileName = media.name,
                                         mimeType = media.mimeType
                                     )
-                                    result.fold(
-                                        ifLeft = { error ->
-                                            state = state.copy(
-                                                error = formatMediaError(error),
-                                                selectedMedia = state.selectedMedia - media,
-                                                isUploading = state.selectedMedia.size > state.uploadedMedia.size + 1
-                                            )
-                                        },
-                                        ifRight = { response ->
-                                            val postMedia = PostMedia(
-                                                url = response.url,
-                                                type = if (response.type == "VIDEO") PostMediaType.VIDEO else PostMediaType.IMAGE
-                                            )
-                                            state = state.copy(
-                                                uploadedMedia = state.uploadedMedia + postMedia,
-                                                isUploading = state.selectedMedia.size > state.uploadedMedia.size + 1
-                                            )
-                                        }
-                                    )
+                                    uploadMutex.withLock {
+                                        result.fold(
+                                            ifLeft = { error ->
+                                                val newSelected = state.selectedMedia - media
+                                                state = state.copy(
+                                                    error = formatMediaError(error),
+                                                    selectedMedia = newSelected,
+                                                    isUploading = newSelected.size > state.uploadedMedia.size
+                                                )
+                                            },
+                                            ifRight = { response ->
+                                                val postMedia = PostMedia(
+                                                    url = response.url,
+                                                    type = if (response.type == "VIDEO") PostMediaType.VIDEO else PostMediaType.IMAGE
+                                                )
+                                                val newUploaded = state.uploadedMedia + postMedia
+                                                state = state.copy(
+                                                    uploadedMedia = newUploaded,
+                                                    isUploading = state.selectedMedia.size > newUploaded.size
+                                                )
+                                            }
+                                        )
+                                    }
                                 }
                             }
                             state

@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,7 @@ import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.messaging.model.Message
 import kotlinx.coroutines.flow.Flow
 
@@ -77,9 +79,16 @@ fun ChatScreen(
         }
     }
 
-    // Scroll to bottom when new messages arrive
+    // Scroll to bottom when new messages arrive, only if user is near bottom
+    val isNearBottom = remember {
+        derivedStateOf {
+            val firstVisibleIndex = listState.firstVisibleItemIndex
+            firstVisibleIndex <= 1
+        }
+    }
+
     LaunchedEffect(lazyPagingItems.itemCount) {
-        if (lazyPagingItems.itemCount > 0) {
+        if (lazyPagingItems.itemCount > 0 && isNearBottom.value) {
             listState.animateScrollToItem(0)
         }
     }
@@ -93,14 +102,13 @@ fun ChatScreen(
         }
     }
 
-    LaunchedEffect(onNativeTopBarModel, state.otherUserDisplayName) {
-        onNativeTopBarModel(
-            NativeTopBarModel.Title(
-                title = state.otherUserDisplayName,
-                leadingButton = NativeTopBarButtons.back()
-            )
+    PublishNativeTopBar(
+        onNativeTopBarModel,
+        NativeTopBarModel.Title(
+            title = state.otherUserDisplayName,
+            leadingButton = NativeTopBarButtons.back()
         )
-    }
+    )
 
     Scaffold(
         topBar = {

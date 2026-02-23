@@ -42,6 +42,7 @@ import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.PublishNativeTopBar
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -59,15 +60,14 @@ fun AvatarCropScreen(
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
 
-    LaunchedEffect(onNativeTopBarModel) {
-        onNativeTopBarModel(
-            NativeTopBarModel.Title(
-                title = "Crop Avatar",
-                leadingButton = NativeTopBarButtons.back(),
-                preferLightForeground = true
-            )
+    PublishNativeTopBar(
+        onNativeTopBarModel,
+        NativeTopBarModel.Title(
+            title = "Crop Avatar",
+            leadingButton = NativeTopBarButtons.back(),
+            preferLightForeground = true
         )
-    }
+    )
 
     Column(
         modifier = Modifier

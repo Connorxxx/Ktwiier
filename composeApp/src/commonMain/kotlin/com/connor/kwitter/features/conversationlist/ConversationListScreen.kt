@@ -50,6 +50,7 @@ import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.messaging.model.Conversation
 import kotlinx.coroutines.flow.Flow
 
@@ -73,14 +74,13 @@ fun ConversationListScreen(
         }
     }
 
-    LaunchedEffect(onNativeTopBarModel) {
-        onNativeTopBarModel(
-            NativeTopBarModel.Title(
-                title = "Messages",
-                leadingButton = NativeTopBarButtons.back()
-            )
+    PublishNativeTopBar(
+        onNativeTopBarModel,
+        NativeTopBarModel.Title(
+            title = "Messages",
+            leadingButton = NativeTopBarButtons.back()
         )
-    }
+    )
 
     Scaffold(
         topBar = {

@@ -104,3 +104,42 @@ fun rememberNativeTopBarBinding(
 
     return publishModel
 }
+
+@Composable
+fun rememberNativeTopBarBinding(
+    coordinator: NativeTopBarCoordinator,
+    route: NavigationRoute,
+    onBack: () -> Unit,
+    onAction: (NativeTopBarAction) -> Unit = {}
+): (NativeTopBarModel) -> Unit {
+    val latestOnBack by rememberUpdatedState(onBack)
+    val latestOnAction by rememberUpdatedState(onAction)
+    val publishModel = remember(coordinator, route) {
+        { model: NativeTopBarModel ->
+            coordinator.publishModel(route, model)
+        }
+    }
+
+    SideEffect {
+        coordinator.publishActionHandler(route) { action ->
+            when {
+                action is NativeTopBarAction.ButtonClicked &&
+                    (action.action == NativeTopBarButtonAction.Back ||
+                        action.action == NativeTopBarButtonAction.Close) -> latestOnBack()
+                else -> latestOnAction(action)
+            }
+        }
+    }
+
+    return publishModel
+}
+
+@Composable
+fun PublishNativeTopBar(
+    publish: (NativeTopBarModel) -> Unit,
+    model: NativeTopBarModel
+) {
+    SideEffect {
+        publish(model)
+    }
+}

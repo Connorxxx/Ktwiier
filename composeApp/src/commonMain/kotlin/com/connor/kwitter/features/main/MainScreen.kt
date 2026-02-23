@@ -336,15 +336,9 @@ fun MainScreen(
                 val state by vm.uiState.collectAsStateWithLifecycle()
                 val onNativeTopBarModel = rememberNativeTopBarBinding(
                     coordinator = topBarCoordinator,
-                    route = route
-                ) { action ->
-                    if (
-                        action is NativeTopBarAction.ButtonClicked &&
-                        action.action == NativeTopBarButtonAction.Back
-                    ) {
-                        mainState.onBack()
-                    }
-                }
+                    route = route,
+                    onBack = mainState.onBack
+                )
 
                 LaunchedEffect(route.postId) {
                     vm.onEvent(PostDetailAction.Load(route.postId))
@@ -384,15 +378,9 @@ fun MainScreen(
                 val state by vm.uiState.collectAsStateWithLifecycle()
                 val onNativeTopBarModel = rememberNativeTopBarBinding(
                     coordinator = topBarCoordinator,
-                    route = route
-                ) { action ->
-                    if (
-                        action is NativeTopBarAction.ButtonClicked &&
-                        action.action == NativeTopBarButtonAction.Close
-                    ) {
-                        mainState.onBack()
-                    }
-                }
+                    route = route,
+                    onBack = mainState.onBack
+                )
 
                 LaunchedEffect(route.parentId, route.replyToAuthorName, route.replyToContent) {
                     vm.onEvent(
@@ -425,17 +413,14 @@ fun MainScreen(
                 val state by vm.uiState.collectAsStateWithLifecycle()
                 val onNativeTopBarModel = rememberNativeTopBarBinding(
                     coordinator = topBarCoordinator,
-                    route = route
+                    route = route,
+                    onBack = mainState.onBack
                 ) { action ->
-                    if (action is NativeTopBarAction.ButtonClicked) {
-                        when (action.action) {
-                            NativeTopBarButtonAction.Back -> mainState.onBack()
-                            NativeTopBarButtonAction.Edit -> mainState.onNavigate(
-                                NavigationRoute.EditProfile(userId = route.userId)
-                            )
-
-                            else -> Unit
-                        }
+                    if (action is NativeTopBarAction.ButtonClicked &&
+                        action.action == NativeTopBarButtonAction.Edit) {
+                        mainState.onNavigate(
+                            NavigationRoute.EditProfile(userId = route.userId)
+                        )
                     }
                 }
 
@@ -563,15 +548,9 @@ fun MainScreen(
                 }
                 val onNativeTopBarModel = rememberNativeTopBarBinding(
                     coordinator = topBarCoordinator,
-                    route = route
-                ) { action ->
-                    if (
-                        action is NativeTopBarAction.ButtonClicked &&
-                        action.action == NativeTopBarButtonAction.Back
-                    ) {
-                        mainState.onBack()
-                    }
-                }
+                    route = route,
+                    onBack = mainState.onBack
+                )
 
                 LaunchedEffect(route.userId, route.listType) {
                     vm.onEvent(
@@ -628,15 +607,10 @@ fun MainScreen(
                 val state by vm.uiState.collectAsStateWithLifecycle()
                 val onNativeTopBarModel = rememberNativeTopBarBinding(
                     coordinator = topBarCoordinator,
-                    route = NavigationRoute.Search
+                    route = NavigationRoute.Search,
+                    onBack = mainState.onBack
                 ) { action ->
                     when (action) {
-                        is NativeTopBarAction.ButtonClicked -> {
-                            if (action.action == NativeTopBarButtonAction.Back) {
-                                mainState.onBack()
-                            }
-                        }
-
                         is NativeTopBarAction.SearchQueryChanged -> {
                             vm.onEvent(SearchAction.UpdateQuery(action.query))
                         }
@@ -644,6 +618,8 @@ fun MainScreen(
                         NativeTopBarAction.SearchSubmitted -> {
                             vm.onEvent(SearchAction.SubmitSearch)
                         }
+
+                        else -> {}
                     }
                 }
 
@@ -695,15 +671,9 @@ fun MainScreen(
                 val vm: ConversationListViewModel = koinViewModel()
                 val onNativeTopBarModel = rememberNativeTopBarBinding(
                     coordinator = topBarCoordinator,
-                    route = NavigationRoute.ConversationList
-                ) { action ->
-                    if (
-                        action is NativeTopBarAction.ButtonClicked &&
-                        action.action == NativeTopBarButtonAction.Back
-                    ) {
-                        mainState.onBack()
-                    }
-                }
+                    route = NavigationRoute.ConversationList,
+                    onBack = mainState.onBack
+                )
 
                 ConversationListScreen(
                     pagingFlow = vm.pagingFlow,
@@ -731,15 +701,9 @@ fun MainScreen(
                 val state by vm.uiState.collectAsStateWithLifecycle()
                 val onNativeTopBarModel = rememberNativeTopBarBinding(
                     coordinator = topBarCoordinator,
-                    route = route
-                ) { action ->
-                    if (
-                        action is NativeTopBarAction.ButtonClicked &&
-                        action.action == NativeTopBarButtonAction.Back
-                    ) {
-                        mainState.onBack()
-                    }
-                }
+                    route = route,
+                    onBack = mainState.onBack
+                )
 
                 LaunchedEffect(route.conversationId, route.otherUserId) {
                     vm.onEvent(

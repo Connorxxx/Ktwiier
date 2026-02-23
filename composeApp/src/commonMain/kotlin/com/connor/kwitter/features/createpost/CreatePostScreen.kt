@@ -71,6 +71,7 @@ import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.PublishNativeTopBar
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.stringResource
@@ -123,15 +124,14 @@ fun CreatePostScreen(
         }
     }
 
-    LaunchedEffect(onNativeTopBarModel, nativeTopTitle, nativeTopSubtitle) {
-        onNativeTopBarModel(
-            NativeTopBarModel.Title(
-                title = nativeTopTitle,
-                subtitle = nativeTopSubtitle,
-                leadingButton = NativeTopBarButtons.close()
-            )
+    PublishNativeTopBar(
+        onNativeTopBarModel,
+        NativeTopBarModel.Title(
+            title = nativeTopTitle,
+            subtitle = nativeTopSubtitle,
+            leadingButton = NativeTopBarButtons.close()
         )
-    }
+    )
 
     Scaffold(
         topBar = {

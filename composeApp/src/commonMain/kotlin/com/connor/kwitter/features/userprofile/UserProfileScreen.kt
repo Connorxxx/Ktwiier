@@ -35,7 +35,9 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +63,7 @@ import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
@@ -100,15 +103,14 @@ fun UserProfileScreen(
         }
     }
 
-    LaunchedEffect(onNativeTopBarModel, state.profile?.displayName, state.isOwnProfile) {
-        onNativeTopBarModel(
-            NativeTopBarModel.Title(
-                title = state.profile?.displayName.orEmpty(),
-                leadingButton = NativeTopBarButtons.back(),
-                trailingButton = if (state.isOwnProfile) NativeTopBarButtons.edit() else null
-            )
+    PublishNativeTopBar(
+        onNativeTopBarModel,
+        NativeTopBarModel.Title(
+            title = state.profile?.displayName.orEmpty(),
+            leadingButton = NativeTopBarButtons.back(),
+            trailingButton = if (state.isOwnProfile) NativeTopBarButtons.edit() else null
         )
-    }
+    )
 
     Scaffold(
         topBar = {
@@ -150,6 +152,7 @@ fun UserProfileScreen(
                     ProfileTab.LIKES -> state.likes
                 }
                 val listState = rememberLazyListState()
+                val currentState by rememberUpdatedState(state)
 
                 // Infinite scroll detection
                 val shouldLoadMore = remember {
@@ -160,12 +163,15 @@ fun UserProfileScreen(
                     }
                 }
                 LaunchedEffect(state.selectedTab) {
-                    snapshotFlow { shouldLoadMore.value }
-                        .collect { shouldLoad ->
-                            if (shouldLoad && !state.isLoadingMore && !state.isLoadingTab) {
-                                onAction(UserProfileAction.LoadMore)
-                            }
+                    snapshotFlow {
+                        shouldLoadMore.value &&
+                            !currentState.isLoadingMore &&
+                            !currentState.isLoadingTab
+                    }.collect { shouldLoad ->
+                        if (shouldLoad) {
+                            onAction(UserProfileAction.LoadMore)
                         }
+                    }
                 }
 
                 LazyColumn(

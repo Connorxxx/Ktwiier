@@ -64,6 +64,7 @@ import com.connor.kwitter.core.theme.LocalIsDarkTheme
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
@@ -106,9 +107,7 @@ fun HomeScreen(
         }
     }
 
-    LaunchedEffect(onNativeTopBarModel) {
-        onNativeTopBarModel(NativeTopBarModel.HomeInteractive)
-    }
+    PublishNativeTopBar(onNativeTopBarModel, NativeTopBarModel.HomeInteractive)
 
     Scaffold(
         topBar = {

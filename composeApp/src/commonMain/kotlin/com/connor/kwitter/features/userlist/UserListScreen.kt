@@ -34,7 +34,9 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +54,7 @@ import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
+import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.user.model.UserListItem
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.profile_follow
@@ -80,15 +83,14 @@ fun UserListScreen(
         }
     }
 
-    LaunchedEffect(onNativeTopBarModel, state.displayName, nativeSubtitle) {
-        onNativeTopBarModel(
-            NativeTopBarModel.Title(
-                title = state.displayName,
-                subtitle = nativeSubtitle,
-                leadingButton = NativeTopBarButtons.back()
-            )
+    PublishNativeTopBar(
+        onNativeTopBarModel,
+        NativeTopBarModel.Title(
+            title = state.displayName,
+            subtitle = nativeSubtitle,
+            leadingButton = NativeTopBarButtons.back()
         )
-    }
+    )
 
     Scaffold(
         topBar = {
@@ -146,6 +148,7 @@ fun UserListScreen(
 
             else -> {
                 val listState = rememberLazyListState()
+                val currentState by rememberUpdatedState(state)
 
                 val shouldLoadMore = remember {
                     derivedStateOf {
@@ -156,12 +159,15 @@ fun UserListScreen(
                 }
 
                 LaunchedEffect(Unit) {
-                    snapshotFlow { shouldLoadMore.value }
-                        .collect { shouldLoad ->
-                            if (shouldLoad && !state.isLoadingMore && state.hasMore) {
-                                onAction(UserListAction.LoadMore)
-                            }
+                    snapshotFlow {
+                        shouldLoadMore.value &&
+                            !currentState.isLoadingMore &&
+                            currentState.hasMore
+                    }.collect { shouldLoad ->
+                        if (shouldLoad) {
+                            onAction(UserListAction.LoadMore)
                         }
+                    }
                 }
 
                 LazyColumn(
