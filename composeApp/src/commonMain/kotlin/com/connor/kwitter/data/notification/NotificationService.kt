@@ -30,7 +30,6 @@ class NotificationService(
 ) {
     private companion object {
         const val WS_PATH = "/v1/notifications/ws"
-        const val MAX_RETRIES = 5
         val BACKOFF_DELAYS = longArrayOf(1000, 2000, 4000, 8000, 16000)
         const val PING_INTERVAL_MS = 30_000L
     }
@@ -53,7 +52,7 @@ class NotificationService(
         disconnect()
         connectionJob = scope.launch {
             var retryCount = 0
-            while (retryCount <= MAX_RETRIES && isActive) {
+            while (isActive) {
                 _connectionState.value = ConnectionState.Connecting
                 try {
                     val wsUrl = baseUrl
@@ -97,10 +96,12 @@ class NotificationService(
                 _connectionState.value = ConnectionState.Disconnected
                 currentSession = null
 
-                if (!isActive || retryCount >= MAX_RETRIES) break
+                if (!isActive) break
                 val delayMs = BACKOFF_DELAYS[retryCount.coerceAtMost(BACKOFF_DELAYS.lastIndex)]
                 delay(delayMs)
-                retryCount++
+                if (retryCount < Int.MAX_VALUE) {
+                    retryCount++
+                }
             }
         }
     }

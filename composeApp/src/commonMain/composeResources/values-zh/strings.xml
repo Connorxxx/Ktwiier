@@ -123,6 +123,7 @@
     <string name="chat_load_failed">加载消息失败</string>
     <string name="chat_start_conversation">开始一段对话</string>
     <string name="chat_input_placeholder">消息</string>
+    <string name="chat_read_receipt">已读</string>
 
     <string name="user_list_empty_following">还没有关注任何人</string>
     <string name="user_list_empty_followers">还没有粉丝</string>

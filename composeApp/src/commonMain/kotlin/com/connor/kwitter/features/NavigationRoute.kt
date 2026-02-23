@@ -68,6 +68,7 @@ sealed interface NavigationRoute {
     data class Chat(
         val conversationId: String? = null,
         val otherUserId: String,
-        val otherUserDisplayName: String
+        val otherUserDisplayName: String,
+        val otherUserAvatarUrl: String? = null
     ) : NavigationRoute
 }

@@ -2,6 +2,7 @@ package com.connor.kwitter.features.chat
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,18 +41,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
+import coil3.compose.AsyncImage
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.util.formatPostTime
+import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
@@ -61,6 +67,7 @@ import kotlinx.coroutines.flow.Flow
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.chat_input_placeholder
 import kwitter.composeapp.generated.resources.chat_load_failed
+import kwitter.composeapp.generated.resources.chat_read_receipt
 import kwitter.composeapp.generated.resources.chat_start_conversation
 import org.jetbrains.compose.resources.stringResource
 
@@ -79,6 +86,7 @@ fun ChatScreen(
     val loadFailedText = stringResource(Res.string.chat_load_failed)
     val emptyHint = stringResource(Res.string.chat_start_conversation)
     val inputPlaceholder = stringResource(Res.string.chat_input_placeholder)
+    val readReceiptText = stringResource(Res.string.chat_read_receipt)
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -123,7 +131,11 @@ fun ChatScreen(
             NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 ChatTopBar(
                     displayName = state.otherUserDisplayName,
-                    onBackClick = { onAction(ChatNavAction.BackClick) }
+                    avatarUrl = state.otherUserAvatarUrl,
+                    onBackClick = { onAction(ChatNavAction.BackClick) },
+                    onProfileClick = {
+                        onAction(ChatNavAction.UserProfileClick(state.otherUserId))
+                    }
                 )
             }
         },
@@ -190,7 +202,7 @@ fun ChatScreen(
                         end = 16.dp,
                         bottom = 8.dp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(
                         count = lazyPagingItems.itemCount,
@@ -200,7 +212,13 @@ fun ChatScreen(
                         val isSentByMe = message.senderId == state.currentUserId
                         MessageBubble(
                             message = message,
-                            isSentByMe = isSentByMe
+                            isSentByMe = isSentByMe,
+                            otherUserDisplayName = state.otherUserDisplayName,
+                            otherUserAvatarUrl = state.otherUserAvatarUrl,
+                            readReceiptText = readReceiptText,
+                            onOtherUserClick = {
+                                onAction(ChatNavAction.UserProfileClick(state.otherUserId))
+                            }
                         )
                     }
 
@@ -226,16 +244,29 @@ fun ChatScreen(
 @Composable
 private fun ChatTopBar(
     displayName: String,
-    onBackClick: () -> Unit
+    avatarUrl: String?,
+    onBackClick: () -> Unit,
+    onProfileClick: () -> Unit
 ) {
     GlassTopBar {
         CenterAlignedTopAppBar(
             title = {
-                GlassTopBarTitle(
-                    text = displayName,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    ChatParticipantAvatar(
+                        name = displayName,
+                        avatarUrl = avatarUrl,
+                        size = 34.dp,
+                        onClick = onProfileClick
+                    )
+                    GlassTopBarTitle(
+                        text = displayName,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             },
             navigationIcon = {
                 GlassTopBarBackButton(
@@ -254,57 +285,143 @@ private fun ChatTopBar(
 @Composable
 private fun MessageBubble(
     message: Message,
-    isSentByMe: Boolean
+    isSentByMe: Boolean,
+    otherUserDisplayName: String,
+    otherUserAvatarUrl: String?,
+    readReceiptText: String,
+    onOtherUserClick: () -> Unit
 ) {
-    Column(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = if (isSentByMe) Alignment.End else Alignment.Start
+        horizontalArrangement = if (isSentByMe) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom
     ) {
-        Box(
-            modifier = Modifier
-                .widthIn(max = 280.dp)
-                .background(
-                    color = if (isSentByMe) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainerHigh
-                    },
-                    shape = RoundedCornerShape(
-                        topStart = 16.dp,
-                        topEnd = 16.dp,
-                        bottomStart = if (isSentByMe) 16.dp else 4.dp,
-                        bottomEnd = if (isSentByMe) 4.dp else 16.dp
-                    )
-                )
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-        ) {
-            Text(
-                text = message.content,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isSentByMe) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                }
+        if (!isSentByMe) {
+            ChatParticipantAvatar(
+                name = otherUserDisplayName,
+                avatarUrl = otherUserAvatarUrl,
+                size = 40.dp,
+                modifier = Modifier.padding(bottom = 16.dp),
+                onClick = onOtherUserClick
             )
+            Spacer(modifier = Modifier.width(10.dp))
         }
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+        Column(
+            horizontalAlignment = if (isSentByMe) Alignment.End else Alignment.Start
         ) {
-            Text(
-                text = formatPostTime(message.createdAt),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (isSentByMe && message.readAt != null) {
-                ReadReceiptIcon(
-                    modifier = Modifier.size(12.dp),
-                    color = MaterialTheme.colorScheme.primary
+            Box(
+                modifier = Modifier
+                    .widthIn(max = 340.dp)
+                    .background(
+                        color = if (isSentByMe) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.surfaceContainerHigh
+                        },
+                        shape = RoundedCornerShape(
+                            topStart = 18.dp,
+                            topEnd = 18.dp,
+                            bottomStart = if (isSentByMe) 18.dp else 6.dp,
+                            bottomEnd = if (isSentByMe) 6.dp else 18.dp
+                        )
+                    )
+                    .padding(horizontal = 16.dp, vertical = 11.dp)
+            ) {
+                Text(
+                    text = message.content,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (isSentByMe) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
                 )
             }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    text = formatPostTime(message.createdAt),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (isSentByMe && message.readAt != null) {
+                    ReadReceiptBadge(text = readReceiptText)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadReceiptBadge(text: String) {
+    val receiptColor = MaterialTheme.colorScheme.primary
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.primaryContainer)
+            .padding(horizontal = 7.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = receiptColor
+        )
+    }
+}
+
+@Composable
+private fun ChatParticipantAvatar(
+    name: String,
+    avatarUrl: String?,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    val initial = name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    val avatarModifier = modifier
+        .size(size)
+        .clip(CircleShape)
+        .let { base ->
+            if (onClick != null) {
+                base.clickable(onClick = onClick)
+            } else {
+                base
+            }
+        }
+
+    if (!avatarUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = resolveBackendUrl(avatarUrl),
+            contentDescription = name,
+            contentScale = ContentScale.Crop,
+            modifier = avatarModifier
+        )
+    } else {
+        Box(
+            modifier = avatarModifier.background(
+                brush = Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                ),
+                shape = CircleShape
+            ),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
         }
     }
 }
@@ -340,7 +457,7 @@ private fun ChatInputBar(
                 placeholder = {
                     Text(
                         text = inputPlaceholder,
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyLarge
                     )
                 },
                 shape = RoundedCornerShape(24.dp),
@@ -349,7 +466,7 @@ private fun ChatInputBar(
                     unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
                 ),
                 maxLines = 4,
-                textStyle = MaterialTheme.typography.bodyMedium
+                textStyle = MaterialTheme.typography.bodyLarge
             )
 
             Spacer(modifier = Modifier.width(8.dp))
@@ -412,29 +529,5 @@ private fun SendIcon(
         drawLine(resolvedColor, Offset(right, centerY), Offset(right - size.width * 0.25f, arrowTop), stroke, cap = StrokeCap.Round)
         // Arrow head bottom
         drawLine(resolvedColor, Offset(right, centerY), Offset(right - size.width * 0.25f, arrowBottom), stroke, cap = StrokeCap.Round)
-    }
-}
-
-@Composable
-private fun ReadReceiptIcon(
-    modifier: Modifier = Modifier,
-    color: Color = Color.Unspecified
-) {
-    val resolvedColor = if (color == Color.Unspecified) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        color
-    }
-    Canvas(modifier = modifier) {
-        val stroke = size.minDimension * 0.14f
-        // Double checkmark
-        val y1 = size.height * 0.6f
-        val y2 = size.height * 0.35f
-        // First check
-        drawLine(resolvedColor, Offset(size.width * 0.1f, size.height * 0.5f), Offset(size.width * 0.35f, y1), stroke, cap = StrokeCap.Round)
-        drawLine(resolvedColor, Offset(size.width * 0.35f, y1), Offset(size.width * 0.6f, y2), stroke, cap = StrokeCap.Round)
-        // Second check (offset)
-        drawLine(resolvedColor, Offset(size.width * 0.3f, size.height * 0.5f), Offset(size.width * 0.55f, y1), stroke, cap = StrokeCap.Round)
-        drawLine(resolvedColor, Offset(size.width * 0.55f, y1), Offset(size.width * 0.85f, y2), stroke, cap = StrokeCap.Round)
     }
 }

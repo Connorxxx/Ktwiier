@@ -17,7 +17,8 @@ sealed interface ConversationListNavAction : ConversationListIntent {
     data class ConversationClick(
         val conversationId: String,
         val otherUserId: String,
-        val otherUserDisplayName: String
+        val otherUserDisplayName: String,
+        val otherUserAvatarUrl: String?
     ) : ConversationListNavAction
 }
 

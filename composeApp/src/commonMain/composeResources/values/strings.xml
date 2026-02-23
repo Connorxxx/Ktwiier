@@ -123,6 +123,7 @@
     <string name="chat_load_failed">Failed to load messages</string>
     <string name="chat_start_conversation">Start a conversation</string>
     <string name="chat_input_placeholder">Message</string>
+    <string name="chat_read_receipt">Read</string>
 
     <string name="user_list_empty_following">Not following anyone yet</string>
     <string name="user_list_empty_followers">No followers yet</string>

@@ -340,10 +340,6 @@ private fun HomeTopBarTitle() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        KwitterLogo(
-            modifier = Modifier.size(20.dp),
-            color = MaterialTheme.colorScheme.primary
-        )
         Text(
             text = stringResource(Res.string.home_top_title),
             style = MaterialTheme.typography.titleMedium,
@@ -526,50 +522,6 @@ private fun HomeProfileAvatar(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun KwitterLogo(
-    modifier: Modifier = Modifier,
-    color: Color = Color.Unspecified
-) {
-    val resolvedColor = if (color == Color.Unspecified) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        color
-    }
-    Canvas(modifier = modifier) {
-        val stroke = size.minDimension * 0.14f
-        val left = size.width * 0.25f
-        val top = size.height * 0.1f
-        val bottom = size.height * 0.9f
-        val midY = size.height * 0.5f
-        val right = size.width * 0.78f
-        // Vertical stroke
-        drawLine(
-            resolvedColor,
-            Offset(left, top),
-            Offset(left, bottom),
-            stroke,
-            cap = StrokeCap.Round
-        )
-        // Upper diagonal
-        drawLine(
-            resolvedColor,
-            Offset(left, midY),
-            Offset(right, top),
-            stroke,
-            cap = StrokeCap.Round
-        )
-        // Lower diagonal
-        drawLine(
-            resolvedColor,
-            Offset(left, midY),
-            Offset(right, bottom),
-            stroke,
-            cap = StrokeCap.Round
-        )
     }
 }
 

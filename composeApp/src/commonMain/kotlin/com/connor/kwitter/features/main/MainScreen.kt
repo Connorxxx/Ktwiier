@@ -495,7 +495,8 @@ fun MainScreen(
                                     NavigationRoute.Chat(
                                         conversationId = null,
                                         otherUserId = action.userId,
-                                        otherUserDisplayName = action.displayName
+                                        otherUserDisplayName = action.displayName,
+                                        otherUserAvatarUrl = state.profile?.avatarUrl
                                     )
                                 )
                             }
@@ -704,7 +705,8 @@ fun MainScreen(
                                     NavigationRoute.Chat(
                                         conversationId = action.conversationId,
                                         otherUserId = action.otherUserId,
-                                        otherUserDisplayName = action.otherUserDisplayName
+                                        otherUserDisplayName = action.otherUserDisplayName,
+                                        otherUserAvatarUrl = action.otherUserAvatarUrl
                                     )
                                 )
                             }
@@ -722,12 +724,13 @@ fun MainScreen(
                     onBack = mainState.onBack
                 )
 
-                LaunchedEffect(route.conversationId, route.otherUserId) {
+                LaunchedEffect(route.conversationId, route.otherUserId, route.otherUserAvatarUrl) {
                     vm.onEvent(
                         ChatAction.Load(
                             conversationId = route.conversationId,
                             otherUserId = route.otherUserId,
-                            otherUserDisplayName = route.otherUserDisplayName
+                            otherUserDisplayName = route.otherUserDisplayName,
+                            otherUserAvatarUrl = route.otherUserAvatarUrl
                         )
                     )
                 }
@@ -742,6 +745,9 @@ fun MainScreen(
                             is ChatAction -> vm.onEvent(action)
                             is ChatNavAction -> when (action) {
                                 ChatNavAction.BackClick -> mainState.onBack()
+                                is ChatNavAction.UserProfileClick -> mainState.onNavigate(
+                                    NavigationRoute.UserProfile(userId = action.userId)
+                                )
                             }
                         }
                     }

@@ -186,7 +186,8 @@ fun ConversationListScreen(
                                         ConversationListNavAction.ConversationClick(
                                             conversationId = conversation.id,
                                             otherUserId = conversation.otherUser.id,
-                                            otherUserDisplayName = conversation.otherUser.displayName
+                                            otherUserDisplayName = conversation.otherUser.displayName,
+                                            otherUserAvatarUrl = conversation.otherUser.avatarUrl
                                         )
                                     )
                                 }

@@ -30,6 +30,7 @@ data class ChatUiState(
     val conversationId: String? = null,
     val otherUserId: String = "",
     val otherUserDisplayName: String = "",
+    val otherUserAvatarUrl: String? = null,
     val currentUserId: String? = null,
     val isSending: Boolean = false,
     val messageInput: String = "",
@@ -42,7 +43,8 @@ sealed interface ChatAction : ChatIntent {
     data class Load(
         val conversationId: String?,
         val otherUserId: String,
-        val otherUserDisplayName: String
+        val otherUserDisplayName: String,
+        val otherUserAvatarUrl: String?
     ) : ChatAction
     data class UpdateMessageInput(val text: String) : ChatAction
     data object SendMessage : ChatAction
@@ -51,6 +53,7 @@ sealed interface ChatAction : ChatIntent {
 
 sealed interface ChatNavAction : ChatIntent {
     data object BackClick : ChatNavAction
+    data class UserProfileClick(val userId: String) : ChatNavAction
 }
 
 class ChatViewModel(
@@ -97,6 +100,7 @@ class ChatViewModel(
                             conversationId = action.conversationId,
                             otherUserId = action.otherUserId,
                             otherUserDisplayName = action.otherUserDisplayName,
+                            otherUserAvatarUrl = action.otherUserAvatarUrl,
                             error = null
                         )
                     }
