@@ -706,6 +706,7 @@ fun MainScreen(
 
             entry<NavigationRoute.ConversationList>(metadata = mainTabSceneMetadata) {
                 val vm: ConversationListViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
                 val onNativeTopBarModel = rememberNativeTopBarBinding(
                     coordinator = topBarCoordinator,
                     route = NavigationRoute.ConversationList,
@@ -713,8 +714,8 @@ fun MainScreen(
                 )
 
                 ConversationListScreen(
+                    state = state,
                     pagingFlow = vm.pagingFlow,
-                    onlineStatus = vm.onlineStatus,
                     useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = onNativeTopBarModel,
                     onAction = { action ->

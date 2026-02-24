@@ -26,9 +26,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,7 +55,6 @@ import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.messaging.model.Conversation
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.chat_message_deleted
 import kwitter.composeapp.generated.resources.chat_message_recalled
@@ -70,14 +66,14 @@ import org.jetbrains.compose.resources.stringResource
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationListScreen(
+    state: ConversationListUiState,
     pagingFlow: Flow<PagingData<Conversation>>,
-    onlineStatus: StateFlow<Map<String, Boolean>>,
     useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (ConversationListIntent) -> Unit
 ) {
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
-    val onlineMap by onlineStatus.collectAsState()
+    val onlineMap = state.onlineStatus
     val listTitle = stringResource(Res.string.conversation_list_title)
     val loadFailedText = stringResource(Res.string.conversation_list_load_failed)
     val emptyText = stringResource(Res.string.conversation_list_empty)

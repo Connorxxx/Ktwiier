@@ -1,7 +1,15 @@
 package com.connor.kwitter.features.settings
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.cash.molecule.RecompositionMode
+import app.cash.molecule.launchMolecule
 import com.connor.kwitter.core.result.Result
 import com.connor.kwitter.core.result.asResult
 import com.connor.kwitter.core.result.uiResultOf
@@ -9,12 +17,10 @@ import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.features.auth.AuthUiError
 import com.connor.kwitter.features.auth.toAuthUiError
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.receiveAsFlow
 
 sealed interface SettingsInfoMessage {
     data object ChangePasswordInDevelopment : SettingsInfoMessage
@@ -47,71 +53,74 @@ class SettingsViewModel(
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(SettingsUiState())
-    val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+    private val events = Channel<SettingsAction>(Channel.UNLIMITED)
 
-    fun onEvent(action: SettingsAction) {
-        when (action) {
-            is SettingsAction.AllowDefaultPmChanged -> {
-                _uiState.update { it.copy(allowDefaultPm = action.enabled) }
-            }
-            SettingsAction.ChangePasswordClick -> {
-                _uiState.update {
-                    it.copy(infoMessage = SettingsInfoMessage.ChangePasswordInDevelopment)
-                }
-            }
-            SettingsAction.ChangePasswordMessageConsumed -> {
-                _uiState.update { it.copy(infoMessage = null) }
-            }
-            SettingsAction.LogoutClick -> {
-                _uiState.update { it.copy(isLogoutDialogVisible = true) }
-            }
-            SettingsAction.LogoutDismiss -> {
-                _uiState.update { it.copy(isLogoutDialogVisible = false) }
-            }
-            SettingsAction.LogoutConfirm -> {
-                performLogout()
-            }
-            SettingsAction.ErrorDismissed -> {
-                _uiState.update { it.copy(error = null) }
-            }
-        }
+    val uiState: StateFlow<SettingsUiState> = viewModelScope.launchMolecule(
+        mode = RecompositionMode.Immediate
+    ) {
+        SettingsPresenter()
     }
 
-    private fun performLogout() {
-        val state = _uiState.value
-        if (state.isLoggingOut) return
+    fun onEvent(action: SettingsAction) {
+        events.trySend(action)
+    }
 
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(
-                    isLoggingOut = true,
-                    isLogoutDialogVisible = false,
-                    error = null
-                )
-            }
+    @Composable
+    private fun SettingsPresenter(): SettingsUiState {
+        var state by remember { mutableStateOf(SettingsUiState()) }
 
-            flow {
-                emit(authRepository.logout())
-            }.asResult(::formatAuthError).collect { result ->
-                _uiState.update { current ->
-                    when (result) {
-                        Result.Loading -> current.copy(
-                            isLoggingOut = true,
-                            error = null
-                        )
-                        is Result.Success -> current.copy(
-                            isLoggingOut = false,
-                            error = null
-                        )
-                        is Result.Error -> current.copy(
-                            isLoggingOut = false,
-                            error = result.error
-                        )
+        LaunchedEffect(Unit) {
+            events.receiveAsFlow().collect { action ->
+                state = when (action) {
+                    is SettingsAction.AllowDefaultPmChanged -> {
+                        state.copy(allowDefaultPm = action.enabled)
+                    }
+                    SettingsAction.ChangePasswordClick -> {
+                        state.copy(infoMessage = SettingsInfoMessage.ChangePasswordInDevelopment)
+                    }
+                    SettingsAction.ChangePasswordMessageConsumed -> {
+                        state.copy(infoMessage = null)
+                    }
+                    SettingsAction.LogoutClick -> {
+                        state.copy(isLogoutDialogVisible = true)
+                    }
+                    SettingsAction.LogoutDismiss -> {
+                        state.copy(isLogoutDialogVisible = false)
+                    }
+                    SettingsAction.LogoutConfirm -> {
+                        if (state.isLoggingOut) {
+                            state
+                        } else {
+                            flow {
+                                emit(authRepository.logout())
+                            }.asResult(::formatAuthError).collect { result ->
+                                state = when (result) {
+                                    Result.Loading -> state.copy(
+                                        isLoggingOut = true,
+                                        isLogoutDialogVisible = false,
+                                        error = null
+                                    )
+                                    is Result.Success -> state.copy(
+                                        isLoggingOut = false,
+                                        error = null
+                                    )
+                                    is Result.Error -> state.copy(
+                                        isLoggingOut = false,
+                                        error = result.error
+                                    )
+                                }
+                            }
+                            state
+                        }
+                    }
+                    SettingsAction.ErrorDismissed -> {
+                        state.copy(error = null)
                     }
                 }
             }
         }
+
+        return state
     }
 
     private fun formatAuthError(error: AuthError): AuthUiError =

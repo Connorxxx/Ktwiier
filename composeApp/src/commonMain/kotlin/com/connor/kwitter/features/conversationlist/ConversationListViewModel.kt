@@ -1,15 +1,18 @@
 package com.connor.kwitter.features.conversationlist
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
+import app.cash.molecule.RecompositionMode
+import app.cash.molecule.launchMolecule
 import com.connor.kwitter.domain.messaging.model.Conversation
 import com.connor.kwitter.domain.messaging.repository.MessagingRepository
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 
 sealed interface ConversationListIntent
 
@@ -25,15 +28,30 @@ sealed interface ConversationListNavAction : ConversationListIntent {
     ) : ConversationListNavAction
 }
 
+data class ConversationListUiState(
+    val onlineStatus: Map<String, Boolean> = emptyMap()
+)
+
 class ConversationListViewModel(
-    messagingRepository: MessagingRepository
+    private val messagingRepository: MessagingRepository
 ) : ViewModel() {
 
     val pagingFlow: Flow<PagingData<Conversation>> = messagingRepository
         .conversationsPaging
         .cachedIn(viewModelScope)
 
-    val onlineStatus: StateFlow<Map<String, Boolean>> = messagingRepository
-        .onlineStatus()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    val uiState: StateFlow<ConversationListUiState> = viewModelScope.launchMolecule(
+        mode = RecompositionMode.Immediate
+    ) {
+        ConversationListPresenter()
+    }
+
+    @Composable
+    private fun ConversationListPresenter(): ConversationListUiState {
+        val onlineStatus by messagingRepository
+            .onlineStatus()
+            .collectAsState(initial = emptyMap())
+
+        return ConversationListUiState(onlineStatus = onlineStatus)
+    }
 }
