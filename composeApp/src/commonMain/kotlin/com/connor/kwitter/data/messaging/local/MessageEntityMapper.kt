@@ -10,7 +10,10 @@ fun Message.toEntity(orderIndex: Int): MessageEntity = MessageEntity(
     imageUrl = imageUrl,
     readAt = readAt,
     createdAt = createdAt,
-    orderIndex = orderIndex
+    orderIndex = orderIndex,
+    replyToMessageId = replyToMessageId,
+    deletedAt = deletedAt,
+    recalledAt = recalledAt
 )
 
 fun MessageEntity.toDomain(): Message = Message(
@@ -20,5 +23,8 @@ fun MessageEntity.toDomain(): Message = Message(
     content = content,
     imageUrl = imageUrl,
     readAt = readAt,
-    createdAt = createdAt
+    createdAt = createdAt,
+    replyToMessageId = replyToMessageId,
+    deletedAt = deletedAt,
+    recalledAt = recalledAt
 )

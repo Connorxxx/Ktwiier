@@ -6,6 +6,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
 import arrow.core.Either
+import kotlin.time.Clock
 import com.connor.kwitter.data.messaging.datasource.ConversationRemoteMediator
 import com.connor.kwitter.data.messaging.datasource.MessageRemoteMediator
 import com.connor.kwitter.data.messaging.datasource.MessagingRemoteDataSource
@@ -23,6 +24,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -34,14 +37,19 @@ class MessagingRepositoryImpl(
     private val notificationService: NotificationService,
     private val conversationDao: ConversationDao,
     private val messageDao: MessageDao,
-    repositoryScope: CoroutineScope
+    private val repositoryScope: CoroutineScope
 ) : MessagingRepository {
 
     private val conversationsRefreshTrigger = MutableStateFlow(0L)
+    private val _typingState = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    private val _onlineStatus = MutableStateFlow<Map<String, Boolean>>(emptyMap())
 
     init {
         repositoryScope.launch { observeNewMessages() }
         repositoryScope.launch { observeMessagesRead() }
+        repositoryScope.launch { observeMessageRecalled() }
+        repositoryScope.launch { observeTypingIndicators() }
+        repositoryScope.launch { observePresence() }
     }
 
     @OptIn(ExperimentalPagingApi::class, ExperimentalCoroutinesApi::class)
@@ -72,15 +80,48 @@ class MessagingRepositoryImpl(
     override suspend fun sendMessage(
         recipientId: String,
         content: String,
-        imageUrl: String?
+        imageUrl: String?,
+        replyToMessageId: String?
     ): Either<MessagingError, Message> =
-        remoteDataSource.sendMessage(recipientId, content, imageUrl).onRight { message ->
+        remoteDataSource.sendMessage(recipientId, content, imageUrl, replyToMessageId).onRight { message ->
             // Insert sent message into Room at the newest position
             val minIndex = messageDao.getMinOrderIndex(message.conversationId) ?: 0
             messageDao.insert(message.toEntity(orderIndex = minIndex - 1))
             // Refresh conversations to reflect new message
             conversationsRefreshTrigger.update { it + 1 }
         }
+
+    override suspend fun deleteMessage(
+        messageId: String
+    ): Either<MessagingError, Unit> =
+        remoteDataSource.deleteMessage(messageId).onRight {
+            val now = Clock.System.now().toEpochMilliseconds()
+            messageDao.markMessageAsDeleted(messageId, now)
+            conversationDao.updateLastMessageDeleted(messageId, now)
+        }
+
+    override suspend fun recallMessage(
+        messageId: String
+    ): Either<MessagingError, Unit> =
+        remoteDataSource.recallMessage(messageId).onRight {
+            val now = Clock.System.now().toEpochMilliseconds()
+            messageDao.markMessageAsRecalled(messageId, now)
+            conversationDao.updateLastMessageRecalled(messageId, now)
+        }
+
+    override fun typingIndicators(conversationId: String): Flow<Boolean> =
+        _typingState.map { it[conversationId] ?: false }
+
+    override fun onlineStatus(): Flow<Map<String, Boolean>> =
+        _onlineStatus.asStateFlow()
+
+    override fun sendTyping(conversationId: String) {
+        repositoryScope.launch { notificationService.sendTyping(conversationId) }
+    }
+
+    override fun sendStopTyping(conversationId: String) {
+        repositoryScope.launch { notificationService.sendStopTyping(conversationId) }
+    }
 
     override suspend fun markAsRead(
         conversationId: String
@@ -139,6 +180,35 @@ class MessagingRepositoryImpl(
                     readAt = event.timestamp
                 )
                 conversationDao.updateUnreadCount(event.conversationId, 0)
+            }
+    }
+
+    private suspend fun observeMessageRecalled() {
+        notificationService.notificationEvents
+            .filterIsInstance<NotificationEvent.MessageRecalled>()
+            .collect { event ->
+                messageDao.markMessageAsRecalled(event.messageId, event.timestamp)
+                conversationDao.updateLastMessageRecalled(event.messageId, event.timestamp)
+            }
+    }
+
+    private suspend fun observeTypingIndicators() {
+        notificationService.notificationEvents
+            .filterIsInstance<NotificationEvent.TypingIndicator>()
+            .collect { event ->
+                _typingState.update { current ->
+                    current + (event.conversationId to event.isTyping)
+                }
+            }
+    }
+
+    private suspend fun observePresence() {
+        notificationService.notificationEvents
+            .filterIsInstance<NotificationEvent.UserPresenceChanged>()
+            .collect { event ->
+                _onlineStatus.update { current ->
+                    current + (event.userId to event.isOnline)
+                }
             }
     }
 }

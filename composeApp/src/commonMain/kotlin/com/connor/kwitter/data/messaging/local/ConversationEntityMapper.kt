@@ -15,6 +15,8 @@ fun Conversation.toEntity(orderIndex: Int): ConversationEntity = ConversationEnt
     lastMessageSenderId = lastMessage?.senderId,
     lastMessageReadAt = lastMessage?.readAt,
     lastMessageCreatedAt = lastMessage?.createdAt,
+    lastMessageDeletedAt = lastMessage?.deletedAt,
+    lastMessageRecalledAt = lastMessage?.recalledAt,
     unreadCount = unreadCount,
     createdAt = createdAt,
     orderIndex = orderIndex
@@ -36,7 +38,9 @@ fun ConversationEntity.toDomain(): Conversation = Conversation(
             content = lastMessageContent,
             imageUrl = null,
             readAt = lastMessageReadAt,
-            createdAt = lastMessageCreatedAt
+            createdAt = lastMessageCreatedAt,
+            deletedAt = lastMessageDeletedAt,
+            recalledAt = lastMessageRecalledAt
         )
     } else null,
     unreadCount = unreadCount,

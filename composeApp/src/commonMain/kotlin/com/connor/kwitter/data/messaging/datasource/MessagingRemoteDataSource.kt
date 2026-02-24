@@ -10,6 +10,7 @@ import com.connor.kwitter.domain.messaging.model.MessageList
 import com.connor.kwitter.domain.messaging.model.MessagingError
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.request.post
@@ -28,6 +29,7 @@ class MessagingRemoteDataSource(
 ) {
     private companion object {
         const val CONVERSATIONS_PATH = "/v1/conversations"
+        const val MESSAGES_PATH = "/v1/messages"
     }
 
     suspend fun getConversations(
@@ -72,18 +74,47 @@ class MessagingRemoteDataSource(
     suspend fun sendMessage(
         recipientId: String,
         content: String,
-        imageUrl: String?
+        imageUrl: String?,
+        replyToMessageId: String? = null
     ): Either<MessagingError, Message> = either {
         try {
             val response: HttpResponse = httpClient.post(
                 endpoint("$CONVERSATIONS_PATH/messages")
             ) {
                 contentType(ContentType.Application.Json)
-                setBody(SendMessageRequestDto(recipientId, content, imageUrl))
+                setBody(SendMessageRequestDto(recipientId, content, imageUrl, replyToMessageId))
             }
             handleResponse(response) {
                 it.body<MessageDto>().toDomain()
             }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            raise(MessagingError.NetworkError("Network request failed: ${e.message}"))
+        }
+    }
+
+    suspend fun deleteMessage(
+        messageId: String
+    ): Either<MessagingError, Unit> = either {
+        try {
+            val response: HttpResponse = httpClient.delete(
+                endpoint("$MESSAGES_PATH/$messageId")
+            )
+            handleResponse(response) { }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            raise(MessagingError.NetworkError("Network request failed: ${e.message}"))
+        }
+    }
+
+    suspend fun recallMessage(
+        messageId: String
+    ): Either<MessagingError, Unit> = either {
+        try {
+            val response: HttpResponse = httpClient.put(
+                endpoint("$MESSAGES_PATH/$messageId/recall")
+            )
+            handleResponse(response) { }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             raise(MessagingError.NetworkError("Network request failed: ${e.message}"))
@@ -153,7 +184,10 @@ private data class MessageDto(
     val content: String,
     val imageUrl: String? = null,
     val readAt: Long? = null,
-    val createdAt: Long
+    val createdAt: Long,
+    val replyToMessageId: String? = null,
+    val deletedAt: Long? = null,
+    val recalledAt: Long? = null
 )
 
 @Serializable
@@ -181,7 +215,8 @@ private data class MessageListResponseDto(
 private data class SendMessageRequestDto(
     val recipientId: String,
     val content: String,
-    val imageUrl: String? = null
+    val imageUrl: String? = null,
+    val replyToMessageId: String? = null
 )
 
 private fun ConversationUserDto.toDomain(): ConversationUser = ConversationUser(
@@ -198,7 +233,10 @@ private fun MessageDto.toDomain(): Message = Message(
     content = content,
     imageUrl = imageUrl,
     readAt = readAt,
-    createdAt = createdAt
+    createdAt = createdAt,
+    replyToMessageId = replyToMessageId,
+    deletedAt = deletedAt,
+    recalledAt = recalledAt
 )
 
 private fun ConversationDto.toDomain(): Conversation = Conversation(

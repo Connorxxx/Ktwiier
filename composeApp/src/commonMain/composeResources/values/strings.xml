@@ -124,6 +124,14 @@
     <string name="chat_start_conversation">Start a conversation</string>
     <string name="chat_input_placeholder">Message</string>
     <string name="chat_read_receipt">Read</string>
+    <string name="chat_message_deleted">Message deleted</string>
+    <string name="chat_message_recalled">Message recalled</string>
+    <string name="chat_typing">typing…</string>
+    <string name="chat_recall">Recall</string>
+    <string name="chat_delete">Delete</string>
+    <string name="chat_reply">Reply</string>
+    <string name="chat_recall_expired">Recall time expired</string>
+    <string name="chat_replying_to">Replying to</string>
 
     <string name="user_list_empty_following">Not following anyone yet</string>
     <string name="user_list_empty_followers">No followers yet</string>

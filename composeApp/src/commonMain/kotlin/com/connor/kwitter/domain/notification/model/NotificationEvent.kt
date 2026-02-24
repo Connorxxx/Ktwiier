@@ -40,4 +40,27 @@ sealed interface NotificationEvent {
         val readByUserId: String,
         val timestamp: Long
     ) : NotificationEvent
+
+    @Serializable
+    data class MessageRecalled(
+        val messageId: String,
+        val conversationId: String,
+        val recalledByUserId: String,
+        val timestamp: Long
+    ) : NotificationEvent
+
+    @Serializable
+    data class TypingIndicator(
+        val conversationId: String,
+        val userId: String,
+        val isTyping: Boolean,
+        val timestamp: Long
+    ) : NotificationEvent
+
+    @Serializable
+    data class UserPresenceChanged(
+        val userId: String,
+        val isOnline: Boolean,
+        val timestamp: Long
+    ) : NotificationEvent
 }

@@ -1,8 +1,13 @@
 package com.connor.kwitter.features.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +27,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,7 +42,10 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +54,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -64,10 +75,17 @@ import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.messaging.model.Message
 import kotlinx.coroutines.flow.Flow
 import kwitter.composeapp.generated.resources.Res
+import kwitter.composeapp.generated.resources.chat_delete
 import kwitter.composeapp.generated.resources.chat_input_placeholder
 import kwitter.composeapp.generated.resources.chat_load_failed
+import kwitter.composeapp.generated.resources.chat_message_deleted
+import kwitter.composeapp.generated.resources.chat_message_recalled
 import kwitter.composeapp.generated.resources.chat_read_receipt
+import kwitter.composeapp.generated.resources.chat_recall
+import kwitter.composeapp.generated.resources.chat_reply
+import kwitter.composeapp.generated.resources.chat_replying_to
 import kwitter.composeapp.generated.resources.chat_start_conversation
+import kwitter.composeapp.generated.resources.chat_typing
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,6 +104,13 @@ fun ChatScreen(
     val emptyHint = stringResource(Res.string.chat_start_conversation)
     val inputPlaceholder = stringResource(Res.string.chat_input_placeholder)
     val readReceiptText = stringResource(Res.string.chat_read_receipt)
+    val deletedText = stringResource(Res.string.chat_message_deleted)
+    val recalledText = stringResource(Res.string.chat_message_recalled)
+    val replyText = stringResource(Res.string.chat_reply)
+    val deleteText = stringResource(Res.string.chat_delete)
+    val recallText = stringResource(Res.string.chat_recall)
+    val typingText = stringResource(Res.string.chat_typing)
+    val replyingToText = stringResource(Res.string.chat_replying_to)
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -143,8 +168,11 @@ fun ChatScreen(
                 input = state.messageInput,
                 inputPlaceholder = inputPlaceholder,
                 isSending = state.isSending,
+                replyingToMessage = state.replyingToMessage,
+                replyingToText = replyingToText,
                 onInputChange = { onAction(ChatAction.UpdateMessageInput(it)) },
-                onSendClick = { onAction(ChatAction.SendMessage) }
+                onSendClick = { onAction(ChatAction.SendMessage) },
+                onCancelReply = { onAction(ChatAction.CancelReply) }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -203,6 +231,17 @@ fun ChatScreen(
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Typing indicator at the "bottom" (index 0 in reverse layout)
+                    if (state.isOtherUserTyping) {
+                        item(key = "typing_indicator") {
+                            TypingIndicator(
+                                displayName = state.otherUserDisplayName,
+                                avatarUrl = state.otherUserAvatarUrl,
+                                typingText = typingText
+                            )
+                        }
+                    }
+
                     items(
                         count = lazyPagingItems.itemCount,
                         key = lazyPagingItems.itemKey { it.id }
@@ -215,9 +254,17 @@ fun ChatScreen(
                             otherUserDisplayName = state.otherUserDisplayName,
                             otherUserAvatarUrl = state.otherUserAvatarUrl,
                             readReceiptText = readReceiptText,
+                            deletedText = deletedText,
+                            recalledText = recalledText,
+                            replyText = replyText,
+                            deleteText = deleteText,
+                            recallText = recallText,
                             onOtherUserClick = {
                                 onAction(ChatNavAction.UserProfileClick(state.otherUserId))
-                            }
+                            },
+                            onReply = { onAction(ChatAction.StartReply(message)) },
+                            onDelete = { onAction(ChatAction.DeleteMessage(message.id)) },
+                            onRecall = { onAction(ChatAction.RecallMessage(message.id)) }
                         )
                     }
 
@@ -282,14 +329,66 @@ private fun ChatTopBar(
 }
 
 @Composable
+private fun TypingIndicator(
+    displayName: String,
+    avatarUrl: String?,
+    typingText: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        ChatParticipantAvatar(
+            name = displayName,
+            avatarUrl = avatarUrl,
+            size = 40.dp,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Box(
+            modifier = Modifier
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shape = RoundedCornerShape(
+                        topStart = 18.dp,
+                        topEnd = 18.dp,
+                        bottomStart = 6.dp,
+                        bottomEnd = 18.dp
+                    )
+                )
+                .padding(horizontal = 16.dp, vertical = 11.dp)
+        ) {
+            Text(
+                text = typingText,
+                style = MaterialTheme.typography.bodyLarge,
+                fontStyle = FontStyle.Italic,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
 private fun MessageBubble(
     message: Message,
     isSentByMe: Boolean,
     otherUserDisplayName: String,
     otherUserAvatarUrl: String?,
     readReceiptText: String,
-    onOtherUserClick: () -> Unit
+    deletedText: String,
+    recalledText: String,
+    replyText: String,
+    deleteText: String,
+    recallText: String,
+    onOtherUserClick: () -> Unit,
+    onReply: () -> Unit,
+    onDelete: () -> Unit,
+    onRecall: () -> Unit
 ) {
+    var showContextMenu by remember { mutableStateOf(false) }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isSentByMe) Arrangement.End else Arrangement.Start,
@@ -309,33 +408,107 @@ private fun MessageBubble(
         Column(
             horizontalAlignment = if (isSentByMe) Alignment.End else Alignment.Start
         ) {
-            Box(
-                modifier = Modifier
-                    .widthIn(max = 340.dp)
-                    .background(
-                        color = if (isSentByMe) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainerHigh
-                        },
-                        shape = RoundedCornerShape(
-                            topStart = 18.dp,
-                            topEnd = 18.dp,
-                            bottomStart = if (isSentByMe) 18.dp else 6.dp,
-                            bottomEnd = if (isSentByMe) 6.dp else 18.dp
+            // Reply quote preview
+            if (message.replyToMessageId != null && message.isNormalMessage) {
+                Box(
+                    modifier = Modifier
+                        .widthIn(max = 340.dp)
+                        .padding(bottom = 2.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                            shape = RoundedCornerShape(12.dp)
                         )
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "\u21A9 ${message.replyToMessageId.take(8)}...",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    .padding(horizontal = 16.dp, vertical = 11.dp)
-            ) {
-                Text(
-                    text = message.content,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (isSentByMe) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
+                }
+            }
+
+            Box {
+                Box(
+                    modifier = Modifier
+                        .widthIn(max = 340.dp)
+                        .let { mod ->
+                            if (message.isNormalMessage) {
+                                mod.combinedClickable(
+                                    onClick = {},
+                                    onLongClick = { showContextMenu = true }
+                                )
+                            } else {
+                                mod
+                            }
+                        }
+                        .background(
+                            color = when {
+                                !message.isNormalMessage -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f)
+                                isSentByMe -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.surfaceContainerHigh
+                            },
+                            shape = RoundedCornerShape(
+                                topStart = 18.dp,
+                                topEnd = 18.dp,
+                                bottomStart = if (isSentByMe) 18.dp else 6.dp,
+                                bottomEnd = if (isSentByMe) 6.dp else 18.dp
+                            )
+                        )
+                        .padding(horizontal = 16.dp, vertical = 11.dp)
+                ) {
+                    Text(
+                        text = when {
+                            message.isDeleted -> deletedText
+                            message.isRecalled -> recalledText
+                            else -> message.content
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontStyle = if (!message.isNormalMessage) FontStyle.Italic else FontStyle.Normal,
+                        color = when {
+                            !message.isNormalMessage -> MaterialTheme.colorScheme.onSurfaceVariant
+                            isSentByMe -> MaterialTheme.colorScheme.onPrimary
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
+                    )
+                }
+
+                // Context menu
+                DropdownMenu(
+                    expanded = showContextMenu,
+                    onDismissRequest = { showContextMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(replyText) },
+                        onClick = {
+                            showContextMenu = false
+                            onReply()
+                        }
+                    )
+                    if (isSentByMe) {
+                        DropdownMenuItem(
+                            text = { Text(recallText) },
+                            onClick = {
+                                showContextMenu = false
+                                onRecall()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    deleteText,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            },
+                            onClick = {
+                                showContextMenu = false
+                                onDelete()
+                            }
+                        )
                     }
-                )
+                }
             }
 
             Row(
@@ -348,7 +521,7 @@ private fun MessageBubble(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (isSentByMe && message.readAt != null) {
+                if (isSentByMe && message.readAt != null && message.isNormalMessage) {
                     ReadReceiptBadge(text = readReceiptText)
                 }
             }
@@ -430,10 +603,65 @@ private fun ChatInputBar(
     input: String,
     inputPlaceholder: String,
     isSending: Boolean,
+    replyingToMessage: Message?,
+    replyingToText: String,
     onInputChange: (String) -> Unit,
-    onSendClick: () -> Unit
+    onSendClick: () -> Unit,
+    onCancelReply: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
+        // Reply preview bar
+        AnimatedVisibility(
+            visible = replyingToMessage != null,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            replyingToMessage?.let { msg ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(3.dp)
+                            .height(32.dp)
+                            .background(
+                                color = MaterialTheme.colorScheme.primary,
+                                shape = RoundedCornerShape(2.dp)
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = replyingToText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = msg.content,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    IconButton(
+                        onClick = onCancelReply,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Text(
+                            text = "\u2715",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()

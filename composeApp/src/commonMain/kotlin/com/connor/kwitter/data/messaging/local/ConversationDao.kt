@@ -68,4 +68,10 @@ interface ConversationDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrReplace(conversation: ConversationEntity)
+
+    @Query("UPDATE conversations SET lastMessageRecalledAt = :recalledAt WHERE lastMessageId = :messageId")
+    suspend fun updateLastMessageRecalled(messageId: String, recalledAt: Long)
+
+    @Query("UPDATE conversations SET lastMessageDeletedAt = :deletedAt WHERE lastMessageId = :messageId")
+    suspend fun updateLastMessageDeleted(messageId: String, deletedAt: Long)
 }

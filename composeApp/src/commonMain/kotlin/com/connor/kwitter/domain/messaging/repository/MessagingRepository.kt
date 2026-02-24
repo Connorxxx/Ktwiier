@@ -10,6 +10,17 @@ import kotlinx.coroutines.flow.Flow
 interface MessagingRepository {
     val conversationsPaging: Flow<PagingData<Conversation>>
     fun messagesPaging(conversationId: String): Flow<PagingData<Message>>
-    suspend fun sendMessage(recipientId: String, content: String, imageUrl: String? = null): Either<MessagingError, Message>
+    suspend fun sendMessage(
+        recipientId: String,
+        content: String,
+        imageUrl: String? = null,
+        replyToMessageId: String? = null
+    ): Either<MessagingError, Message>
+    suspend fun deleteMessage(messageId: String): Either<MessagingError, Unit>
+    suspend fun recallMessage(messageId: String): Either<MessagingError, Unit>
     suspend fun markAsRead(conversationId: String): Either<MessagingError, Unit>
+    fun typingIndicators(conversationId: String): Flow<Boolean>
+    fun onlineStatus(): Flow<Map<String, Boolean>>
+    fun sendTyping(conversationId: String)
+    fun sendStopTyping(conversationId: String)
 }

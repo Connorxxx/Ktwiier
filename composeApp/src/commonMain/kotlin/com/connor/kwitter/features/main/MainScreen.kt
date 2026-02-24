@@ -695,6 +695,7 @@ fun MainScreen(
 
                 ConversationListScreen(
                     pagingFlow = vm.pagingFlow,
+                    onlineStatus = vm.onlineStatus,
                     useNativeTopBar = useNativeTopBar,
                     onNativeTopBarModel = onNativeTopBarModel,
                     onAction = { action ->

@@ -16,6 +16,8 @@ data class ConversationEntity(
     val lastMessageSenderId: String?,
     val lastMessageReadAt: Long?,
     val lastMessageCreatedAt: Long?,
+    val lastMessageDeletedAt: Long? = null,
+    val lastMessageRecalledAt: Long? = null,
     val unreadCount: Int,
     val createdAt: Long,
     val orderIndex: Int

@@ -124,6 +124,14 @@
     <string name="chat_start_conversation">开始一段对话</string>
     <string name="chat_input_placeholder">消息</string>
     <string name="chat_read_receipt">已读</string>
+    <string name="chat_message_deleted">消息已删除</string>
+    <string name="chat_message_recalled">消息已撤回</string>
+    <string name="chat_typing">正在输入…</string>
+    <string name="chat_recall">撤回</string>
+    <string name="chat_delete">删除</string>
+    <string name="chat_reply">回复</string>
+    <string name="chat_recall_expired">已超过撤回时限</string>
+    <string name="chat_replying_to">回复</string>
 
     <string name="user_list_empty_following">还没有关注任何人</string>
     <string name="user_list_empty_followers">还没有粉丝</string>

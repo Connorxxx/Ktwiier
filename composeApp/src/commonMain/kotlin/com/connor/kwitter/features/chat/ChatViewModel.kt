@@ -18,13 +18,16 @@ import com.connor.kwitter.domain.messaging.model.Message
 import com.connor.kwitter.domain.messaging.model.MessagingError
 import com.connor.kwitter.domain.messaging.repository.MessagingRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 
 data class ChatUiState(
     val conversationId: String? = null,
@@ -34,7 +37,9 @@ data class ChatUiState(
     val currentUserId: String? = null,
     val isSending: Boolean = false,
     val messageInput: String = "",
-    val error: String? = null
+    val error: String? = null,
+    val isOtherUserTyping: Boolean = false,
+    val replyingToMessage: Message? = null
 )
 
 sealed interface ChatIntent
@@ -49,6 +54,10 @@ sealed interface ChatAction : ChatIntent {
     data class UpdateMessageInput(val text: String) : ChatAction
     data object SendMessage : ChatAction
     data object ErrorDismissed : ChatAction
+    data class DeleteMessage(val messageId: String) : ChatAction
+    data class RecallMessage(val messageId: String) : ChatAction
+    data class StartReply(val message: Message) : ChatAction
+    data object CancelReply : ChatAction
 }
 
 sealed interface ChatNavAction : ChatIntent {
@@ -63,6 +72,11 @@ class ChatViewModel(
 
     private val _events = Channel<ChatAction>(Channel.UNLIMITED)
     private val _conversationId = MutableStateFlow<String?>(null)
+    private var typingJob: Job? = null
+
+    companion object {
+        private const val TYPING_DEBOUNCE_MS = 3000L
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val pagingFlow: Flow<PagingData<Message>> = _conversationId
@@ -88,6 +102,16 @@ class ChatViewModel(
     private fun ChatPresenter(): ChatUiState {
         var state by remember { mutableStateOf(ChatUiState()) }
         val currentUserId by authRepository.currentUserId.collectAsState(initial = null)
+        val conversationId = state.conversationId
+
+        // Observe typing indicators for current conversation
+        val isOtherUserTyping by remember(conversationId) {
+            if (conversationId != null) {
+                messagingRepository.typingIndicators(conversationId)
+            } else {
+                flowOf(false)
+            }
+        }.collectAsState(initial = false)
 
         LaunchedEffect(Unit) {
             _events.receiveAsFlow().collect { action ->
@@ -104,14 +128,38 @@ class ChatViewModel(
                             error = null
                         )
                     }
-                    is ChatAction.UpdateMessageInput -> state.copy(messageInput = action.text)
+                    is ChatAction.UpdateMessageInput -> {
+                        handleTypingDebounce(state.conversationId)
+                        state.copy(messageInput = action.text)
+                    }
                     is ChatAction.SendMessage -> sendMessage(state)
                     is ChatAction.ErrorDismissed -> state.copy(error = null)
+                    is ChatAction.DeleteMessage -> {
+                        deleteMessage(state, action.messageId)
+                    }
+                    is ChatAction.RecallMessage -> {
+                        recallMessage(state, action.messageId)
+                    }
+                    is ChatAction.StartReply -> state.copy(replyingToMessage = action.message)
+                    is ChatAction.CancelReply -> state.copy(replyingToMessage = null)
                 }
             }
         }
 
-        return state.copy(currentUserId = currentUserId)
+        return state.copy(
+            currentUserId = currentUserId,
+            isOtherUserTyping = isOtherUserTyping
+        )
+    }
+
+    private fun handleTypingDebounce(conversationId: String?) {
+        conversationId ?: return
+        typingJob?.cancel()
+        messagingRepository.sendTyping(conversationId)
+        typingJob = viewModelScope.launch {
+            delay(TYPING_DEBOUNCE_MS)
+            messagingRepository.sendStopTyping(conversationId)
+        }
     }
 
     private suspend fun sendMessage(currentState: ChatUiState): ChatUiState {
@@ -120,9 +168,14 @@ class ChatViewModel(
 
         val sendingState = currentState.copy(isSending = true, error = null)
 
+        // Stop typing indicator on send
+        typingJob?.cancel()
+        currentState.conversationId?.let { messagingRepository.sendStopTyping(it) }
+
         return messagingRepository.sendMessage(
             recipientId = currentState.otherUserId,
-            content = content
+            content = content,
+            replyToMessageId = currentState.replyingToMessage?.id
         ).fold(
             ifLeft = { error ->
                 sendingState.copy(
@@ -138,9 +191,24 @@ class ChatViewModel(
                 sendingState.copy(
                     isSending = false,
                     messageInput = "",
-                    conversationId = message.conversationId
+                    conversationId = message.conversationId,
+                    replyingToMessage = null
                 )
             }
+        )
+    }
+
+    private suspend fun deleteMessage(currentState: ChatUiState, messageId: String): ChatUiState {
+        return messagingRepository.deleteMessage(messageId).fold(
+            ifLeft = { error -> currentState.copy(error = formatError(error)) },
+            ifRight = { currentState }
+        )
+    }
+
+    private suspend fun recallMessage(currentState: ChatUiState, messageId: String): ChatUiState {
+        return messagingRepository.recallMessage(messageId).fold(
+            ifLeft = { error -> currentState.copy(error = formatError(error)) },
+            ifRight = { currentState }
         )
     }
 

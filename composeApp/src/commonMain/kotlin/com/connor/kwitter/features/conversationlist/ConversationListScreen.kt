@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,6 +29,8 @@ import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,7 +58,10 @@ import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.domain.messaging.model.Conversation
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kwitter.composeapp.generated.resources.Res
+import kwitter.composeapp.generated.resources.chat_message_deleted
+import kwitter.composeapp.generated.resources.chat_message_recalled
 import kwitter.composeapp.generated.resources.conversation_list_empty
 import kwitter.composeapp.generated.resources.conversation_list_load_failed
 import kwitter.composeapp.generated.resources.conversation_list_title
@@ -64,15 +71,19 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun ConversationListScreen(
     pagingFlow: Flow<PagingData<Conversation>>,
+    onlineStatus: StateFlow<Map<String, Boolean>>,
     useNativeTopBar: Boolean = false,
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (ConversationListIntent) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
+    val onlineMap by onlineStatus.collectAsState()
     val listTitle = stringResource(Res.string.conversation_list_title)
     val loadFailedText = stringResource(Res.string.conversation_list_load_failed)
     val emptyText = stringResource(Res.string.conversation_list_empty)
+    val deletedText = stringResource(Res.string.chat_message_deleted)
+    val recalledText = stringResource(Res.string.chat_message_recalled)
 
     LaunchedEffect(lazyPagingItems.loadState.refresh) {
         val refreshState = lazyPagingItems.loadState.refresh
@@ -179,8 +190,12 @@ fun ConversationListScreen(
                             key = lazyPagingItems.itemKey { it.id }
                         ) { index ->
                             val conversation = lazyPagingItems[index] ?: return@items
+                            val isOnline = onlineMap[conversation.otherUser.id] ?: false
                             ConversationItemRow(
                                 conversation = conversation,
+                                isOnline = isOnline,
+                                deletedText = deletedText,
+                                recalledText = recalledText,
                                 onClick = {
                                     onAction(
                                         ConversationListNavAction.ConversationClick(
@@ -241,6 +256,9 @@ private fun ConversationListTopBar(
 @Composable
 private fun ConversationItemRow(
     conversation: Conversation,
+    isOnline: Boolean,
+    deletedText: String,
+    recalledText: String,
     onClick: () -> Unit
 ) {
     Row(
@@ -250,12 +268,31 @@ private fun ConversationItemRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar
-        ConversationAvatar(
-            name = conversation.otherUser.displayName,
-            avatarUrl = conversation.otherUser.avatarUrl,
-            modifier = Modifier.size(48.dp)
-        )
+        // Avatar with online indicator
+        Box {
+            ConversationAvatar(
+                name = conversation.otherUser.displayName,
+                avatarUrl = conversation.otherUser.avatarUrl,
+                modifier = Modifier.size(48.dp)
+            )
+            if (isOnline) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 1.dp, y = 1.dp)
+                        .size(14.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.background,
+                            shape = CircleShape
+                        )
+                        .padding(2.dp)
+                        .background(
+                            color = Color(0xFF4CAF50),
+                            shape = CircleShape
+                        )
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.width(12.dp))
 
@@ -295,15 +332,27 @@ private fun ConversationItemRow(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val lastMessage = conversation.lastMessage
+                val previewText = when {
+                    lastMessage == null -> ""
+                    lastMessage.isDeleted -> deletedText
+                    lastMessage.isRecalled -> recalledText
+                    else -> lastMessage.content
+                }
+                val isSpecialMessage = lastMessage != null && !lastMessage.isNormalMessage
+
                 Text(
-                    text = conversation.lastMessage?.content ?: "",
+                    text = previewText,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (conversation.unreadCount > 0) {
+                    fontStyle = if (isSpecialMessage) FontStyle.Italic else FontStyle.Normal,
+                    color = if (isSpecialMessage) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else if (conversation.unreadCount > 0) {
                         MaterialTheme.colorScheme.onSurface
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
-                    fontWeight = if (conversation.unreadCount > 0) FontWeight.Medium else FontWeight.Normal,
+                    fontWeight = if (conversation.unreadCount > 0 && !isSpecialMessage) FontWeight.Medium else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)

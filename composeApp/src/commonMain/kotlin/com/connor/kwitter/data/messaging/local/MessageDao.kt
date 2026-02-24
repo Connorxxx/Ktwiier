@@ -66,4 +66,10 @@ interface MessageDao {
 
     @Query("UPDATE messages SET readAt = :readAt WHERE conversationId = :conversationId AND senderId = :senderId AND readAt IS NULL")
     suspend fun markSentMessagesAsRead(conversationId: String, senderId: String, readAt: Long)
+
+    @Query("UPDATE messages SET recalledAt = :recalledAt WHERE id = :messageId")
+    suspend fun markMessageAsRecalled(messageId: String, recalledAt: Long)
+
+    @Query("UPDATE messages SET deletedAt = :deletedAt WHERE id = :messageId")
+    suspend fun markMessageAsDeleted(messageId: String, deletedAt: Long)
 }

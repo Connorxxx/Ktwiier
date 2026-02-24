@@ -141,6 +141,9 @@ class NotificationService(
             "post_liked" -> parsePostLiked(jsonObject)?.let { _notificationEvents.emit(it) }
             "new_message" -> parseNewMessage(jsonObject)?.let { _notificationEvents.emit(it) }
             "messages_read" -> parseMessagesRead(jsonObject)?.let { _notificationEvents.emit(it) }
+            "message_recalled" -> parseMessageRecalled(jsonObject)?.let { _notificationEvents.emit(it) }
+            "typing_indicator" -> parseTypingIndicator(jsonObject)?.let { _notificationEvents.emit(it) }
+            "user_presence_changed" -> parseUserPresenceChanged(jsonObject)?.let { _notificationEvents.emit(it) }
             "error" -> { /* Log or ignore server errors for now */ }
             "connected", "subscribed", "unsubscribed", "pong" -> { /* Acknowledged, no action */ }
         }
@@ -180,6 +183,41 @@ class NotificationService(
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun parseMessageRecalled(jsonObject: JsonObject): NotificationEvent.MessageRecalled? {
+        val data = jsonObject["data"] ?: return null
+        return try {
+            json.decodeFromJsonElement(NotificationEvent.MessageRecalled.serializer(), data)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseTypingIndicator(jsonObject: JsonObject): NotificationEvent.TypingIndicator? {
+        val data = jsonObject["data"] ?: return null
+        return try {
+            json.decodeFromJsonElement(NotificationEvent.TypingIndicator.serializer(), data)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseUserPresenceChanged(jsonObject: JsonObject): NotificationEvent.UserPresenceChanged? {
+        val data = jsonObject["data"] ?: return null
+        return try {
+            json.decodeFromJsonElement(NotificationEvent.UserPresenceChanged.serializer(), data)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun sendTyping(conversationId: String) {
+        currentSession?.send("""{"type":"typing","conversationId":"$conversationId"}""")
+    }
+
+    suspend fun sendStopTyping(conversationId: String) {
+        currentSession?.send("""{"type":"stop_typing","conversationId":"$conversationId"}""")
     }
 }
 

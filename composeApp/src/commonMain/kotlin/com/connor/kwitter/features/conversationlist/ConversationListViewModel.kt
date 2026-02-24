@@ -7,6 +7,9 @@ import androidx.paging.cachedIn
 import com.connor.kwitter.domain.messaging.model.Conversation
 import com.connor.kwitter.domain.messaging.repository.MessagingRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 
 sealed interface ConversationListIntent
 
@@ -29,4 +32,8 @@ class ConversationListViewModel(
     val pagingFlow: Flow<PagingData<Conversation>> = messagingRepository
         .conversationsPaging
         .cachedIn(viewModelScope)
+
+    val onlineStatus: StateFlow<Map<String, Boolean>> = messagingRepository
+        .onlineStatus()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 }
