@@ -10,12 +10,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import com.connor.kwitter.core.result.Result
+import com.connor.kwitter.core.result.asResult
+import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.features.auth.AuthUiError
 import com.connor.kwitter.features.auth.toAuthUiError
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 data class LoginUiState(
@@ -24,7 +28,10 @@ data class LoginUiState(
     val isLoading: Boolean = false,
     val error: AuthUiError? = null,
     val loginSuccess: Boolean = false
-)
+) {
+    val authResult: Result<Unit, AuthUiError>
+        get() = uiResultOf(isLoading = isLoading, error = error)
+}
 
 sealed interface LoginIntent
 
@@ -66,22 +73,28 @@ class LoginViewModel(
                     is LoginAction.EmailChanged -> state.copy(email = action.email)
                     is LoginAction.PasswordChanged -> state.copy(password = action.password)
                     is LoginAction.LoginClicked -> {
-                        val loading = state.copy(isLoading = true, error = null)
-                        state = loading
-
-                        val result = authRepository.login(
-                            email = loading.email,
-                            password = loading.password
-                        )
-
-                        result.fold(
-                            ifLeft = { error ->
-                                loading.copy(isLoading = false, error = formatError(error))
-                            },
-                            ifRight = {
-                                loading.copy(isLoading = false, loginSuccess = true)
+                        flow {
+                            emit(
+                                authRepository.login(
+                                    email = state.email,
+                                    password = state.password
+                                )
+                            )
+                        }.asResult(::formatError).collect { result ->
+                            state = when (result) {
+                                Result.Loading -> state.copy(isLoading = true, error = null)
+                                is Result.Success -> state.copy(
+                                    isLoading = false,
+                                    error = null,
+                                    loginSuccess = true
+                                )
+                                is Result.Error -> state.copy(
+                                    isLoading = false,
+                                    error = result.error
+                                )
                             }
-                        )
+                        }
+                        state
                     }
                     is LoginAction.ErrorDismissed -> state.copy(error = null)
                 }

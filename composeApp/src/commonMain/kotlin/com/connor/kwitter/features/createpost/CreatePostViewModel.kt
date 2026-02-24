@@ -13,6 +13,9 @@ import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import com.connor.kwitter.core.media.SelectedMedia
 import com.connor.kwitter.core.media.readBytes
+import com.connor.kwitter.core.result.Result
+import com.connor.kwitter.core.result.asResult
+import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.domain.media.model.MediaError
 import com.connor.kwitter.domain.media.repository.MediaRepository
@@ -24,6 +27,7 @@ import com.connor.kwitter.domain.post.repository.PostRepository
 import com.connor.kwitter.domain.user.repository.UserRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -42,7 +46,10 @@ data class CreatePostUiState(
     val selectedMedia: List<SelectedMedia> = emptyList(),
     val uploadedMedia: List<PostMedia> = emptyList(),
     val isUploading: Boolean = false
-)
+) {
+    val submitResult: Result<Unit, String>
+        get() = uiResultOf(isLoading = isLoading, error = error)
+}
 
 sealed interface CreatePostIntent
 
@@ -180,23 +187,31 @@ class CreatePostViewModel(
                         }
                     }
                     is CreatePostAction.SubmitClicked -> {
-                        val loading = state.copy(isLoading = true, error = null)
-                        state = loading
-                        val result = postRepository.createPost(
-                            CreatePostRequest(
-                                content = loading.content,
-                                mediaUrls = loading.uploadedMedia,
-                                parentId = loading.parentId
+                        flow {
+                            emit(
+                                postRepository.createPost(
+                                    CreatePostRequest(
+                                        content = state.content,
+                                        mediaUrls = state.uploadedMedia,
+                                        parentId = state.parentId
+                                    )
+                                )
                             )
-                        )
-                        result.fold(
-                            ifLeft = { error ->
-                                loading.copy(isLoading = false, error = formatError(error))
-                            },
-                            ifRight = {
-                                loading.copy(isLoading = false, isSuccess = true)
+                        }.asResult(::formatError).collect { result ->
+                            state = when (result) {
+                                Result.Loading -> state.copy(isLoading = true, error = null)
+                                is Result.Success -> state.copy(
+                                    isLoading = false,
+                                    error = null,
+                                    isSuccess = true
+                                )
+                                is Result.Error -> state.copy(
+                                    isLoading = false,
+                                    error = result.error
+                                )
                             }
-                        )
+                        }
+                        state
                     }
                     is CreatePostAction.ErrorDismissed -> state.copy(error = null)
                 }

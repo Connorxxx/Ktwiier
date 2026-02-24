@@ -13,6 +13,8 @@ import androidx.paging.cachedIn
 import androidx.paging.map
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import com.connor.kwitter.core.result.Result
+import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.user.model.UserError
 import com.connor.kwitter.domain.user.model.UserListItem
 import com.connor.kwitter.domain.user.repository.UserRepository
@@ -34,7 +36,10 @@ data class UserListUiState(
     val userId: String = "",
     val displayName: String = "",
     val error: String? = null
-)
+) {
+    val operationResult: Result<Unit, String>
+        get() = uiResultOf(isLoading = false, error = error)
+}
 
 sealed interface UserListIntent
 

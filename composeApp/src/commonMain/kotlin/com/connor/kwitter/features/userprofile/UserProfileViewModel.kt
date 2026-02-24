@@ -13,6 +13,8 @@ import androidx.paging.cachedIn
 import androidx.paging.map
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import com.connor.kwitter.core.result.Result
+import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.auth.repository.AuthRepository
@@ -42,6 +44,11 @@ data class UserProfileUiState(
     val error: String? = null
 ) {
     val isOwnProfile: Boolean get() = currentUserId != null && currentUserId == profile?.id
+    val operationResult: Result<Unit, String>
+        get() = uiResultOf(
+            isLoading = isLoadingProfile || isFollowLoading,
+            error = error
+        )
 }
 
 sealed interface UserProfileIntent

@@ -12,6 +12,8 @@ import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import arrow.core.Either
 import arrow.core.raise.either
+import com.connor.kwitter.core.result.Result
+import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.notification.repository.NotificationRepository
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.model.Post
@@ -35,7 +37,10 @@ data class PostDetailUiState(
     val threadReplies: List<ThreadReplyItem> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null
-)
+) {
+    val operationResult: Result<Unit, String>
+        get() = uiResultOf(isLoading = isLoading, error = error)
+}
 
 sealed interface PostDetailIntent
 

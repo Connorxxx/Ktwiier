@@ -12,6 +12,8 @@ import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import com.connor.kwitter.core.media.SelectedMedia
 import com.connor.kwitter.core.media.readBytes
+import com.connor.kwitter.core.result.Result
+import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.user.model.UpdateProfileRequest
 import com.connor.kwitter.domain.user.model.UserError
 import com.connor.kwitter.domain.user.repository.UserRepository
@@ -32,7 +34,13 @@ data class EditProfileUiState(
     val pendingCropImageBytes: ByteArray? = null,
     val croppedAvatarBytes: ByteArray? = null,
     val error: String? = null
-)
+) {
+    val operationResult: Result<Unit, String>
+        get() = uiResultOf(
+            isLoading = isLoading || isSaving || isUploadingAvatar,
+            error = error
+        )
+}
 
 sealed interface EditProfileIntent
 

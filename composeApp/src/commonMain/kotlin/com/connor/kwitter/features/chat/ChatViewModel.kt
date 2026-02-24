@@ -13,6 +13,8 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import com.connor.kwitter.core.result.Result
+import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.domain.messaging.model.Message
 import com.connor.kwitter.domain.messaging.model.MessagingError
@@ -40,7 +42,10 @@ data class ChatUiState(
     val error: String? = null,
     val isOtherUserTyping: Boolean = false,
     val replyingToMessage: Message? = null
-)
+) {
+    val operationResult: Result<Unit, String>
+        get() = uiResultOf(isLoading = isSending, error = error)
+}
 
 sealed interface ChatIntent
 

@@ -14,6 +14,8 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import com.connor.kwitter.core.result.Result
+import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.domain.notification.repository.NotificationRepository
 import com.connor.kwitter.domain.post.model.Post
@@ -32,7 +34,10 @@ data class HomeUiState(
     val isRefreshing: Boolean = false,
     val error: String? = null,
     val newPostCount: Int = 0
-)
+) {
+    val operationResult: Result<Unit, String>
+        get() = uiResultOf(isLoading = isRefreshing, error = error)
+}
 
 sealed interface HomeIntent
 

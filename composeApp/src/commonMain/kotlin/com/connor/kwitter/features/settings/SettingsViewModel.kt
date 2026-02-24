@@ -2,6 +2,9 @@ package com.connor.kwitter.features.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.connor.kwitter.core.result.Result
+import com.connor.kwitter.core.result.asResult
+import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.features.auth.AuthUiError
@@ -9,6 +12,7 @@ import com.connor.kwitter.features.auth.toAuthUiError
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -22,7 +26,10 @@ data class SettingsUiState(
     val isLoggingOut: Boolean = false,
     val infoMessage: SettingsInfoMessage? = null,
     val error: AuthUiError? = null
-)
+) {
+    val logoutResult: Result<Unit, AuthUiError>
+        get() = uiResultOf(isLoading = isLoggingOut, error = error)
+}
 
 sealed interface SettingsIntent
 
@@ -84,22 +91,26 @@ class SettingsViewModel(
                 )
             }
 
-            val result = authRepository.logout()
-            result.fold(
-                ifLeft = { error ->
-                    _uiState.update {
-                        it.copy(
+            flow {
+                emit(authRepository.logout())
+            }.asResult(::formatAuthError).collect { result ->
+                _uiState.update { current ->
+                    when (result) {
+                        Result.Loading -> current.copy(
+                            isLoggingOut = true,
+                            error = null
+                        )
+                        is Result.Success -> current.copy(
                             isLoggingOut = false,
-                            error = formatAuthError(error)
+                            error = null
+                        )
+                        is Result.Error -> current.copy(
+                            isLoggingOut = false,
+                            error = result.error
                         )
                     }
-                },
-                ifRight = {
-                    _uiState.update { current ->
-                        current.copy(isLoggingOut = false)
-                    }
                 }
-            )
+            }
         }
     }
 

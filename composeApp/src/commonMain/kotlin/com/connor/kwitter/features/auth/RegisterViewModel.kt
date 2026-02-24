@@ -10,11 +10,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import com.connor.kwitter.core.result.Result
+import com.connor.kwitter.core.result.asResult
+import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.features.auth.toAuthUiError
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 data class RegisterUiState(
@@ -24,7 +28,10 @@ data class RegisterUiState(
     val isLoading: Boolean = false,
     val error: AuthUiError? = null,
     val registerSuccess: Boolean = false
-)
+) {
+    val registerResult: Result<Unit, AuthUiError>
+        get() = uiResultOf(isLoading = isLoading, error = error)
+}
 
 sealed interface RegisterIntent
 
@@ -68,23 +75,29 @@ class RegisterViewModel(
                     is RegisterAction.NameChanged -> state.copy(name = action.name)
                     is RegisterAction.PasswordChanged -> state.copy(password = action.password)
                     is RegisterAction.RegisterClicked -> {
-                        val loading = state.copy(isLoading = true, error = null)
-                        state = loading
-
-                        val result = authRepository.register(
-                            email = loading.email,
-                            name = loading.name,
-                            password = loading.password
-                        )
-
-                        result.fold(
-                            ifLeft = { error ->
-                                loading.copy(isLoading = false, error = formatError(error))
-                            },
-                            ifRight = {
-                                loading.copy(isLoading = false, registerSuccess = true)
+                        flow {
+                            emit(
+                                authRepository.register(
+                                    email = state.email,
+                                    name = state.name,
+                                    password = state.password
+                                )
+                            )
+                        }.asResult(::formatError).collect { result ->
+                            state = when (result) {
+                                Result.Loading -> state.copy(isLoading = true, error = null)
+                                is Result.Success -> state.copy(
+                                    isLoading = false,
+                                    error = null,
+                                    registerSuccess = true
+                                )
+                                is Result.Error -> state.copy(
+                                    isLoading = false,
+                                    error = result.error
+                                )
                             }
-                        )
+                        }
+                        state
                     }
                     is RegisterAction.ErrorDismissed -> state.copy(error = null)
                 }

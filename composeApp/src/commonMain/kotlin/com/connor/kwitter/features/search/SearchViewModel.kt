@@ -13,6 +13,8 @@ import androidx.paging.cachedIn
 import androidx.paging.map
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import com.connor.kwitter.core.result.Result
+import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostMedia
@@ -42,7 +44,10 @@ data class SearchUiState(
     val sortOrder: String = "relevance",
     val hasSearched: Boolean = false,
     val error: String? = null
-)
+) {
+    val operationResult: Result<Unit, String>
+        get() = uiResultOf(isLoading = false, error = error)
+}
 
 sealed interface SearchIntent
 
