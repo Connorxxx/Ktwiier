@@ -36,22 +36,22 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
 
         tabItems = [
             UITabBarItem(
-                title: MainViewControllerKt.localizedMainTabHomeTitle(),
+                title: "",
                 image: UIImage(systemName: "house"),
                 selectedImage: UIImage(systemName: "house.fill")
             ),
             UITabBarItem(
-                title: MainViewControllerKt.localizedMainTabMessagesTitle(),
+                title: "",
                 image: UIImage(systemName: "envelope"),
                 selectedImage: UIImage(systemName: "envelope.fill")
             ),
             UITabBarItem(
-                title: MainViewControllerKt.localizedMainTabSearchTitle(),
+                title: "",
                 image: UIImage(systemName: "magnifyingglass"),
                 selectedImage: UIImage(systemName: "magnifyingglass")
             ),
             UITabBarItem(
-                title: MainViewControllerKt.localizedMainTabSettingsTitle(),
+                title: "",
                 image: UIImage(systemName: "gearshape"),
                 selectedImage: UIImage(systemName: "gearshape.fill")
             )
@@ -68,6 +68,7 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
         view.addSubview(nativeTabBar)
 
         MainViewControllerKt.registerNativeTabBar(tabBar: nativeTabBar)
+        loadLocalizedTabTitles()
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -134,6 +135,36 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
         if #available(iOS 15.0, *) {
             nativeTabBar.scrollEdgeAppearance = appearance
         }
+    }
+
+    private func loadLocalizedTabTitles() {
+        MainViewControllerKt.loadLocalizedMainTabTitles { [weak self] home, messages, search, settings in
+            guard let self = self else { return }
+
+            DispatchQueue.main.async {
+                let titles = [
+                    self.toSwiftString(home),
+                    self.toSwiftString(messages),
+                    self.toSwiftString(search),
+                    self.toSwiftString(settings)
+                ]
+
+                for (index, item) in self.tabItems.enumerated() where index < titles.count {
+                    item.title = titles[index]
+                }
+                self.nativeTabBar.setItems(self.tabItems, animated: false)
+            }
+        }
+    }
+
+    private func toSwiftString(_ value: Any?) -> String {
+        if let text = value as? String {
+            return text
+        }
+        if let text = value as? NSString {
+            return text as String
+        }
+        return ""
     }
 }
 
