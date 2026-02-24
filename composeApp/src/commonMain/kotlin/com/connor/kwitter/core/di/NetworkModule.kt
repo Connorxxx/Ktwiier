@@ -17,7 +17,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import org.koin.dsl.module
 
-const val BASE_URL = "http://192.168.0.101:8080"
+const val BASE_URL = "https://k.boxtor.uk"
 
 val networkModule = module {
     single {

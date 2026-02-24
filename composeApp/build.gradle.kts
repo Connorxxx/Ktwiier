@@ -62,10 +62,14 @@ kotlin {
             // Koin Android
             implementation(libs.koin.android)
             implementation(libs.koin.androidx.compose)
+
+            // Ktor engine (Android)
+            implementation(libs.ktor.client.cio)
         }
 
         iosMain.dependencies {
-            // iOS specific dependencies
+            // Ktor engine (iOS Native)
+            implementation(libs.ktor.client.darwin)
         }
 
         commonMain.dependencies {
@@ -131,7 +135,6 @@ kotlin {
 
             // Ktor
             implementation(libs.ktor.client.core)
-            implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.client.logging)
             implementation(libs.ktor.client.auth)
