@@ -87,6 +87,7 @@ import kwitter.composeapp.generated.resources.chat_message_recalled
 import kwitter.composeapp.generated.resources.chat_read_receipt
 import kwitter.composeapp.generated.resources.chat_recall
 import kwitter.composeapp.generated.resources.chat_reply
+import kwitter.composeapp.generated.resources.chat_reply_message_unavailable
 import kwitter.composeapp.generated.resources.chat_replying_to
 import kwitter.composeapp.generated.resources.chat_start_conversation
 import kwitter.composeapp.generated.resources.chat_typing
@@ -117,9 +118,14 @@ fun ChatScreen(
     val recallText = stringResource(Res.string.chat_recall)
     val typingText = stringResource(Res.string.chat_typing)
     val replyingToText = stringResource(Res.string.chat_replying_to)
+    val replyMessageUnavailableText = stringResource(Res.string.chat_reply_message_unavailable)
     val dismissKeyboard: () -> Unit = {
         focusManager.clearFocus(force = true)
         nativeTopBarController?.dismissKeyboard()
+    }
+    val loadedMessages = lazyPagingItems.itemSnapshotList.items
+    val loadedMessageMap = remember(loadedMessages) {
+        loadedMessages.associateBy { it.id }
     }
 
     LaunchedEffect(state.error) {
@@ -275,14 +281,19 @@ fun ChatScreen(
                         ) { index ->
                             val message = lazyPagingItems[index] ?: return@items
                             val isSentByMe = message.senderId == state.currentUserId
+                            val repliedMessage = message.replyToMessageId?.let { replyId ->
+                                loadedMessageMap[replyId]
+                            }
                             MessageBubble(
                                 message = message,
+                                repliedMessage = repliedMessage,
                                 isSentByMe = isSentByMe,
                                 otherUserDisplayName = state.otherUserDisplayName,
                                 otherUserAvatarUrl = state.otherUserAvatarUrl,
                                 readReceiptText = readReceiptText,
                                 deletedText = deletedText,
                                 recalledText = recalledText,
+                                replyMessageUnavailableText = replyMessageUnavailableText,
                                 replyText = replyText,
                                 deleteText = deleteText,
                                 recallText = recallText,
@@ -412,12 +423,14 @@ private fun TypingIndicator(
 @Composable
 private fun MessageBubble(
     message: Message,
+    repliedMessage: Message?,
     isSentByMe: Boolean,
     otherUserDisplayName: String,
     otherUserAvatarUrl: String?,
     readReceiptText: String,
     deletedText: String,
     recalledText: String,
+    replyMessageUnavailableText: String,
     replyText: String,
     deleteText: String,
     recallText: String,
@@ -450,6 +463,13 @@ private fun MessageBubble(
         ) {
             // Reply quote preview
             if (message.replyToMessageId != null && message.isNormalMessage) {
+                val replyPreviewText = when {
+                    repliedMessage == null -> replyMessageUnavailableText
+                    repliedMessage.isDeleted -> deletedText
+                    repliedMessage.isRecalled -> recalledText
+                    repliedMessage.content.isBlank() -> replyMessageUnavailableText
+                    else -> repliedMessage.content
+                }
                 Box(
                     modifier = Modifier
                         .widthIn(max = 340.dp)
@@ -461,7 +481,7 @@ private fun MessageBubble(
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = "\u21A9 ${message.replyToMessageId.take(8)}...",
+                        text = "\u21A9 $replyPreviewText",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

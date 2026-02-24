@@ -132,6 +132,7 @@
     <string name="chat_reply">回复</string>
     <string name="chat_recall_expired">已超过撤回时限</string>
     <string name="chat_replying_to">回复</string>
+    <string name="chat_reply_message_unavailable">原消息不可用</string>
 
     <string name="user_list_empty_following">还没有关注任何人</string>
     <string name="user_list_empty_followers">还没有粉丝</string>
