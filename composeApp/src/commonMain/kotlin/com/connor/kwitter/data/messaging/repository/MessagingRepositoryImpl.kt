@@ -6,28 +6,28 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
 import arrow.core.Either
-import kotlin.time.Clock
+import arrow.core.left
+import arrow.core.right
 import com.connor.kwitter.data.messaging.datasource.ConversationRemoteMediator
 import com.connor.kwitter.data.messaging.datasource.MessageRemoteMediator
 import com.connor.kwitter.data.messaging.datasource.MessagingRemoteDataSource
 import com.connor.kwitter.data.messaging.local.ConversationDao
 import com.connor.kwitter.data.messaging.local.MessageDao
 import com.connor.kwitter.data.messaging.local.toDomain
-import com.connor.kwitter.data.messaging.local.toEntity
 import com.connor.kwitter.data.notification.NotificationService
 import com.connor.kwitter.domain.messaging.model.Conversation
 import com.connor.kwitter.domain.messaging.model.Message
 import com.connor.kwitter.domain.messaging.model.MessagingError
 import com.connor.kwitter.domain.messaging.repository.MessagingRepository
 import com.connor.kwitter.domain.notification.model.NotificationEvent
+import kotlin.time.Clock
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -45,12 +45,17 @@ class MessagingRepositoryImpl(
     private val _typingState = MutableStateFlow<Map<String, Boolean>>(emptyMap())
     private val _onlineStatus = MutableStateFlow<Map<String, Boolean>>(emptyMap())
 
+    private val syncEvents = Channel<MessagingSyncEvent>(capacity = Channel.BUFFERED)
+    private val projector = MessagingLocalProjector(
+        conversationDao = conversationDao,
+        messageDao = messageDao
+    )
+
+    private var activeConversationId: String? = null
+
     init {
-        repositoryScope.launch { observeNewMessages() }
-        repositoryScope.launch { observeMessagesRead() }
-        repositoryScope.launch { observeMessageRecalled() }
-        repositoryScope.launch { observeTypingIndicators() }
-        repositoryScope.launch { observePresence() }
+        repositoryScope.launch { observeNotificationEvents() }
+        repositoryScope.launch { processSyncEvents() }
     }
 
     @OptIn(ExperimentalPagingApi::class, ExperimentalCoroutinesApi::class)
@@ -83,32 +88,76 @@ class MessagingRepositoryImpl(
         content: String,
         imageUrl: String?,
         replyToMessageId: String?
-    ): Either<MessagingError, Message> =
-        remoteDataSource.sendMessage(recipientId, content, imageUrl, replyToMessageId).onRight { message ->
-            // Insert sent message into Room at the newest position
-            val minIndex = messageDao.getMinOrderIndex(message.conversationId) ?: 0
-            messageDao.insert(message.toEntity(orderIndex = minIndex - 1))
-            // Refresh conversations to reflect new message
-            conversationsRefreshTrigger.update { it + 1 }
-        }
+    ): Either<MessagingError, Message> {
+        val result = remoteDataSource.sendMessage(recipientId, content, imageUrl, replyToMessageId)
+        result.fold(
+            ifLeft = {},
+            ifRight = { message ->
+                enqueueSyncEvent(MessagingSyncEvent.LocalMessageSent(message))
+            }
+        )
+        return result
+    }
 
     override suspend fun deleteMessage(
         messageId: String
-    ): Either<MessagingError, Unit> =
-        remoteDataSource.deleteMessage(messageId).onRight {
-            val now = Clock.System.now().toEpochMilliseconds()
-            messageDao.markMessageAsDeleted(messageId, now)
-            conversationDao.updateLastMessageDeleted(messageId, now)
-        }
+    ): Either<MessagingError, Unit> {
+        val result = remoteDataSource.deleteMessage(messageId)
+        result.fold(
+            ifLeft = {},
+            ifRight = {
+                val now = Clock.System.now().toEpochMilliseconds()
+                enqueueSyncEvent(
+                    MessagingSyncEvent.LocalMessageDeleted(
+                        messageId = messageId,
+                        deletedAt = now
+                    )
+                )
+            }
+        )
+        return result
+    }
 
     override suspend fun recallMessage(
         messageId: String
-    ): Either<MessagingError, Unit> =
-        remoteDataSource.recallMessage(messageId).onRight {
-            val now = Clock.System.now().toEpochMilliseconds()
-            messageDao.markMessageAsRecalled(messageId, now)
-            conversationDao.updateLastMessageRecalled(messageId, now)
-        }
+    ): Either<MessagingError, Unit> {
+        val result = remoteDataSource.recallMessage(messageId)
+        result.fold(
+            ifLeft = {},
+            ifRight = {
+                val now = Clock.System.now().toEpochMilliseconds()
+                enqueueSyncEvent(
+                    MessagingSyncEvent.LocalMessageRecalled(
+                        messageId = messageId,
+                        recalledAt = now
+                    )
+                )
+            }
+        )
+        return result
+    }
+
+    override suspend fun markAsRead(
+        conversationId: String
+    ): Either<MessagingError, Unit> {
+        val result = remoteDataSource.markAsRead(conversationId)
+        return result.fold(
+            ifLeft = { error -> error.left() },
+            ifRight = { readAt ->
+                enqueueSyncEvent(
+                    MessagingSyncEvent.LocalConversationReadConfirmed(
+                        conversationId = conversationId,
+                        readAt = readAt
+                    )
+                )
+                Unit.right()
+            }
+        )
+    }
+
+    override fun setActiveConversation(conversationId: String?) {
+        dispatchSyncEvent(MessagingSyncEvent.ActiveConversationChanged(conversationId))
+    }
 
     override fun typingIndicators(conversationId: String): Flow<Boolean> =
         _typingState.map { it[conversationId] ?: false }
@@ -124,113 +173,129 @@ class MessagingRepositoryImpl(
         repositoryScope.launch { notificationService.sendStopTyping(conversationId) }
     }
 
-    override suspend fun markAsRead(
-        conversationId: String
-    ): Either<MessagingError, Unit> =
-        remoteDataSource.markAsRead(conversationId).onRight {
-            conversationDao.updateUnreadCount(conversationId, 0)
+    private suspend fun observeNotificationEvents() {
+        notificationService.notificationEvents.collect { event ->
+            when (event) {
+                is NotificationEvent.NewMessage -> enqueueSyncEvent(MessagingSyncEvent.RemoteNewMessage(event))
+                is NotificationEvent.MessagesRead -> enqueueSyncEvent(MessagingSyncEvent.RemoteMessagesRead(event))
+                is NotificationEvent.MessageRecalled -> enqueueSyncEvent(MessagingSyncEvent.RemoteMessageRecalled(event))
+                is NotificationEvent.TypingIndicator -> enqueueSyncEvent(MessagingSyncEvent.RemoteTypingIndicator(event))
+                is NotificationEvent.PresenceSnapshot -> enqueueSyncEvent(MessagingSyncEvent.RemotePresenceSnapshot(event))
+                is NotificationEvent.UserPresenceChanged -> enqueueSyncEvent(MessagingSyncEvent.RemoteUserPresenceChanged(event))
+                else -> Unit
+            }
         }
+    }
 
-    private suspend fun observeNewMessages() {
-        notificationService.notificationEvents
-            .filterIsInstance<NotificationEvent.NewMessage>()
-            .collect { event ->
-                // Insert new message into Room
-                val newMessage = Message(
-                    id = event.messageId,
-                    conversationId = event.conversationId,
-                    senderId = "",
-                    content = event.contentPreview,
-                    imageUrl = null,
-                    readAt = null,
-                    createdAt = event.timestamp
-                )
-                val minIndex = messageDao.getMinOrderIndex(event.conversationId) ?: 0
-                messageDao.insert(newMessage.toEntity(orderIndex = minIndex - 1))
+    private suspend fun processSyncEvents() {
+        for (event in syncEvents) {
+            when (event) {
+                is MessagingSyncEvent.ActiveConversationChanged -> {
+                    activeConversationId = event.conversationId
+                }
 
-                // Update conversation in Room: bump to top + increment unread
-                val existing = conversationDao.getById(event.conversationId)
-                if (existing != null) {
-                    val minConvIndex = conversationDao.getMinOrderIndex() ?: 0
-                    conversationDao.insertOrReplace(
-                        existing.copy(
-                            lastMessageId = event.messageId,
-                            lastMessageContent = event.contentPreview,
-                            lastMessageSenderId = "",
-                            lastMessageCreatedAt = event.timestamp,
-                            lastMessageReadAt = null,
-                            unreadCount = existing.unreadCount + 1,
-                            orderIndex = minConvIndex - 1
+                is MessagingSyncEvent.LocalMessageSent -> {
+                    handleProjectionResult(projector.projectMessageSent(event.message))
+                }
+
+                is MessagingSyncEvent.LocalMessageDeleted -> {
+                    projector.projectMessageDeleted(
+                        messageId = event.messageId,
+                        deletedAt = event.deletedAt
+                    )
+                }
+
+                is MessagingSyncEvent.LocalMessageRecalled -> {
+                    projector.projectMessageRecalled(
+                        messageId = event.messageId,
+                        recalledAt = event.recalledAt
+                    )
+                }
+
+                is MessagingSyncEvent.LocalConversationReadConfirmed -> {
+                    projector.projectConversationRead(
+                        conversationId = event.conversationId,
+                        readAt = event.readAt
+                    )
+                }
+
+                is MessagingSyncEvent.RemoteNewMessage -> {
+                    val isActiveConversation = activeConversationId == event.event.conversationId
+                    val projection = projector.projectRemoteNewMessage(
+                        event = event.event,
+                        isActiveConversation = isActiveConversation
+                    )
+                    handleProjectionResult(projection)
+
+                    if (projection.shouldMarkConversationAsRead) {
+                        requestMarkConversationAsRead(event.event.conversationId)
+                    }
+                }
+
+                is MessagingSyncEvent.RemoteMessagesRead -> {
+                    projector.projectRemoteMessagesRead(event.event)
+                }
+
+                is MessagingSyncEvent.RemoteMessageRecalled -> {
+                    projector.projectMessageRecalled(
+                        messageId = event.event.messageId,
+                        recalledAt = event.event.timestamp
+                    )
+                }
+
+                is MessagingSyncEvent.RemoteTypingIndicator -> {
+                    _typingState.update { current ->
+                        current + (event.event.conversationId to event.event.isTyping)
+                    }
+                }
+
+                is MessagingSyncEvent.RemotePresenceSnapshot -> {
+                    _onlineStatus.update {
+                        event.event.users.associate { user -> user.userId to user.isOnline }
+                    }
+                }
+
+                is MessagingSyncEvent.RemoteUserPresenceChanged -> {
+                    _onlineStatus.update { current ->
+                        current + (event.event.userId to event.event.isOnline)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun handleProjectionResult(result: MessagingProjectionResult) {
+        if (result.requiresConversationRefresh) {
+            conversationsRefreshTrigger.update { it + 1 }
+        }
+    }
+
+    private fun requestMarkConversationAsRead(conversationId: String) {
+        repositoryScope.launch {
+            val result = remoteDataSource.markAsRead(conversationId)
+            result.fold(
+                ifLeft = {},
+                ifRight = { readAt ->
+                    enqueueSyncEvent(
+                        MessagingSyncEvent.LocalConversationReadConfirmed(
+                            conversationId = conversationId,
+                            readAt = readAt
                         )
                     )
-                } else {
-                    // New conversation not in cache — trigger refresh
-                    conversationsRefreshTrigger.update { it + 1 }
                 }
-            }
+            )
+        }
     }
 
-    private suspend fun observeMessagesRead() {
-        notificationService.notificationEvents
-            .filterIsInstance<NotificationEvent.MessagesRead>()
-            .collect { event ->
-                // Update read receipts on sent messages in Room
-                messageDao.markSentMessagesAsRead(
-                    conversationId = event.conversationId,
-                    senderId = event.readByUserId,
-                    readAt = event.timestamp
-                )
-                conversationDao.updateUnreadCount(event.conversationId, 0)
-            }
+    private suspend fun enqueueSyncEvent(event: MessagingSyncEvent) {
+        syncEvents.send(event)
     }
 
-    private suspend fun observeMessageRecalled() {
-        notificationService.notificationEvents
-            .filterIsInstance<NotificationEvent.MessageRecalled>()
-            .collect { event ->
-                messageDao.markMessageAsRecalled(event.messageId, event.timestamp)
-                conversationDao.updateLastMessageRecalled(event.messageId, event.timestamp)
+    private fun dispatchSyncEvent(event: MessagingSyncEvent) {
+        if (syncEvents.trySend(event).isFailure) {
+            repositoryScope.launch {
+                syncEvents.send(event)
             }
-    }
-
-    private suspend fun observeTypingIndicators() {
-        notificationService.notificationEvents
-            .filterIsInstance<NotificationEvent.TypingIndicator>()
-            .collect { event ->
-                _typingState.update { current ->
-                    current + (event.conversationId to event.isTyping)
-                }
-            }
-    }
-
-    private suspend fun observePresence() {
-        notificationService.notificationEvents
-            .filter { event ->
-                event is NotificationEvent.PresenceSnapshot ||
-                    event is NotificationEvent.UserPresenceChanged
-            }
-            .collect { event ->
-                when (event) {
-                    is NotificationEvent.PresenceSnapshot -> {
-                        // Presence v3 snapshot is a full baseline sync, not a delta.
-                        _onlineStatus.update { current ->
-                            current.toMutableMap().apply {
-                                clear()
-                                event.users.forEach { user ->
-                                    this[user.userId] = user.isOnline
-                                }
-                            }
-                        }
-                    }
-
-                    is NotificationEvent.UserPresenceChanged -> {
-                        _onlineStatus.update { current ->
-                            current + (event.userId to event.isOnline)
-                        }
-                    }
-
-                    else -> Unit
-                }
-            }
+        }
     }
 }

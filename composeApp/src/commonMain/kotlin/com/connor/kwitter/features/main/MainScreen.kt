@@ -745,10 +745,17 @@ fun MainScreen(
                         when (action) {
                             is ChatAction -> vm.onEvent(action)
                             is ChatNavAction -> when (action) {
-                                ChatNavAction.BackClick -> mainState.onBack()
-                                is ChatNavAction.UserProfileClick -> mainState.onNavigate(
-                                    NavigationRoute.UserProfile(userId = action.userId)
-                                )
+                                ChatNavAction.BackClick -> {
+                                    vm.onEvent(ChatAction.ScreenDisposed)
+                                    mainState.onBack()
+                                }
+
+                                is ChatNavAction.UserProfileClick -> {
+                                    vm.onEvent(ChatAction.ScreenDisposed)
+                                    mainState.onNavigate(
+                                        NavigationRoute.UserProfile(userId = action.userId)
+                                    )
+                                }
                             }
                         }
                     }

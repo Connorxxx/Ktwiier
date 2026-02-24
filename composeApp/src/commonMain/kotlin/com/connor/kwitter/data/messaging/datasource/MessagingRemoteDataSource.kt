@@ -123,12 +123,12 @@ class MessagingRemoteDataSource(
 
     suspend fun markAsRead(
         conversationId: String
-    ): Either<MessagingError, Unit> = either {
+    ): Either<MessagingError, Long> = either {
         try {
             val response: HttpResponse = httpClient.put(
                 endpoint("$CONVERSATIONS_PATH/$conversationId/read")
             )
-            handleResponse(response) { }
+            handleResponse(response) { it.body<MarkReadResponseDto>().readAt }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             raise(MessagingError.NetworkError("Network request failed: ${e.message}"))
@@ -217,6 +217,12 @@ private data class SendMessageRequestDto(
     val content: String,
     val imageUrl: String? = null,
     val replyToMessageId: String? = null
+)
+
+@Serializable
+private data class MarkReadResponseDto(
+    val conversationId: String,
+    val readAt: Long
 )
 
 private fun ConversationUserDto.toDomain(): ConversationUser = ConversationUser(

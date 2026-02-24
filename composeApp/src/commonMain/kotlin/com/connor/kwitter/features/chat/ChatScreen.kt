@@ -39,6 +39,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -137,6 +138,12 @@ fun ChatScreen(
     val loadedMessages = lazyPagingItems.itemSnapshotList.items
     val loadedMessageMap = remember(loadedMessages) {
         loadedMessages.associateBy { it.id }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            onAction(ChatAction.ScreenDisposed)
+        }
     }
 
     // Scroll to bottom when new messages arrive, only if user is near bottom

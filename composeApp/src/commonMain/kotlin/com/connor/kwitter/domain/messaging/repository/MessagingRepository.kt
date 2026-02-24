@@ -19,6 +19,7 @@ interface MessagingRepository {
     suspend fun deleteMessage(messageId: String): Either<MessagingError, Unit>
     suspend fun recallMessage(messageId: String): Either<MessagingError, Unit>
     suspend fun markAsRead(conversationId: String): Either<MessagingError, Unit>
+    fun setActiveConversation(conversationId: String?)
     fun typingIndicators(conversationId: String): Flow<Boolean>
     fun onlineStatus(): Flow<Map<String, Boolean>>
     fun sendTyping(conversationId: String)

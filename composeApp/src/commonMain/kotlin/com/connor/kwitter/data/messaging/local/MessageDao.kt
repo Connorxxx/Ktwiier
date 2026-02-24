@@ -64,8 +64,19 @@ interface MessageDao {
     @Query("SELECT MIN(orderIndex) FROM messages WHERE conversationId = :conversationId")
     suspend fun getMinOrderIndex(conversationId: String): Int?
 
+    @Query("UPDATE messages SET readAt = :readAt WHERE conversationId = :conversationId AND senderId != :readByUserId AND readAt IS NULL")
+    suspend fun markOutgoingMessagesAsReadByPeer(
+        conversationId: String,
+        readByUserId: String,
+        readAt: Long
+    )
+
     @Query("UPDATE messages SET readAt = :readAt WHERE conversationId = :conversationId AND senderId = :senderId AND readAt IS NULL")
-    suspend fun markSentMessagesAsRead(conversationId: String, senderId: String, readAt: Long)
+    suspend fun markMessagesAsReadFromSender(
+        conversationId: String,
+        senderId: String,
+        readAt: Long
+    )
 
     @Query("UPDATE messages SET recalledAt = :recalledAt WHERE id = :messageId")
     suspend fun markMessageAsRecalled(messageId: String, recalledAt: Long)

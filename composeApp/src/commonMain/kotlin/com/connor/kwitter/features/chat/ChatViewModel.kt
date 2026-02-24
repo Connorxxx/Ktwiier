@@ -63,6 +63,7 @@ sealed interface ChatAction : ChatIntent {
     data class RecallMessage(val messageId: String) : ChatAction
     data class StartReply(val message: Message) : ChatAction
     data object CancelReply : ChatAction
+    data object ScreenDisposed : ChatAction
 }
 
 sealed interface ChatNavAction : ChatIntent {
@@ -122,6 +123,7 @@ class ChatViewModel(
             _events.receiveAsFlow().collect { action ->
                 state = when (action) {
                     is ChatAction.Load -> {
+                        messagingRepository.setActiveConversation(action.conversationId)
                         _conversationId.value = action.conversationId
                         // Mark as read if entering existing conversation
                         action.conversationId?.let { messagingRepository.markAsRead(it) }
@@ -147,6 +149,12 @@ class ChatViewModel(
                     }
                     is ChatAction.StartReply -> state.copy(replyingToMessage = action.message)
                     is ChatAction.CancelReply -> state.copy(replyingToMessage = null)
+                    ChatAction.ScreenDisposed -> {
+                        typingJob?.cancel()
+                        state.conversationId?.let { messagingRepository.sendStopTyping(it) }
+                        messagingRepository.setActiveConversation(null)
+                        state
+                    }
                 }
             }
         }
@@ -192,6 +200,7 @@ class ChatViewModel(
                 // If this was the first message, update conversationId so paging starts
                 if (currentState.conversationId == null) {
                     _conversationId.value = message.conversationId
+                    messagingRepository.setActiveConversation(message.conversationId)
                 }
                 sendingState.copy(
                     isSending = false,
@@ -224,5 +233,11 @@ class ChatViewModel(
         is MessagingError.Unauthorized -> "Authentication required"
         is MessagingError.NotFound -> "Not found"
         is MessagingError.Unknown -> "Unknown error: ${error.message}"
+    }
+
+    override fun onCleared() {
+        typingJob?.cancel()
+        messagingRepository.setActiveConversation(null)
+        super.onCleared()
     }
 }
