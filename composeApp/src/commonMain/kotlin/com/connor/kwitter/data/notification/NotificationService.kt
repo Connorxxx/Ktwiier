@@ -143,6 +143,7 @@ class NotificationService(
             "messages_read" -> parseMessagesRead(jsonObject)?.let { _notificationEvents.emit(it) }
             "message_recalled" -> parseMessageRecalled(jsonObject)?.let { _notificationEvents.emit(it) }
             "typing_indicator" -> parseTypingIndicator(jsonObject)?.let { _notificationEvents.emit(it) }
+            "presence_snapshot" -> parsePresenceSnapshot(jsonObject)?.let { _notificationEvents.emit(it) }
             "user_presence_changed" -> parseUserPresenceChanged(jsonObject)?.let { _notificationEvents.emit(it) }
             "error" -> { /* Log or ignore server errors for now */ }
             "connected", "subscribed", "unsubscribed", "pong" -> { /* Acknowledged, no action */ }
@@ -207,6 +208,15 @@ class NotificationService(
         val data = jsonObject["data"] ?: return null
         return try {
             json.decodeFromJsonElement(NotificationEvent.UserPresenceChanged.serializer(), data)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parsePresenceSnapshot(jsonObject: JsonObject): NotificationEvent.PresenceSnapshot? {
+        val data = jsonObject["data"] ?: return null
+        return try {
+            json.decodeFromJsonElement(NotificationEvent.PresenceSnapshot.serializer(), data)
         } catch (_: Exception) {
             null
         }

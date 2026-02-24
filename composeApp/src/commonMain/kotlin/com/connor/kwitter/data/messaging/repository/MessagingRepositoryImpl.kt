@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -204,10 +205,25 @@ class MessagingRepositoryImpl(
 
     private suspend fun observePresence() {
         notificationService.notificationEvents
-            .filterIsInstance<NotificationEvent.UserPresenceChanged>()
+            .filter { event ->
+                event is NotificationEvent.PresenceSnapshot ||
+                    event is NotificationEvent.UserPresenceChanged
+            }
             .collect { event ->
-                _onlineStatus.update { current ->
-                    current + (event.userId to event.isOnline)
+                when (event) {
+                    is NotificationEvent.PresenceSnapshot -> {
+                        _onlineStatus.value = event.users.associate { user ->
+                            user.userId to user.isOnline
+                        }
+                    }
+
+                    is NotificationEvent.UserPresenceChanged -> {
+                        _onlineStatus.update { current ->
+                            current + (event.userId to event.isOnline)
+                        }
+                    }
+
+                    else -> Unit
                 }
             }
     }

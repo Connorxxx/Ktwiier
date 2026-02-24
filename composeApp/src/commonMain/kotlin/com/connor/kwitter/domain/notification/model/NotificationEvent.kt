@@ -63,4 +63,16 @@ sealed interface NotificationEvent {
         val isOnline: Boolean,
         val timestamp: Long
     ) : NotificationEvent
+
+    @Serializable
+    data class PresenceSnapshot(
+        val users: List<PresenceUser>
+    ) : NotificationEvent
+
+    @Serializable
+    data class PresenceUser(
+        val userId: String,
+        val isOnline: Boolean,
+        val timestamp: Long
+    )
 }
