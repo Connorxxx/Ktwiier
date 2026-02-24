@@ -17,7 +17,7 @@ val messagingModule = module {
         )
     }
 
-    single<MessagingRepository> {
+    single<MessagingRepository>(createdAtStart = true) {
         val database: AppDatabase = get()
         MessagingRepositoryImpl(
             remoteDataSource = get(),

@@ -212,8 +212,14 @@ class MessagingRepositoryImpl(
             .collect { event ->
                 when (event) {
                     is NotificationEvent.PresenceSnapshot -> {
-                        _onlineStatus.value = event.users.associate { user ->
-                            user.userId to user.isOnline
+                        // Presence v3 snapshot is a full baseline sync, not a delta.
+                        _onlineStatus.update { current ->
+                            current.toMutableMap().apply {
+                                clear()
+                                event.users.forEach { user ->
+                                    this[user.userId] = user.isOnline
+                                }
+                            }
                         }
                     }
 
