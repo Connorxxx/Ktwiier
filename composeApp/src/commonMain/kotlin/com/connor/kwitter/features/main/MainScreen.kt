@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -813,34 +814,34 @@ fun MainScreen(
             predictBackTargetRoute = ::predictedBackTargetRoute
         )
 
-        NavDisplay(
-            sceneState = sceneState,
-            navigationEventState = navigationEventState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = mainContentBottomPadding),
-            transitionSpec = {
-                if (shouldUseMainTabCrossFade(initialState, targetState)) {
-                    MainScreenTransitions.mainTabSwitch()
-                } else {
-                    MainScreenTransitions.push()
+        CompositionLocalProvider(LocalMainBottomBarOverlayPadding provides mainContentBottomPadding) {
+            NavDisplay(
+                sceneState = sceneState,
+                navigationEventState = navigationEventState,
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = {
+                    if (shouldUseMainTabCrossFade(initialState, targetState)) {
+                        MainScreenTransitions.mainTabSwitch()
+                    } else {
+                        MainScreenTransitions.push()
+                    }
+                },
+                popTransitionSpec = {
+                    if (shouldUseMainTabCrossFade(initialState, targetState)) {
+                        MainScreenTransitions.mainTabSwitch()
+                    } else {
+                        MainScreenTransitions.pop(includeTransformOrigin = true)
+                    }
+                },
+                predictivePopTransitionSpec = {
+                    if (shouldUseMainTabCrossFade(initialState, targetState)) {
+                        MainScreenTransitions.mainTabSwitch()
+                    } else {
+                        MainScreenTransitions.pop(includeTransformOrigin = false)
+                    }
                 }
-            },
-            popTransitionSpec = {
-                if (shouldUseMainTabCrossFade(initialState, targetState)) {
-                    MainScreenTransitions.mainTabSwitch()
-                } else {
-                    MainScreenTransitions.pop(includeTransformOrigin = true)
-                }
-            },
-            predictivePopTransitionSpec = {
-                if (shouldUseMainTabCrossFade(initialState, targetState)) {
-                    MainScreenTransitions.mainTabSwitch()
-                } else {
-                    MainScreenTransitions.pop(includeTransformOrigin = false)
-                }
-            }
-        )
+            )
+        }
 
         // Layer 3: Compose bottom bar (only when NOT using native tab bar)
         AnimatedVisibility(

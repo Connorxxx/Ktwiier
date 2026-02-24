@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
@@ -76,6 +77,7 @@ import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.features.glass.getNativeTopBarController
+import com.connor.kwitter.features.main.LocalMainBottomBarOverlayPadding
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.user.model.UserListItem
 import kotlinx.coroutines.flow.Flow
@@ -152,6 +154,7 @@ fun SearchScreen(
     ) { paddingValues ->
         val topOverlayPadding = paddingValues.calculateTopPadding()
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
+        val bottomContentPadding = bottomInsetPadding + LocalMainBottomBarOverlayPadding.current
 
         Column(
             modifier = Modifier
@@ -194,6 +197,7 @@ fun SearchScreen(
                 when (state.selectedTab) {
                     SearchTab.POSTS -> PostPagingList(
                         pagingFlow = postsPaging,
+                        bottomContentPadding = bottomContentPadding,
                         onAction = {
                             dismissKeyboard()
                             onAction(it)
@@ -201,6 +205,7 @@ fun SearchScreen(
                     )
                     SearchTab.REPLIES -> PostPagingList(
                         pagingFlow = repliesPaging,
+                        bottomContentPadding = bottomContentPadding,
                         onAction = {
                             dismissKeyboard()
                             onAction(it)
@@ -208,6 +213,7 @@ fun SearchScreen(
                     )
                     SearchTab.USERS -> UserPagingList(
                         pagingFlow = usersPaging,
+                        bottomContentPadding = bottomContentPadding,
                         onAction = {
                             dismissKeyboard()
                             onAction(it)
@@ -344,6 +350,7 @@ private fun SortChips(
 @Composable
 private fun PostPagingList(
     pagingFlow: Flow<PagingData<Post>>,
+    bottomContentPadding: Dp,
     onAction: (SearchIntent) -> Unit
 ) {
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
@@ -351,12 +358,13 @@ private fun PostPagingList(
 
     when {
         refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
-            LoadingScreen()
+            LoadingScreen(contentPadding = PaddingValues(bottom = bottomContentPadding))
         }
 
         refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
             ErrorScreen(
                 message = refreshState.error.message ?: stringResource(Res.string.search_failed),
+                contentPadding = PaddingValues(bottom = bottomContentPadding),
                 onRetry = { lazyPagingItems.refresh() }
             )
         }
@@ -366,7 +374,11 @@ private fun PostPagingList(
         }
 
         else -> {
-            PostPagingContent(lazyPagingItems, onAction)
+            PostPagingContent(
+                lazyPagingItems = lazyPagingItems,
+                bottomContentPadding = bottomContentPadding,
+                onAction = onAction
+            )
         }
     }
 }
@@ -374,6 +386,7 @@ private fun PostPagingList(
 @Composable
 private fun PostPagingContent(
     lazyPagingItems: LazyPagingItems<Post>,
+    bottomContentPadding: Dp,
     onAction: (SearchIntent) -> Unit
 ) {
     val listState = rememberLazyListState()
@@ -391,7 +404,11 @@ private fun PostPagingContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = listState,
-        contentPadding = PaddingValues(horizontal = 16.dp)
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            bottom = bottomContentPadding
+        )
     ) {
         items(
             count = lazyPagingItems.itemCount,
@@ -450,6 +467,7 @@ private fun PostPagingContent(
 @Composable
 private fun UserPagingList(
     pagingFlow: Flow<PagingData<UserListItem>>,
+    bottomContentPadding: Dp,
     onAction: (SearchIntent) -> Unit
 ) {
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
@@ -457,12 +475,13 @@ private fun UserPagingList(
 
     when {
         refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
-            LoadingScreen()
+            LoadingScreen(contentPadding = PaddingValues(bottom = bottomContentPadding))
         }
 
         refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
             ErrorScreen(
                 message = refreshState.error.message ?: stringResource(Res.string.search_failed),
+                contentPadding = PaddingValues(bottom = bottomContentPadding),
                 onRetry = { lazyPagingItems.refresh() }
             )
         }
@@ -472,7 +491,11 @@ private fun UserPagingList(
         }
 
         else -> {
-            UserPagingContent(lazyPagingItems, onAction)
+            UserPagingContent(
+                lazyPagingItems = lazyPagingItems,
+                bottomContentPadding = bottomContentPadding,
+                onAction = onAction
+            )
         }
     }
 }
@@ -480,11 +503,15 @@ private fun UserPagingList(
 @Composable
 private fun UserPagingContent(
     lazyPagingItems: LazyPagingItems<UserListItem>,
+    bottomContentPadding: Dp,
     onAction: (SearchIntent) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = 8.dp)
+        contentPadding = PaddingValues(
+            top = 8.dp,
+            bottom = bottomContentPadding + 8.dp
+        )
     ) {
         items(
             count = lazyPagingItems.itemCount,

@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.features.auth.AuthUiError
+import com.connor.kwitter.features.main.LocalMainBottomBarOverlayPadding
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.auth_error_client
 import kwitter.composeapp.generated.resources.auth_error_invalid_credentials
@@ -94,11 +95,17 @@ fun SettingsScreen(
             containerColor = Color.Transparent,
             snackbarHost = { SnackbarHost(snackbarHostState) }
         ) { paddingValues ->
+            val bottomOverlayPadding = LocalMainBottomBarOverlayPadding.current
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(horizontal = 24.dp, vertical = 24.dp)
+                    .padding(
+                        start = 24.dp,
+                        top = 24.dp,
+                        end = 24.dp,
+                        bottom = 24.dp + bottomOverlayPadding
+                    )
                     .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {

@@ -53,6 +53,7 @@ import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
+import com.connor.kwitter.features.main.LocalMainBottomBarOverlayPadding
 import com.connor.kwitter.domain.messaging.model.Conversation
 import kotlinx.coroutines.flow.Flow
 import kwitter.composeapp.generated.resources.Res
@@ -103,6 +104,7 @@ fun ConversationListScreen(
         val refreshState = lazyPagingItems.loadState.refresh
         val topOverlayPadding = paddingValues.calculateTopPadding()
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
+        val bottomContentPadding = bottomInsetPadding + LocalMainBottomBarOverlayPadding.current
         val refreshErrorMessage = (refreshState as? LoadState.Error)
             ?.error
             ?.message
@@ -125,7 +127,7 @@ fun ConversationListScreen(
                     LoadingScreen(
                         contentPadding = PaddingValues(
                             top = topOverlayPadding,
-                            bottom = bottomInsetPadding
+                            bottom = bottomContentPadding
                         )
                     )
                 }
@@ -135,7 +137,7 @@ fun ConversationListScreen(
                         message = refreshState.error.message ?: loadFailedText,
                         contentPadding = PaddingValues(
                             top = topOverlayPadding,
-                            bottom = bottomInsetPadding
+                            bottom = bottomContentPadding
                         ),
                         onRetry = { lazyPagingItems.refresh() }
                     )
@@ -147,7 +149,7 @@ fun ConversationListScreen(
                             .fillMaxSize()
                             .padding(
                                 top = topOverlayPadding,
-                                bottom = bottomInsetPadding
+                                bottom = bottomContentPadding
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -164,7 +166,7 @@ fun ConversationListScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
                             top = topOverlayPadding + 8.dp,
-                            bottom = 8.dp
+                            bottom = bottomContentPadding + 8.dp
                         )
                     ) {
                         items(

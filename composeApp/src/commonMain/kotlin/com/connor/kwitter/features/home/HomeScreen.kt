@@ -71,6 +71,7 @@ import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
+import com.connor.kwitter.features.main.LocalMainBottomBarOverlayPadding
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostAuthor
 import com.connor.kwitter.domain.post.model.PostStats
@@ -146,6 +147,7 @@ fun HomeScreen(
         val refreshState = lazyPagingItems.loadState.refresh
         val topOverlayPadding = paddingValues.calculateTopPadding()
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
+        val bottomContentPadding = bottomInsetPadding + LocalMainBottomBarOverlayPadding.current
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -161,7 +163,7 @@ fun HomeScreen(
                         LoadingScreen(
                             contentPadding = PaddingValues(
                                 top = topOverlayPadding,
-                                bottom = bottomInsetPadding
+                                bottom = bottomContentPadding
                             )
                         )
                     }
@@ -171,7 +173,7 @@ fun HomeScreen(
                             message = refreshState.error.message ?: loadFailedText,
                             contentPadding = PaddingValues(
                                 top = topOverlayPadding,
-                                bottom = bottomInsetPadding
+                                bottom = bottomContentPadding
                             ),
                             onRetry = { lazyPagingItems.refresh() }
                         )
@@ -190,7 +192,7 @@ fun HomeScreen(
                                     start = 16.dp,
                                     top = topOverlayPadding + 8.dp,
                                     end = 16.dp,
-                                    bottom = bottomInsetPadding + 8.dp
+                                    bottom = bottomContentPadding + 8.dp
                                 ),
                                 overscrollEffect = null
                             ) {
