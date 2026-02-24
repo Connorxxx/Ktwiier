@@ -23,8 +23,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
@@ -51,6 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.core.theme.KwitterTheme
 import androidx.compose.ui.text.input.KeyboardType
 import com.connor.kwitter.features.auth.AuthUiError
@@ -67,7 +66,6 @@ fun RegisterScreen(
     state: RegisterUiState,
     onAction: (RegisterIntent) -> Unit
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
     val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -86,14 +84,6 @@ fun RegisterScreen(
         }
     }
 
-    // 显示错误信息
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            onAction(RegisterAction.ErrorDismissed)
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -109,7 +99,6 @@ fun RegisterScreen(
     ) {
         Scaffold(
             containerColor = Color.Transparent,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 Box(
                     modifier = Modifier
@@ -153,6 +142,14 @@ fun RegisterScreen(
                     ),
                     color = textPrimary
                 )
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    ErrorStateCard(
+                        message = errorMessage,
+                        onDismiss = { onAction(RegisterAction.ErrorDismissed) }
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(28.dp))
 

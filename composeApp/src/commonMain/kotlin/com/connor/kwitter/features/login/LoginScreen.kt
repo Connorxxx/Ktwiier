@@ -23,8 +23,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
@@ -53,6 +51,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.features.auth.AuthUiError
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.*
@@ -67,7 +66,6 @@ fun LoginScreen(
     state: LoginUiState,
     onAction: (LoginIntent) -> Unit
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
     val scrollState = rememberScrollState()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -86,14 +84,6 @@ fun LoginScreen(
         }
     }
 
-    // 显示错误信息
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            onAction(LoginAction.ErrorDismissed)
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -109,7 +99,6 @@ fun LoginScreen(
     ) {
         Scaffold(
             containerColor = Color.Transparent,
-            snackbarHost = { SnackbarHost(snackbarHostState) },
             bottomBar = {
                 Box(
                     modifier = Modifier
@@ -153,6 +142,14 @@ fun LoginScreen(
                     ),
                     color = textPrimary
                 )
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    ErrorStateCard(
+                        message = errorMessage,
+                        onDismiss = { onAction(LoginAction.ErrorDismissed) }
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(28.dp))
 

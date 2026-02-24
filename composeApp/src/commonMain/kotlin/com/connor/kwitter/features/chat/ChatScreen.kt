@@ -36,8 +36,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
@@ -66,9 +64,13 @@ import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
+import com.connor.kwitter.core.result.errorOrNull
+import com.connor.kwitter.core.ui.ErrorScreen
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.core.ui.ErrorStateCard
+import com.connor.kwitter.core.ui.LoadingScreen
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
@@ -102,7 +104,6 @@ fun ChatScreen(
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (ChatIntent) -> Unit
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
@@ -119,6 +120,16 @@ fun ChatScreen(
     val typingText = stringResource(Res.string.chat_typing)
     val replyingToText = stringResource(Res.string.chat_replying_to)
     val replyMessageUnavailableText = stringResource(Res.string.chat_reply_message_unavailable)
+    val operationErrorMessage = state.operationResult.errorOrNull()
+    val refreshErrorMessage = (lazyPagingItems.loadState.refresh as? LoadState.Error)
+        ?.error
+        ?.message
+        ?.takeIf { lazyPagingItems.itemCount > 0 }
+        ?: if (lazyPagingItems.loadState.refresh is LoadState.Error && lazyPagingItems.itemCount > 0) {
+            loadFailedText
+        } else {
+            null
+        }
     val dismissKeyboard: () -> Unit = {
         focusManager.clearFocus(force = true)
         nativeTopBarController?.dismissKeyboard()
@@ -126,13 +137,6 @@ fun ChatScreen(
     val loadedMessages = lazyPagingItems.itemSnapshotList.items
     val loadedMessageMap = remember(loadedMessages) {
         loadedMessages.associateBy { it.id }
-    }
-
-    LaunchedEffect(state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            onAction(ChatAction.ErrorDismissed)
-        }
     }
 
     // Scroll to bottom when new messages arrive, only if user is near bottom
@@ -146,15 +150,6 @@ fun ChatScreen(
     LaunchedEffect(lazyPagingItems.itemCount) {
         if (lazyPagingItems.itemCount > 0 && isNearBottom.value) {
             listState.animateScrollToItem(0)
-        }
-    }
-
-    LaunchedEffect(lazyPagingItems.loadState.refresh) {
-        val refreshState = lazyPagingItems.loadState.refresh
-        if (refreshState is LoadState.Error && lazyPagingItems.itemCount > 0) {
-            snackbarHostState.showSnackbar(
-                refreshState.error.message ?: loadFailedText
-            )
         }
     }
 
@@ -201,7 +196,6 @@ fun ChatScreen(
                 }
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
@@ -218,17 +212,23 @@ fun ChatScreen(
         ) {
             when {
                 refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(
-                                top = topOverlayPadding,
-                                bottom = bottomInsetPadding
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                    LoadingScreen(
+                        contentPadding = PaddingValues(
+                            top = topOverlayPadding,
+                            bottom = bottomInsetPadding
+                        )
+                    )
+                }
+
+                refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
+                    ErrorScreen(
+                        message = refreshState.error.message ?: loadFailedText,
+                        contentPadding = PaddingValues(
+                            top = topOverlayPadding,
+                            bottom = bottomInsetPadding
+                        ),
+                        onRetry = { lazyPagingItems.refresh() }
+                    )
                 }
 
                 lazyPagingItems.itemCount == 0 && refreshState !is LoadState.Loading -> {
@@ -330,6 +330,32 @@ fun ChatScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        if (operationErrorMessage != null || refreshErrorMessage != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 16.dp,
+                        top = topOverlayPadding + 8.dp,
+                        end = 16.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                operationErrorMessage?.let { message ->
+                    ErrorStateCard(
+                        message = message,
+                        onDismiss = { onAction(ChatAction.ErrorDismissed) }
+                    )
+                }
+                refreshErrorMessage?.let { message ->
+                    ErrorStateCard(
+                        message = message,
+                        onRetry = { lazyPagingItems.refresh() }
+                    )
                 }
             }
         }

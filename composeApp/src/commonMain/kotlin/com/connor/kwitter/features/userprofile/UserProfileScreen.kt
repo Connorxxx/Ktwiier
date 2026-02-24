@@ -25,8 +25,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -53,10 +51,14 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
+import com.connor.kwitter.core.result.errorOrNull
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.ErrorScreen
+import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.core.ui.LoadingScreen
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
@@ -99,14 +101,7 @@ fun UserProfileScreen(
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (UserProfileIntent) -> Unit
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
-
-    LaunchedEffect(state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            onAction(UserProfileAction.ErrorDismissed)
-        }
-    }
+    val errorMessage = state.operationResult.errorOrNull()
 
     PublishNativeTopBar(
         onNativeTopBarModel,
@@ -135,7 +130,6 @@ fun UserProfileScreen(
                 )
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
@@ -143,18 +137,24 @@ fun UserProfileScreen(
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
 
         when {
-            state.isLoadingProfile && state.profile == null -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            top = topOverlayPadding,
-                            bottom = bottomInsetPadding
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+            errorMessage != null && state.profile == null -> {
+                ErrorScreen(
+                    message = errorMessage,
+                    contentPadding = PaddingValues(
+                        top = topOverlayPadding,
+                        bottom = bottomInsetPadding
+                    ),
+                    onDismiss = { onAction(UserProfileAction.ErrorDismissed) }
+                )
+            }
+
+            state.isLoadingProfile || state.profile == null -> {
+                LoadingScreen(
+                    contentPadding = PaddingValues(
+                        top = topOverlayPadding,
+                        bottom = bottomInsetPadding
+                    )
+                )
             }
 
             state.profile != null -> {
@@ -291,6 +291,20 @@ fun UserProfileScreen(
                     }
                 }
             }
+        }
+
+        if (errorMessage != null && state.profile != null) {
+            ErrorStateCard(
+                message = errorMessage,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 16.dp,
+                        top = topOverlayPadding + 8.dp,
+                        end = 16.dp
+                    ),
+                onDismiss = { onAction(UserProfileAction.ErrorDismissed) }
+            )
         }
     }
 }

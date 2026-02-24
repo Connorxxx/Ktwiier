@@ -41,6 +41,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.features.auth.AuthUiError
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.auth_error_client
@@ -84,13 +85,6 @@ fun SettingsScreen(
         }
     }
 
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
-            onAction(SettingsAction.ErrorDismissed)
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -121,6 +115,13 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = textSecondary
                 )
+
+                if (errorMessage != null) {
+                    ErrorStateCard(
+                        message = errorMessage,
+                        onDismiss = { onAction(SettingsAction.ErrorDismissed) }
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(6.dp))
 

@@ -104,6 +104,12 @@
     <string name="search_sort_best_match">Best match</string>
     <string name="search_sort_latest">Latest</string>
     <string name="search_failed">Search failed</string>
+    <string name="loading_screen_title">Loading</string>
+    <string name="loading_screen_subtitle">Fetching the latest data...</string>
+    <string name="error_screen_title">Something went wrong</string>
+    <string name="error_screen_default_message">Please try again.</string>
+    <string name="error_screen_retry">Retry</string>
+    <string name="error_screen_dismiss">Dismiss</string>
 
     <string name="settings_title">Settings</string>
     <string name="settings_account_privacy">Account and privacy</string>

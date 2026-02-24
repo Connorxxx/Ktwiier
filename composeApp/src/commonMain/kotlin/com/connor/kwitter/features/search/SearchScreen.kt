@@ -33,8 +33,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -65,8 +63,12 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
+import com.connor.kwitter.core.result.errorOrNull
+import com.connor.kwitter.core.ui.ErrorScreen
+import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
+import com.connor.kwitter.core.ui.LoadingScreen
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
@@ -102,21 +104,14 @@ fun SearchScreen(
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (SearchIntent) -> Unit
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val nativeTopBarController = remember { getNativeTopBarController() }
     val nativeSearchPlaceholder = stringResource(Res.string.search_placeholder)
+    val errorMessage = state.operationResult.errorOrNull()
     val dismissKeyboard: () -> Unit = {
         focusManager.clearFocus(force = true)
         nativeTopBarController?.dismissKeyboard()
-    }
-
-    LaunchedEffect(state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            onAction(SearchAction.ErrorDismissed)
-        }
     }
 
     LaunchedEffect(useNativeTopBar) {
@@ -152,7 +147,6 @@ fun SearchScreen(
                 )
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
@@ -168,6 +162,15 @@ fun SearchScreen(
                 }
         ) {
             Spacer(modifier = Modifier.height(topOverlayPadding))
+
+            if (errorMessage != null) {
+                ErrorStateCard(
+                    message = errorMessage,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    onDismiss = { onAction(SearchAction.ErrorDismissed) }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             if (state.hasSearched) {
                 SearchTabRow(
@@ -348,27 +351,14 @@ private fun PostPagingList(
 
     when {
         refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            LoadingScreen()
         }
 
         refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = refreshState.error.message ?: stringResource(Res.string.search_failed),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 32.dp)
-                )
-            }
+            ErrorScreen(
+                message = refreshState.error.message ?: stringResource(Res.string.search_failed),
+                onRetry = { lazyPagingItems.refresh() }
+            )
         }
 
         refreshState is LoadState.NotLoading && lazyPagingItems.itemCount == 0 -> {
@@ -467,27 +457,14 @@ private fun UserPagingList(
 
     when {
         refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            LoadingScreen()
         }
 
         refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = refreshState.error.message ?: stringResource(Res.string.search_failed),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 32.dp)
-                )
-            }
+            ErrorScreen(
+                message = refreshState.error.message ?: stringResource(Res.string.search_failed),
+                onRetry = { lazyPagingItems.refresh() }
+            )
         }
 
         refreshState is LoadState.NotLoading && lazyPagingItems.itemCount == 0 -> {

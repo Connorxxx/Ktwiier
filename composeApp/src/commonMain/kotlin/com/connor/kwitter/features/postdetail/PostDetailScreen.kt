@@ -19,13 +19,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
@@ -48,12 +45,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.connor.kwitter.core.result.errorOrNull
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.ErrorScreen
+import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.core.ui.PostActionBar
 import com.connor.kwitter.core.ui.PostMediaGrid
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.core.ui.LoadingScreen
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
@@ -82,18 +83,11 @@ fun PostDetailScreen(
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (PostDetailIntent) -> Unit
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
+    val errorMessage = state.operationResult.errorOrNull()
     val nativeSubtitle = if (state.threadReplies.isNotEmpty()) {
         stringResource(Res.string.post_detail_reply_count, state.threadReplies.size)
     } else {
         stringResource(Res.string.post_detail_start_first_reply)
-    }
-
-    LaunchedEffect(state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            onAction(PostDetailAction.ErrorDismissed)
-        }
     }
 
     PublishNativeTopBar(
@@ -136,7 +130,6 @@ fun PostDetailScreen(
                 }
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
@@ -144,18 +137,24 @@ fun PostDetailScreen(
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
 
         when {
-            state.isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            top = topOverlayPadding,
-                            bottom = bottomInsetPadding
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+            errorMessage != null && state.post == null -> {
+                ErrorScreen(
+                    message = errorMessage,
+                    contentPadding = PaddingValues(
+                        top = topOverlayPadding,
+                        bottom = bottomInsetPadding
+                    ),
+                    onDismiss = { onAction(PostDetailAction.ErrorDismissed) }
+                )
+            }
+
+            state.isLoading || state.post == null -> {
+                LoadingScreen(
+                    contentPadding = PaddingValues(
+                        top = topOverlayPadding,
+                        bottom = bottomInsetPadding
+                    )
+                )
             }
 
             state.post != null -> {
@@ -296,6 +295,20 @@ fun PostDetailScreen(
                     }
                 }
             }
+        }
+
+        if (errorMessage != null && state.post != null) {
+            ErrorStateCard(
+                message = errorMessage,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 16.dp,
+                        top = topOverlayPadding + 8.dp,
+                        end = 16.dp
+                    ),
+                onDismiss = { onAction(PostDetailAction.ErrorDismissed) }
+            )
         }
     }
 }

@@ -22,13 +22,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -47,9 +44,12 @@ import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
+import com.connor.kwitter.core.ui.ErrorScreen
+import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.core.ui.LoadingScreen
 import com.connor.kwitter.core.util.formatPostTime
 import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
@@ -76,7 +76,6 @@ fun ConversationListScreen(
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (ConversationListIntent) -> Unit
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val onlineMap by onlineStatus.collectAsState()
     val listTitle = stringResource(Res.string.conversation_list_title)
@@ -84,15 +83,6 @@ fun ConversationListScreen(
     val emptyText = stringResource(Res.string.conversation_list_empty)
     val deletedText = stringResource(Res.string.chat_message_deleted)
     val recalledText = stringResource(Res.string.chat_message_recalled)
-
-    LaunchedEffect(lazyPagingItems.loadState.refresh) {
-        val refreshState = lazyPagingItems.loadState.refresh
-        if (refreshState is LoadState.Error && lazyPagingItems.itemCount > 0) {
-            snackbarHostState.showSnackbar(
-                refreshState.error.message ?: loadFailedText
-            )
-        }
-    }
 
     PublishNativeTopBar(
         onNativeTopBarModel,
@@ -111,13 +101,21 @@ fun ConversationListScreen(
                 )
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
         val refreshState = lazyPagingItems.loadState.refresh
         val topOverlayPadding = paddingValues.calculateTopPadding()
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
+        val refreshErrorMessage = (refreshState as? LoadState.Error)
+            ?.error
+            ?.message
+            ?.takeIf { lazyPagingItems.itemCount > 0 }
+            ?: if (refreshState is LoadState.Error && lazyPagingItems.itemCount > 0) {
+                loadFailedText
+            } else {
+                null
+            }
 
         PullToRefreshBox(
             isRefreshing = refreshState is LoadState.Loading && lazyPagingItems.itemCount > 0,
@@ -128,35 +126,23 @@ fun ConversationListScreen(
         ) {
             when {
                 refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(
-                                top = topOverlayPadding,
-                                bottom = bottomInsetPadding
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                    LoadingScreen(
+                        contentPadding = PaddingValues(
+                            top = topOverlayPadding,
+                            bottom = bottomInsetPadding
+                        )
+                    )
                 }
 
                 refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(
-                                top = topOverlayPadding,
-                                bottom = bottomInsetPadding
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = loadFailedText,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    ErrorScreen(
+                        message = refreshState.error.message ?: loadFailedText,
+                        contentPadding = PaddingValues(
+                            top = topOverlayPadding,
+                            bottom = bottomInsetPadding
+                        ),
+                        onRetry = { lazyPagingItems.refresh() }
+                    )
                 }
 
                 refreshState is LoadState.NotLoading && lazyPagingItems.itemCount == 0 -> {
@@ -224,6 +210,20 @@ fun ConversationListScreen(
                     }
                 }
             }
+        }
+
+        if (refreshErrorMessage != null) {
+            ErrorStateCard(
+                message = refreshErrorMessage,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 16.dp,
+                        top = topOverlayPadding + 8.dp,
+                        end = 16.dp
+                    ),
+                onRetry = { lazyPagingItems.refresh() }
+            )
         }
     }
 }

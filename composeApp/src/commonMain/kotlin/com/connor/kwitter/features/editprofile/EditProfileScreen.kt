@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,8 +26,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -55,10 +54,13 @@ import androidx.compose.ui.graphics.ImageBitmap
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.media.decodeToImageBitmap
 import com.connor.kwitter.core.media.rememberImagePickerLauncher
+import com.connor.kwitter.core.result.errorOrNull
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.core.ui.LoadingScreen
 import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
@@ -97,20 +99,13 @@ fun EditProfileScreen(
         return
     }
 
-    val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val nativeTopTitle = stringResource(Res.string.profile_edit)
+    val errorMessage = state.operationResult.errorOrNull()
 
     val launchPicker = rememberImagePickerLauncher { media ->
         media?.let { onAction(EditProfileAction.AvatarSelected(it)) }
-    }
-
-    LaunchedEffect(state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            onAction(EditProfileAction.ErrorDismissed)
-        }
     }
 
     LaunchedEffect(state.isSuccess) {
@@ -149,7 +144,6 @@ fun EditProfileScreen(
                     )
                 }
             },
-            snackbarHost = { SnackbarHost(snackbarHostState) },
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0, 0, 0, 0)
         ) { paddingValues ->
@@ -158,17 +152,12 @@ fun EditProfileScreen(
 
             when {
                 state.isLoading -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(
-                                top = topOverlayPadding,
-                                bottom = bottomInsetPadding
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
+                    LoadingScreen(
+                        contentPadding = PaddingValues(
+                            top = topOverlayPadding,
+                            bottom = bottomInsetPadding
+                        )
+                    )
                 }
 
                 else -> {
@@ -181,6 +170,14 @@ fun EditProfileScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Spacer(modifier = Modifier.height(topOverlayPadding + 8.dp))
+
+                        if (errorMessage != null) {
+                            ErrorStateCard(
+                                message = errorMessage,
+                                onDismiss = { onAction(EditProfileAction.ErrorDismissed) }
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
 
                         EditProfileAvatar(
                             croppedAvatarBytes = state.croppedAvatarBytes,

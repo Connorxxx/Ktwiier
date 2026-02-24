@@ -33,8 +33,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -63,7 +61,9 @@ import coil3.compose.AsyncImage
 import com.connor.kwitter.core.media.MediaThumbnailImage
 import com.connor.kwitter.core.media.SelectedMedia
 import com.connor.kwitter.core.media.rememberMediaPickerLauncher
+import com.connor.kwitter.core.result.errorOrNull
 import com.connor.kwitter.core.theme.KwitterTheme
+import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarIconContentColor
 import com.connor.kwitter.core.ui.GlassTopBarIconButton
@@ -90,7 +90,6 @@ fun CreatePostScreen(
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (CreatePostIntent) -> Unit
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
     val isReply = state.parentId != null
@@ -104,6 +103,7 @@ fun CreatePostScreen(
     } else {
         null
     }
+    val errorMessage = state.submitResult.errorOrNull()
     val textProgress = (state.content.length.toFloat() / MAX_POST_LENGTH.toFloat()).coerceIn(0f, 1f)
     val canSubmit = state.content.isNotBlank() && !state.isUploading && !state.isLoading
 
@@ -119,13 +119,6 @@ fun CreatePostScreen(
         }
     }
 
-    LaunchedEffect(state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            onAction(CreatePostAction.ErrorDismissed)
-        }
-    }
-
     PublishNativeTopBar(
         onNativeTopBarModel,
         NativeTopBarModel.Title(
@@ -135,7 +128,7 @@ fun CreatePostScreen(
         )
     )
 
-    Scaffold(
+        Scaffold(
         topBar = {
             NativeTopBarSlot(nativeTopBarEnabled = useNativeTopBar) {
                 CreatePostTopBar(
@@ -144,7 +137,6 @@ fun CreatePostScreen(
                 )
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
@@ -164,6 +156,13 @@ fun CreatePostScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Spacer(modifier = Modifier.height(topOverlayPadding))
+
+            if (errorMessage != null) {
+                ErrorStateCard(
+                    message = errorMessage,
+                    onDismiss = { onAction(CreatePostAction.ErrorDismissed) }
+                )
+            }
 
             if (isReply) {
                 ReplyContextCard(

@@ -24,12 +24,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,9 +42,13 @@ import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
+import com.connor.kwitter.core.result.errorOrNull
+import com.connor.kwitter.core.ui.ErrorScreen
+import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
+import com.connor.kwitter.core.ui.LoadingScreen
 import com.connor.kwitter.core.util.resolveBackendUrl
 import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
@@ -72,17 +73,9 @@ fun UserListScreen(
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (UserListIntent) -> Unit
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
     val nativeSubtitle = when (state.listType) {
         UserListType.FOLLOWING -> stringResource(Res.string.profile_following)
         UserListType.FOLLOWERS -> stringResource(Res.string.profile_followers)
-    }
-
-    LaunchedEffect(state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            onAction(UserListAction.ErrorDismissed)
-        }
     }
 
     PublishNativeTopBar(
@@ -96,6 +89,9 @@ fun UserListScreen(
 
     val pagingItems = usersPaging.collectAsLazyPagingItems()
     val refreshState = pagingItems.loadState.refresh
+    val operationErrorMessage = state.operationResult.errorOrNull()
+    val refreshErrorMessage =
+        (refreshState as? LoadState.Error)?.error?.message?.takeIf { pagingItems.itemCount > 0 }
 
     Scaffold(
         topBar = {
@@ -107,7 +103,6 @@ fun UserListScreen(
                 )
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
@@ -116,17 +111,23 @@ fun UserListScreen(
 
         when {
             (refreshState is LoadState.Loading || state.userId.isBlank()) && pagingItems.itemCount == 0 -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            top = topOverlayPadding,
-                            bottom = bottomInsetPadding
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
+                LoadingScreen(
+                    contentPadding = PaddingValues(
+                        top = topOverlayPadding,
+                        bottom = bottomInsetPadding
+                    )
+                )
+            }
+
+            refreshState is LoadState.Error && pagingItems.itemCount == 0 -> {
+                ErrorScreen(
+                    message = refreshState.error.message.orEmpty(),
+                    contentPadding = PaddingValues(
+                        top = topOverlayPadding,
+                        bottom = bottomInsetPadding
+                    ),
+                    onRetry = { pagingItems.refresh() }
+                )
             }
 
             pagingItems.itemCount == 0 && refreshState is LoadState.NotLoading -> {
@@ -193,6 +194,32 @@ fun UserListScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        if (operationErrorMessage != null || refreshErrorMessage != null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = 16.dp,
+                        top = topOverlayPadding + 8.dp,
+                        end = 16.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                operationErrorMessage?.let { message ->
+                    ErrorStateCard(
+                        message = message,
+                        onDismiss = { onAction(UserListAction.ErrorDismissed) }
+                    )
+                }
+                refreshErrorMessage?.let { message ->
+                    ErrorStateCard(
+                        message = message,
+                        onRetry = { pagingItems.refresh() }
+                    )
                 }
             }
         }

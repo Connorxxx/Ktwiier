@@ -31,11 +31,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -62,8 +59,12 @@ import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
+import com.connor.kwitter.core.result.errorOrNull
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.GlassTopBar
+import com.connor.kwitter.core.ui.ErrorScreen
+import com.connor.kwitter.core.ui.ErrorStateCard
+import com.connor.kwitter.core.ui.LoadingScreen
 import com.connor.kwitter.core.theme.LocalIsDarkTheme
 import com.connor.kwitter.core.ui.PostItem
 import com.connor.kwitter.core.util.resolveBackendUrl
@@ -81,7 +82,6 @@ import kwitter.composeapp.generated.resources.home_load_failed
 import kwitter.composeapp.generated.resources.home_new_post_multiple
 import kwitter.composeapp.generated.resources.home_new_post_single
 import kwitter.composeapp.generated.resources.home_refresh_failed
-import kwitter.composeapp.generated.resources.home_retry
 import kwitter.composeapp.generated.resources.home_top_title
 import org.jetbrains.compose.resources.stringResource
 
@@ -94,12 +94,21 @@ fun HomeScreen(
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (HomeIntent) -> Unit
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val refreshFailedText = stringResource(Res.string.home_refresh_failed)
     val loadFailedText = stringResource(Res.string.home_load_failed)
+    val operationErrorMessage = state.operationResult.errorOrNull()
+    val refreshErrorMessage = (lazyPagingItems.loadState.refresh as? LoadState.Error)
+        ?.error
+        ?.message
+        ?.takeIf { lazyPagingItems.itemCount > 0 }
+        ?: if (lazyPagingItems.loadState.refresh is LoadState.Error && lazyPagingItems.itemCount > 0) {
+            refreshFailedText
+        } else {
+            null
+        }
 
     val activeVideoPostKey by remember {
         derivedStateOf {
@@ -112,22 +121,6 @@ fun HomeScreen(
     }
     val onProfileClick = state.currentUserId?.let { userId ->
         { onAction(HomeNavAction.AuthorClick(userId)) }
-    }
-
-    LaunchedEffect(state.error) {
-        state.error?.let { error ->
-            snackbarHostState.showSnackbar(error)
-            onAction(HomeAction.ErrorDismissed)
-        }
-    }
-
-    LaunchedEffect(lazyPagingItems.loadState.refresh) {
-        val refreshState = lazyPagingItems.loadState.refresh
-        if (refreshState is LoadState.Error && lazyPagingItems.itemCount > 0) {
-            snackbarHostState.showSnackbar(
-                refreshState.error.message ?: refreshFailedText
-            )
-        }
     }
 
     PublishNativeTopBar(
@@ -147,116 +140,149 @@ fun HomeScreen(
                 )
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
         val refreshState = lazyPagingItems.loadState.refresh
         val topOverlayPadding = paddingValues.calculateTopPadding()
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
-
-        PullToRefreshBox(
-            isRefreshing = refreshState is LoadState.Loading,
-            onRefresh = { lazyPagingItems.refresh() },
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = bottomInsetPadding)
         ) {
-            when (refreshState) {
-                is LoadState.Loading if lazyPagingItems.itemCount == 0 -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
-
-                is LoadState.Error if lazyPagingItems.itemCount == 0 -> {
-                    TimelineLoadErrorState(
-                        message = refreshState.error.message ?: loadFailedText,
-                        onRetry = { lazyPagingItems.refresh() }
-                    )
-                }
-
-                is LoadState.NotLoading if lazyPagingItems.itemCount == 0 -> {
-                    EmptyTimelineState()
-                }
-
-                else -> {
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            state = listState,
+            PullToRefreshBox(
+                isRefreshing = refreshState is LoadState.Loading,
+                onRefresh = { lazyPagingItems.refresh() },
+                modifier = Modifier.fillMaxSize()
+            ) {
+                when (refreshState) {
+                    is LoadState.Loading if lazyPagingItems.itemCount == 0 -> {
+                        LoadingScreen(
                             contentPadding = PaddingValues(
-                                start = 16.dp,
-                                top = topOverlayPadding + 8.dp,
-                                end = 16.dp,
-                                bottom = bottomInsetPadding + 8.dp
-                            ),
-                            overscrollEffect = null
-                        ) {
-                            items(
-                                count = lazyPagingItems.itemCount,
-                                key = lazyPagingItems.itemKey { it.id }
-                            ) { index ->
-                                val post = lazyPagingItems[index] ?: return@items
-                                PostItem(
-                                    post = post,
-                                    onClick = { onAction(HomeNavAction.PostClick(post.id)) },
-                                    onLikeClick = {
-                                        onAction(
-                                            HomeAction.ToggleLike(
-                                                postId = post.id,
-                                                isCurrentlyLiked = post.isLikedByCurrentUser == true,
-                                                currentLikeCount = post.stats.likeCount
-                                            )
-                                        )
-                                    },
-                                    onBookmarkClick = {
-                                        onAction(
-                                            HomeAction.ToggleBookmark(
-                                                postId = post.id,
-                                                isCurrentlyBookmarked = post.isBookmarkedByCurrentUser == true
-                                            )
-                                        )
-                                    },
-                                    onMediaClick = { mediaIndex ->
-                                        onAction(HomeNavAction.MediaClick(post.media, mediaIndex))
-                                    },
-                                    onAuthorClick = {
-                                        onAction(HomeNavAction.AuthorClick(post.author.id))
-                                    },
-                                    isVideoPlaying = activeVideoPostKey == post.id
-                                )
-                            }
+                                top = topOverlayPadding,
+                                bottom = bottomInsetPadding
+                            )
+                        )
+                    }
 
-                            if (lazyPagingItems.loadState.append is LoadState.Loading) {
-                                item {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    is LoadState.Error if lazyPagingItems.itemCount == 0 -> {
+                        ErrorScreen(
+                            message = refreshState.error.message ?: loadFailedText,
+                            contentPadding = PaddingValues(
+                                top = topOverlayPadding,
+                                bottom = bottomInsetPadding
+                            ),
+                            onRetry = { lazyPagingItems.refresh() }
+                        )
+                    }
+
+                    is LoadState.NotLoading if lazyPagingItems.itemCount == 0 -> {
+                        EmptyTimelineState()
+                    }
+
+                    else -> {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                state = listState,
+                                contentPadding = PaddingValues(
+                                    start = 16.dp,
+                                    top = topOverlayPadding + 8.dp,
+                                    end = 16.dp,
+                                    bottom = bottomInsetPadding + 8.dp
+                                ),
+                                overscrollEffect = null
+                            ) {
+                                items(
+                                    count = lazyPagingItems.itemCount,
+                                    key = lazyPagingItems.itemKey { it.id }
+                                ) { index ->
+                                    val post = lazyPagingItems[index] ?: return@items
+                                    PostItem(
+                                        post = post,
+                                        onClick = { onAction(HomeNavAction.PostClick(post.id)) },
+                                        onLikeClick = {
+                                            onAction(
+                                                HomeAction.ToggleLike(
+                                                    postId = post.id,
+                                                    isCurrentlyLiked = post.isLikedByCurrentUser == true,
+                                                    currentLikeCount = post.stats.likeCount
+                                                )
+                                            )
+                                        },
+                                        onBookmarkClick = {
+                                            onAction(
+                                                HomeAction.ToggleBookmark(
+                                                    postId = post.id,
+                                                    isCurrentlyBookmarked = post.isBookmarkedByCurrentUser == true
+                                                )
+                                            )
+                                        },
+                                        onMediaClick = { mediaIndex ->
+                                            onAction(HomeNavAction.MediaClick(post.media, mediaIndex))
+                                        },
+                                        onAuthorClick = {
+                                            onAction(HomeNavAction.AuthorClick(post.author.id))
+                                        },
+                                        isVideoPlaying = activeVideoPostKey == post.id
+                                    )
+                                }
+
+                                if (lazyPagingItems.loadState.append is LoadState.Loading) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        NewPostsBanner(
-                            count = state.newPostCount,
-                            onClick = {
-                                onAction(HomeAction.NewPostsBannerClick)
-                                lazyPagingItems.refresh()
-                                coroutineScope.launch {
-                                    listState.animateScrollToItem(0)
-                                }
-                            },
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .padding(top = topOverlayPadding + 8.dp)
+                            NewPostsBanner(
+                                count = state.newPostCount,
+                                onClick = {
+                                    onAction(HomeAction.NewPostsBannerClick)
+                                    lazyPagingItems.refresh()
+                                    coroutineScope.launch {
+                                        listState.animateScrollToItem(0)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = topOverlayPadding + 8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (operationErrorMessage != null || refreshErrorMessage != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .padding(
+                            start = 16.dp,
+                            top = topOverlayPadding + 8.dp,
+                            end = 16.dp
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    operationErrorMessage?.let { message ->
+                        ErrorStateCard(
+                            message = message,
+                            onDismiss = { onAction(HomeAction.ErrorDismissed) }
+                        )
+                    }
+                    refreshErrorMessage?.let { message ->
+                        ErrorStateCard(
+                            message = message,
+                            onRetry = { lazyPagingItems.refresh() }
                         )
                     }
                 }
@@ -419,39 +445,6 @@ private fun EmptyTimelineState() {
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 32.dp)
             )
-        }
-    }
-}
-
-@Composable
-private fun TimelineLoadErrorState(
-    message: String,
-    onRetry: () -> Unit
-) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = stringResource(Res.string.home_load_failed),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
-            TextButton(onClick = onRetry) {
-                Text(stringResource(Res.string.home_retry))
-            }
         }
     }
 }
