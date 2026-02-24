@@ -47,6 +47,11 @@ fun registerNativeTabBar(tabBar: UITabBar) {
     NativeTabBridge.configure(tabBar)
 }
 
+// Called from Swift on every layout pass after UITabBar height is measured
+fun updateNativeTabBarHeight(height: Double) {
+    NativeTabBridge.updateTabBarHeight(height)
+}
+
 fun createNativeTopBarView(): UIView = NativeTopBarBridge.createTopBarView()
 
 fun loadLocalizedMainTabTitles(

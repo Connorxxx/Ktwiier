@@ -96,6 +96,7 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
         let fittedHeight = nativeTabBar.sizeThatFits(
             CGSize(width: view.bounds.width, height: 0.0)
         ).height
+        MainViewControllerKt.updateNativeTabBarHeight(height: Double(fittedHeight))
         nativeTabBar.frame = CGRect(
             x: 0.0,
             y: view.bounds.height - fittedHeight,

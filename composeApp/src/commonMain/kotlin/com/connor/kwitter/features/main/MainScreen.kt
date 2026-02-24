@@ -15,15 +15,19 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -111,6 +115,7 @@ import com.connor.kwitter.features.userlist.UserListScreen
 import com.connor.kwitter.features.userlist.UserListType
 import com.connor.kwitter.features.userlist.UserListViewModel
 import com.connor.kwitter.core.theme.LocalIsDarkTheme
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.serialization.json.Json
 import org.koin.compose.viewmodel.koinViewModel
 import kwitter.composeapp.generated.resources.Res
@@ -123,6 +128,7 @@ import org.jetbrains.compose.resources.stringResource
 private val MainBottomElementBottomPadding = 26.dp
 private val MainBottomHorizontalPadding = 22.dp
 private val MainBottomBarHeight = 62.dp
+private val MainBottomBarContentPadding = MainBottomBarHeight + MainBottomElementBottomPadding
 
 private fun shouldShowMainBottomBar(route: NavigationRoute?): Boolean =
     route?.toBottomTabOrNull() != null
@@ -207,6 +213,19 @@ fun MainScreen(
 
     // Only show Compose bottom bar when NOT using native tab bar
     val showComposeBottomBar = showBottomBar && nativeTabController == null
+    val nativeTabBarHeight by (nativeTabController?.tabBarHeightFlow ?: flowOf(0.0))
+        .collectAsState(initial = 0.0)
+    val systemBottomInset = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
+    val nativeTabBarBottomPadding = if (nativeTabBarHeight > 0.0) {
+        nativeTabBarHeight.dp
+    } else {
+        systemBottomInset
+    }
+    val mainContentBottomPadding = when {
+        !showBottomBar -> 0.dp
+        showComposeBottomBar -> MainBottomBarContentPadding
+        else -> nativeTabBarBottomPadding
+    }
 
     LaunchedEffect(backStackSnapshot) {
         topBarCoordinator.pruneTo(backStackSnapshot.toSet())
@@ -796,7 +815,9 @@ fun MainScreen(
         NavDisplay(
             sceneState = sceneState,
             navigationEventState = navigationEventState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = mainContentBottomPadding),
             transitionSpec = {
                 if (shouldUseMainTabCrossFade(initialState, targetState)) {
                     MainScreenTransitions.mainTabSwitch()
