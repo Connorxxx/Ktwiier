@@ -82,11 +82,11 @@ actual fun NativeGlassBottomBar(
 //  - Filled SF Symbols for selected, outline for unselected
 // ──────────────────────────────────
 
-private fun sfSymbolForTab(label: String, selected: Boolean): String = when (label) {
-    "首页" -> if (selected) "house.fill" else "house"
-    "私信" -> if (selected) "envelope.fill" else "envelope"
-    "搜索" -> "magnifyingglass"
-    "设置" -> if (selected) "gearshape.fill" else "gearshape"
+private fun sfSymbolForTab(index: Int, selected: Boolean): String = when (index) {
+    0 -> if (selected) "house.fill" else "house"
+    1 -> if (selected) "envelope.fill" else "envelope"
+    2 -> "magnifyingglass"
+    3 -> if (selected) "gearshape.fill" else "gearshape"
     else -> "circle"
 }
 
@@ -208,7 +208,7 @@ private class NativeBottomBarView : UIView(frame = CGRectZero.readValue()) {
             val tabText = tabLabels.getOrNull(i).orEmpty()
 
             // Icon (filled variant when selected)
-            tabIconViews[i].image = UIImage.systemImageNamed(sfSymbolForTab(tabText, selected))
+            tabIconViews[i].image = UIImage.systemImageNamed(sfSymbolForTab(i, selected))
             tabIconViews[i].tintColor = if (selected) activeColor else inactiveColor
 
             // Label

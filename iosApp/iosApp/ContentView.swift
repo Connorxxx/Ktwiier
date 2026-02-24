@@ -36,22 +36,22 @@ final class ComposeHostViewController: UIViewController, UITabBarDelegate {
 
         tabItems = [
             UITabBarItem(
-                title: "首页",
+                title: MainViewControllerKt.localizedMainTabHomeTitle(),
                 image: UIImage(systemName: "house"),
                 selectedImage: UIImage(systemName: "house.fill")
             ),
             UITabBarItem(
-                title: "私信",
+                title: MainViewControllerKt.localizedMainTabMessagesTitle(),
                 image: UIImage(systemName: "envelope"),
                 selectedImage: UIImage(systemName: "envelope.fill")
             ),
             UITabBarItem(
-                title: "搜索",
+                title: MainViewControllerKt.localizedMainTabSearchTitle(),
                 image: UIImage(systemName: "magnifyingglass"),
                 selectedImage: UIImage(systemName: "magnifyingglass")
             ),
             UITabBarItem(
-                title: "设置",
+                title: MainViewControllerKt.localizedMainTabSettingsTitle(),
                 image: UIImage(systemName: "gearshape"),
                 selectedImage: UIImage(systemName: "gearshape.fill")
             )
