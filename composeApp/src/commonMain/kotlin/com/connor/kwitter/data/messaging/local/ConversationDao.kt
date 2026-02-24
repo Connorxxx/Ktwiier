@@ -60,6 +60,9 @@ interface ConversationDao {
     @Query("SELECT * FROM conversations WHERE id = :conversationId")
     suspend fun getById(conversationId: String): ConversationEntity?
 
+    @Query("SELECT * FROM conversations WHERE otherUserId = :otherUserId LIMIT 1")
+    suspend fun getByOtherUserId(otherUserId: String): ConversationEntity?
+
     @Query("UPDATE conversations SET unreadCount = :unreadCount WHERE id = :conversationId")
     suspend fun updateUnreadCount(conversationId: String, unreadCount: Int)
 

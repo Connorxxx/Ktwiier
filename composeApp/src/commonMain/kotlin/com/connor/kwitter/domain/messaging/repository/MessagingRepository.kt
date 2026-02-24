@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 interface MessagingRepository {
     val conversationsPaging: Flow<PagingData<Conversation>>
     fun messagesPaging(conversationId: String): Flow<PagingData<Message>>
+    suspend fun resolveConversationId(otherUserId: String): String?
     suspend fun sendMessage(
         recipientId: String,
         content: String,

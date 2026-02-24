@@ -123,12 +123,15 @@ class ChatViewModel(
             _events.receiveAsFlow().collect { action ->
                 state = when (action) {
                     is ChatAction.Load -> {
-                        messagingRepository.setActiveConversation(action.conversationId)
-                        _conversationId.value = action.conversationId
+                        val resolvedConversationId = action.conversationId
+                            ?: messagingRepository.resolveConversationId(action.otherUserId)
+                            ?: state.takeIf { it.otherUserId == action.otherUserId }?.conversationId
+                        messagingRepository.setActiveConversation(resolvedConversationId)
+                        _conversationId.value = resolvedConversationId
                         // Mark as read if entering existing conversation
-                        action.conversationId?.let { messagingRepository.markAsRead(it) }
+                        resolvedConversationId?.let { messagingRepository.markAsRead(it) }
                         state.copy(
-                            conversationId = action.conversationId,
+                            conversationId = resolvedConversationId,
                             otherUserId = action.otherUserId,
                             otherUserDisplayName = action.otherUserDisplayName,
                             otherUserAvatarUrl = action.otherUserAvatarUrl,
@@ -153,6 +156,7 @@ class ChatViewModel(
                         typingJob?.cancel()
                         state.conversationId?.let { messagingRepository.sendStopTyping(it) }
                         messagingRepository.setActiveConversation(null)
+                        _conversationId.value = null
                         state
                     }
                 }

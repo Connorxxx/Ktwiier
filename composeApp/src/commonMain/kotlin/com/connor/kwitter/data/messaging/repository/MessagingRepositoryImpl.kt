@@ -40,6 +40,9 @@ class MessagingRepositoryImpl(
     private val messageDao: MessageDao,
     private val repositoryScope: CoroutineScope
 ) : MessagingRepository {
+    private companion object {
+        const val CONVERSATION_RESOLVE_PAGE_SIZE = 50
+    }
 
     private val conversationsRefreshTrigger = MutableStateFlow(0L)
     private val _typingState = MutableStateFlow<Map<String, Boolean>>(emptyMap())
@@ -82,6 +85,35 @@ class MessagingRepositoryImpl(
             ),
             pagingSourceFactory = { messageDao.getPagingSource(conversationId) }
         ).flow.map { pagingData -> pagingData.map { it.toDomain() } }
+
+    override suspend fun resolveConversationId(otherUserId: String): String? {
+        if (otherUserId.isBlank()) return null
+
+        conversationDao.getByOtherUserId(otherUserId)?.id?.let { return it }
+
+        var offset = 0
+        while (true) {
+            val result = remoteDataSource.getConversations(
+                limit = CONVERSATION_RESOLVE_PAGE_SIZE,
+                offset = offset
+            )
+            val conversationList = result.fold(
+                ifLeft = { return null },
+                ifRight = { it }
+            )
+
+            conversationList.conversations
+                .firstOrNull { it.otherUser.id == otherUserId }
+                ?.id
+                ?.let { return it }
+
+            if (!conversationList.hasMore || conversationList.conversations.isEmpty()) {
+                return null
+            }
+
+            offset += conversationList.conversations.size
+        }
+    }
 
     override suspend fun sendMessage(
         recipientId: String,
