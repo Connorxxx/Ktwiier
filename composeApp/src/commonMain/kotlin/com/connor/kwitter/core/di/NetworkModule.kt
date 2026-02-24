@@ -1,10 +1,9 @@
 package com.connor.kwitter.core.di
 
+import com.connor.kwitter.data.auth.datasource.RefreshResult
 import com.connor.kwitter.data.auth.datasource.TokenDataSource
-import com.connor.kwitter.domain.auth.model.RefreshRequest
-import com.connor.kwitter.domain.auth.model.TokenResponse
+import com.connor.kwitter.data.auth.datasource.TokenRefresher
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
@@ -14,21 +13,23 @@ import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.plugins.logging.Logger
 import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.plugins.websocket.WebSockets
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.http.ContentType
-import io.ktor.http.contentType
-import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import org.koin.dsl.module
 
 const val BASE_URL = "http://192.168.0.101:8080"
-private const val REFRESH_PATH = "/v1/auth/refresh"
 
 val networkModule = module {
     single {
+        TokenRefresher(
+            tokenDataSource = get(),
+            baseUrl = BASE_URL
+        )
+    }
+
+    single {
         val tokenDataSource: TokenDataSource = get()
+        val tokenRefresher: TokenRefresher = get()
 
         HttpClient {
             install(ContentNegotiation) {
@@ -59,24 +60,24 @@ val networkModule = module {
                     }
 
                     refreshTokens {
-                        val refreshToken = tokenDataSource.getRefreshToken() ?: return@refreshTokens null
-
-                        val response = client.post(BASE_URL.trimEnd('/') + REFRESH_PATH) {
-                            markAsRefreshTokenRequest()
-                            contentType(ContentType.Application.Json)
-                            setBody(RefreshRequest(refreshToken))
-                        }
-
-                        if (response.status.isSuccess()) {
-                            val tokenResponse = response.body<TokenResponse>()
-                            tokenDataSource.updateTokens(
-                                accessToken = tokenResponse.token,
-                                refreshToken = tokenResponse.refreshToken
+                        when (val result = tokenRefresher.refresh()) {
+                            is RefreshResult.Success -> BearerTokens(
+                                result.tokenResponse.token,
+                                result.tokenResponse.refreshToken
                             )
-                            BearerTokens(tokenResponse.token, tokenResponse.refreshToken)
-                        } else {
-                            tokenDataSource.clearTokens()
-                            null
+
+                            is RefreshResult.StaleToken -> {
+                                val latestAccess = tokenDataSource.getAccessToken()
+                                val latestRefresh = tokenDataSource.getRefreshToken()
+                                if (latestAccess != null && latestRefresh != null) {
+                                    BearerTokens(latestAccess, latestRefresh)
+                                } else {
+                                    null
+                                }
+                            }
+
+                            is RefreshResult.InvalidSession -> null
+                            is RefreshResult.TransientError -> null
                         }
                     }
 

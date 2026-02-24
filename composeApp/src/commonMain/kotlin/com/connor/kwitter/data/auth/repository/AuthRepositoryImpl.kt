@@ -3,7 +3,9 @@ package com.connor.kwitter.data.auth.repository
 import arrow.core.Either
 import arrow.core.raise.either
 import com.connor.kwitter.data.auth.datasource.AuthRemoteDataSource
+import com.connor.kwitter.data.auth.datasource.RefreshResult
 import com.connor.kwitter.data.auth.datasource.TokenDataSource
+import com.connor.kwitter.data.auth.datasource.TokenRefresher
 import com.connor.kwitter.data.notification.NotificationService
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.model.AuthEvent
@@ -12,21 +14,26 @@ import com.connor.kwitter.domain.auth.model.SessionState
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
 
 class AuthRepositoryImpl(
     private val remoteDataSource: AuthRemoteDataSource,
     private val tokenDataSource: TokenDataSource,
+    private val tokenRefresher: TokenRefresher,
     private val notificationService: NotificationService
 ) : AuthRepository {
 
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var proactiveRefreshJob: Job? = null
 
     private val _session: StateFlow<SessionState> = tokenDataSource.tokens
         .map { tokens ->
@@ -64,6 +71,30 @@ class AuthRepositoryImpl(
                 }
             }
         }
+
+        // Proactive token refresh at 80% of JWT lifetime
+        repositoryScope.launch {
+            tokenDataSource.tokens.collect { tokens ->
+                proactiveRefreshJob?.cancel()
+                if (tokens == null) return@collect
+
+                proactiveRefreshJob = launch {
+                    scheduleProactiveRefresh(tokens.expiresIn, tokens.obtainedAt)
+                }
+            }
+        }
+    }
+
+    private suspend fun scheduleProactiveRefresh(expiresIn: Long, obtainedAt: Long) {
+        val refreshAtMs = obtainedAt + (expiresIn * 800) // expiresIn is seconds, 80% → *800ms
+        val nowMs = Clock.System.now().toEpochMilliseconds()
+        val delayMs = refreshAtMs - nowMs
+
+        if (delayMs > 0) {
+            delay(delayMs)
+        }
+
+        tokenRefresher.refresh()
     }
 
     override suspend fun register(
@@ -75,7 +106,8 @@ class AuthRepositoryImpl(
         tokenDataSource.saveTokens(
             accessToken = response.token,
             refreshToken = response.refreshToken,
-            userId = response.id
+            userId = response.id,
+            expiresIn = response.expiresIn
         ).bind()
     }
 
@@ -87,7 +119,8 @@ class AuthRepositoryImpl(
         tokenDataSource.saveTokens(
             accessToken = response.token,
             refreshToken = response.refreshToken,
-            userId = response.id
+            userId = response.id,
+            expiresIn = response.expiresIn
         ).bind()
     }
 

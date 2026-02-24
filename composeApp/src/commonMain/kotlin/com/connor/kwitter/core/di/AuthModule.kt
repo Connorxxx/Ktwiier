@@ -22,6 +22,7 @@ val authModule = module {
         AuthRepositoryImpl(
             remoteDataSource = get(),
             tokenDataSource = get(),
+            tokenRefresher = get(),
             notificationService = get()
         )
     }
