@@ -8,6 +8,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,7 +54,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -72,6 +75,7 @@ import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
+import com.connor.kwitter.features.glass.getNativeTopBarController
 import com.connor.kwitter.domain.messaging.model.Message
 import kotlinx.coroutines.flow.Flow
 import kwitter.composeapp.generated.resources.Res
@@ -100,6 +104,8 @@ fun ChatScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val lazyPagingItems = pagingFlow.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+    val nativeTopBarController = remember { getNativeTopBarController() }
     val loadFailedText = stringResource(Res.string.chat_load_failed)
     val emptyHint = stringResource(Res.string.chat_start_conversation)
     val inputPlaceholder = stringResource(Res.string.chat_input_placeholder)
@@ -111,6 +117,10 @@ fun ChatScreen(
     val recallText = stringResource(Res.string.chat_recall)
     val typingText = stringResource(Res.string.chat_typing)
     val replyingToText = stringResource(Res.string.chat_replying_to)
+    val dismissKeyboard: () -> Unit = {
+        focusManager.clearFocus(force = true)
+        nativeTopBarController?.dismissKeyboard()
+    }
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -156,8 +166,12 @@ fun ChatScreen(
                 ChatTopBar(
                     displayName = state.otherUserDisplayName,
                     avatarUrl = state.otherUserAvatarUrl,
-                    onBackClick = { onAction(ChatNavAction.BackClick) },
+                    onBackClick = {
+                        dismissKeyboard()
+                        onAction(ChatNavAction.BackClick)
+                    },
                     onProfileClick = {
+                        dismissKeyboard()
                         onAction(ChatNavAction.UserProfileClick(state.otherUserId))
                     }
                 )
@@ -171,8 +185,14 @@ fun ChatScreen(
                 replyingToMessage = state.replyingToMessage,
                 replyingToText = replyingToText,
                 onInputChange = { onAction(ChatAction.UpdateMessageInput(it)) },
-                onSendClick = { onAction(ChatAction.SendMessage) },
-                onCancelReply = { onAction(ChatAction.CancelReply) }
+                onSendClick = {
+                    dismissKeyboard()
+                    onAction(ChatAction.SendMessage)
+                },
+                onCancelReply = {
+                    dismissKeyboard()
+                    onAction(ChatAction.CancelReply)
+                }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -183,100 +203,119 @@ fun ChatScreen(
         val topOverlayPadding = paddingValues.calculateTopPadding()
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
 
-        when {
-            refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            top = topOverlayPadding,
-                            bottom = bottomInsetPadding
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures { dismissKeyboard() }
                 }
-            }
-
-            lazyPagingItems.itemCount == 0 && refreshState !is LoadState.Loading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            top = topOverlayPadding,
-                            bottom = bottomInsetPadding
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = emptyHint,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            else -> {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottom = bottomInsetPadding),
-                    reverseLayout = true,
-                    contentPadding = PaddingValues(
-                        start = 16.dp,
-                        top = topOverlayPadding + 8.dp,
-                        end = 16.dp,
-                        bottom = 8.dp
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Typing indicator at the "bottom" (index 0 in reverse layout)
-                    if (state.isOtherUserTyping) {
-                        item(key = "typing_indicator") {
-                            TypingIndicator(
-                                displayName = state.otherUserDisplayName,
-                                avatarUrl = state.otherUserAvatarUrl,
-                                typingText = typingText
-                            )
-                        }
+        ) {
+            when {
+                refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                top = topOverlayPadding,
+                                bottom = bottomInsetPadding
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
                     }
+                }
 
-                    items(
-                        count = lazyPagingItems.itemCount,
-                        key = lazyPagingItems.itemKey { it.id }
-                    ) { index ->
-                        val message = lazyPagingItems[index] ?: return@items
-                        val isSentByMe = message.senderId == state.currentUserId
-                        MessageBubble(
-                            message = message,
-                            isSentByMe = isSentByMe,
-                            otherUserDisplayName = state.otherUserDisplayName,
-                            otherUserAvatarUrl = state.otherUserAvatarUrl,
-                            readReceiptText = readReceiptText,
-                            deletedText = deletedText,
-                            recalledText = recalledText,
-                            replyText = replyText,
-                            deleteText = deleteText,
-                            recallText = recallText,
-                            onOtherUserClick = {
-                                onAction(ChatNavAction.UserProfileClick(state.otherUserId))
-                            },
-                            onReply = { onAction(ChatAction.StartReply(message)) },
-                            onDelete = { onAction(ChatAction.DeleteMessage(message.id)) },
-                            onRecall = { onAction(ChatAction.RecallMessage(message.id)) }
+                lazyPagingItems.itemCount == 0 && refreshState !is LoadState.Loading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                top = topOverlayPadding,
+                                bottom = bottomInsetPadding
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = emptyHint,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
 
-                    if (lazyPagingItems.loadState.append is LoadState.Loading) {
-                        item(key = "loading_more") {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                else -> {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(bottom = bottomInsetPadding),
+                        reverseLayout = true,
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            top = topOverlayPadding + 8.dp,
+                            end = 16.dp,
+                            bottom = 8.dp
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Typing indicator at the "bottom" (index 0 in reverse layout)
+                        if (state.isOtherUserTyping) {
+                            item(key = "typing_indicator") {
+                                TypingIndicator(
+                                    displayName = state.otherUserDisplayName,
+                                    avatarUrl = state.otherUserAvatarUrl,
+                                    typingText = typingText
+                                )
+                            }
+                        }
+
+                        items(
+                            count = lazyPagingItems.itemCount,
+                            key = lazyPagingItems.itemKey { it.id }
+                        ) { index ->
+                            val message = lazyPagingItems[index] ?: return@items
+                            val isSentByMe = message.senderId == state.currentUserId
+                            MessageBubble(
+                                message = message,
+                                isSentByMe = isSentByMe,
+                                otherUserDisplayName = state.otherUserDisplayName,
+                                otherUserAvatarUrl = state.otherUserAvatarUrl,
+                                readReceiptText = readReceiptText,
+                                deletedText = deletedText,
+                                recalledText = recalledText,
+                                replyText = replyText,
+                                deleteText = deleteText,
+                                recallText = recallText,
+                                onInteraction = dismissKeyboard,
+                                onOtherUserClick = {
+                                    dismissKeyboard()
+                                    onAction(ChatNavAction.UserProfileClick(state.otherUserId))
+                                },
+                                onReply = {
+                                    dismissKeyboard()
+                                    onAction(ChatAction.StartReply(message))
+                                },
+                                onDelete = {
+                                    dismissKeyboard()
+                                    onAction(ChatAction.DeleteMessage(message.id))
+                                },
+                                onRecall = {
+                                    dismissKeyboard()
+                                    onAction(ChatAction.RecallMessage(message.id))
+                                }
+                            )
+                        }
+
+                        if (lazyPagingItems.loadState.append is LoadState.Loading) {
+                            item(key = "loading_more") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                }
                             }
                         }
                     }
@@ -382,6 +421,7 @@ private fun MessageBubble(
     replyText: String,
     deleteText: String,
     recallText: String,
+    onInteraction: () -> Unit,
     onOtherUserClick: () -> Unit,
     onReply: () -> Unit,
     onDelete: () -> Unit,
@@ -437,8 +477,11 @@ private fun MessageBubble(
                         .let { mod ->
                             if (message.isNormalMessage) {
                                 mod.combinedClickable(
-                                    onClick = {},
-                                    onLongClick = { showContextMenu = true }
+                                    onClick = onInteraction,
+                                    onLongClick = {
+                                        onInteraction()
+                                        showContextMenu = true
+                                    }
                                 )
                             } else {
                                 mod
