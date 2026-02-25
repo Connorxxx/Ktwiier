@@ -8,6 +8,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitViewController
+import com.connor.kwitter.core.media.VideoCache
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryAmbient
@@ -34,14 +35,21 @@ actual fun AutoPlayVideoPlayer(
     modifier: Modifier,
     isPlaying: Boolean
 ) {
-    val nsUrl = remember(url) { NSURL.URLWithString(url) } ?: return
+    val playUrl = remember(url) {
+        VideoCache.cachedFileUrl(url) ?: NSURL.URLWithString(url)
+    } ?: return
+    val currentIsPlaying = rememberUpdatedState(isPlaying)
+
     val player = remember(url) {
-        AVPlayer.playerWithURL(nsUrl).apply {
+        // Trigger background download for uncached videos
+        if (VideoCache.cachedFileUrl(url) == null) {
+            VideoCache.cacheVideoAsync(url)
+        }
+        AVPlayer.playerWithURL(playUrl).apply {
             muted = true
             volume = 0f
         }
     }
-    val currentIsPlaying = rememberUpdatedState(isPlaying)
 
     LaunchedEffect(isPlaying) {
         if (isPlaying) player.play() else player.pause()

@@ -55,6 +55,7 @@ kotlin {
             // Video playback
             implementation(libs.androidx.media3.exoplayer)
             implementation(libs.androidx.media3.ui)
+            implementation(libs.androidx.media3.database)
 
             // Coil video thumbnail
             implementation(libs.coil.video)

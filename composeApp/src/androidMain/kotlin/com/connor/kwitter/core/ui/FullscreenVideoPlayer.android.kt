@@ -15,8 +15,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.connor.kwitter.core.media.VideoCache
 import kotlinx.coroutines.delay
 
 @OptIn(UnstableApi::class)
@@ -33,13 +35,17 @@ actual fun FullscreenVideoPlayer(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val exoPlayer = remember(url) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(url))
-            repeatMode = Player.REPEAT_MODE_ONE
-            volume = 1f
-            playWhenReady = false
-            prepare()
-        }
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(
+                DefaultMediaSourceFactory(VideoCache.getCacheDataSourceFactory(context))
+            )
+            .build().apply {
+                setMediaItem(MediaItem.fromUri(url))
+                repeatMode = Player.REPEAT_MODE_ONE
+                volume = 1f
+                playWhenReady = false
+                prepare()
+            }
     }
 
     // Sync isPlaying from state to player

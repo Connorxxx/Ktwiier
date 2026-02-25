@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitViewController
+import com.connor.kwitter.core.media.VideoCache
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.delay
 import platform.AVFAudio.AVAudioSession
@@ -38,9 +39,14 @@ actual fun FullscreenVideoPlayer(
     onProgressChanged: (positionMs: Long, durationMs: Long) -> Unit,
     modifier: Modifier
 ) {
-    val nsUrl = remember(url) { NSURL.URLWithString(url) } ?: return
+    val playUrl = remember(url) {
+        VideoCache.cachedFileUrl(url) ?: NSURL.URLWithString(url)
+    } ?: return
     val player = remember(url) {
-        AVPlayer.playerWithURL(nsUrl).apply {
+        if (VideoCache.cachedFileUrl(url) == null) {
+            VideoCache.cacheVideoAsync(url)
+        }
+        AVPlayer.playerWithURL(playUrl).apply {
             muted = false
         }
     }
