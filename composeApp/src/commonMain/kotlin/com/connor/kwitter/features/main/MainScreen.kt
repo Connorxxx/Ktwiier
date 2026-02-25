@@ -749,7 +749,20 @@ fun MainScreen(
                     coordinator = topBarCoordinator,
                     route = route,
                     onBack = mainState.onBack
-                )
+                ) { action ->
+                    if (action is NativeTopBarAction.ButtonClicked &&
+                        action.action == NativeTopBarButtonAction.Search) {
+                        val conversationId = state.conversationId
+                        if (conversationId != null) {
+                            mainState.onNavigate(
+                                NavigationRoute.MessageSearch(
+                                    conversationId = conversationId,
+                                    otherUserDisplayName = state.otherUserDisplayName
+                                )
+                            )
+                        }
+                    }
+                }
 
                 LaunchedEffect(route.conversationId, route.otherUserId, route.otherUserAvatarUrl) {
                     vm.onEvent(

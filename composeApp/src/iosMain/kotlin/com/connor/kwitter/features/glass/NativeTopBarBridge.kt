@@ -815,6 +815,7 @@ private class NativeOverlayTopBarView(
         NativeTopBarButtonStyle.Profile -> "person.fill"
         NativeTopBarButtonStyle.Plus -> "plus"
         NativeTopBarButtonStyle.Edit -> "square.and.pencil"
+        NativeTopBarButtonStyle.Search -> "magnifyingglass"
         NativeTopBarButtonStyle.Text -> null
     }
 }

@@ -70,6 +70,7 @@ import com.connor.kwitter.core.ui.ErrorScreen
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.ui.GlassTopBarIconButton
+import com.connor.kwitter.core.ui.GlassTopBarIconContentColor
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.core.ui.LoadingScreen
@@ -166,7 +167,8 @@ fun ChatScreen(
         onNativeTopBarModel,
         NativeTopBarModel.Title(
             title = state.otherUserDisplayName,
-            leadingButton = NativeTopBarButtons.back()
+            leadingButton = NativeTopBarButtons.back(),
+            trailingButton = NativeTopBarButtons.search()
         )
     )
 
@@ -415,7 +417,10 @@ private fun ChatTopBar(
                     onClick = onSearchClick,
                     modifier = Modifier.padding(end = 8.dp)
                 ) {
-                    SearchIcon(modifier = Modifier.size(18.dp))
+                    SearchIcon(
+                        modifier = Modifier.size(18.dp),
+                        color = GlassTopBarIconContentColor()
+                    )
                 }
             },
             colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(

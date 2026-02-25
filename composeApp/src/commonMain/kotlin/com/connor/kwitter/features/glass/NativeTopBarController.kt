@@ -14,6 +14,7 @@ enum class NativeTopBarButtonAction {
     CreatePost,
     Profile,
     Edit,
+    Search,
     Save
 }
 
@@ -23,6 +24,7 @@ enum class NativeTopBarButtonStyle {
     Profile,
     Plus,
     Edit,
+    Search,
     Text
 }
 
@@ -66,6 +68,13 @@ object NativeTopBarButtons {
         NativeTopBarButtonConfig(
             action = NativeTopBarButtonAction.Edit,
             style = NativeTopBarButtonStyle.Edit,
+            enabled = enabled
+        )
+
+    fun search(enabled: Boolean = true): NativeTopBarButtonConfig =
+        NativeTopBarButtonConfig(
+            action = NativeTopBarButtonAction.Search,
+            style = NativeTopBarButtonStyle.Search,
             enabled = enabled
         )
 
