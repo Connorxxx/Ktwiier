@@ -109,3 +109,7 @@ yarn-error.log*
 
 # Local-only: do not track wrapper script mode in this repo clone
 gradlew
+
+# Firebase credentials (local-only)
+androidApp/google-services.json
+iosApp/iosApp/GoogleService-Info.plist
