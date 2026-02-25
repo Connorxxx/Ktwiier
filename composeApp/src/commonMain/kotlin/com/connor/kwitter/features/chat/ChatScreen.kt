@@ -19,10 +19,12 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -33,8 +35,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -778,63 +779,68 @@ private fun ChatInputBar(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
-        )
-
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.background)
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(horizontal = 10.dp, vertical = 6.dp)
                 .chatInputKeyboardAwarePadding(),
-            verticalAlignment = Alignment.Bottom
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            OutlinedTextField(
+            BasicTextField(
                 value = input,
                 onValueChange = onInputChange,
                 modifier = Modifier.weight(1f),
-                placeholder = {
-                    Text(
-                        text = inputPlaceholder,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                },
-                shape = RoundedCornerShape(24.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                ),
                 maxLines = 4,
-                textStyle = MaterialTheme.typography.bodyLarge
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                decorationBox = { innerTextField ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 38.dp, max = 108.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        if (input.isBlank()) {
+                            Text(
+                                text = inputPlaceholder,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        innerTextField()
+                    }
+                }
             )
 
-            Spacer(modifier = Modifier.width(8.dp))
-
             val canSend = input.isNotBlank() && !isSending
-            IconButton(
-                onClick = onSendClick,
-                enabled = canSend,
+            val sendContainerColor = if (canSend || isSending) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh
+            }
+            Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (canSend) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceContainerHigh
-                    )
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(sendContainerColor)
+                    .clickable(enabled = canSend, onClick = onSendClick),
+                contentAlignment = Alignment.Center
             ) {
                 if (isSending) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(13.dp),
+                        strokeWidth = 1.8.dp,
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 } else {
                     SendIcon(
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(15.dp),
                         color = if (canSend) {
                             MaterialTheme.colorScheme.onPrimary
                         } else {

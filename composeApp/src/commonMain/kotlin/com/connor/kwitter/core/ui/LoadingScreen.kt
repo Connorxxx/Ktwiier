@@ -29,8 +29,6 @@ fun LoadingScreen(
     subtitle: String? = null
 ) {
     val resolvedTitle = title ?: stringResource(Res.string.loading_screen_title)
-    val resolvedSubtitle = subtitle ?: stringResource(Res.string.loading_screen_subtitle)
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -53,12 +51,14 @@ fun LoadingScreen(
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
-            Text(
-                text = resolvedSubtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }

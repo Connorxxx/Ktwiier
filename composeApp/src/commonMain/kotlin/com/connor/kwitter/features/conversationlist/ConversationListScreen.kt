@@ -122,8 +122,8 @@ fun ConversationListScreen(
                 .fillMaxSize()
                 .padding(bottom = bottomInsetPadding)
         ) {
-            when {
-                refreshState is LoadState.Loading && lazyPagingItems.itemCount == 0 -> {
+            when (refreshState) {
+                is LoadState.Loading if lazyPagingItems.itemCount == 0 -> {
                     LoadingScreen(
                         contentPadding = PaddingValues(
                             top = topOverlayPadding,
@@ -132,7 +132,7 @@ fun ConversationListScreen(
                     )
                 }
 
-                refreshState is LoadState.Error && lazyPagingItems.itemCount == 0 -> {
+                is LoadState.Error if lazyPagingItems.itemCount == 0 -> {
                     ErrorScreen(
                         message = refreshState.error.message ?: loadFailedText,
                         contentPadding = PaddingValues(
@@ -143,7 +143,7 @@ fun ConversationListScreen(
                     )
                 }
 
-                refreshState is LoadState.NotLoading && lazyPagingItems.itemCount == 0 -> {
+                is LoadState.NotLoading if lazyPagingItems.itemCount == 0 -> {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
