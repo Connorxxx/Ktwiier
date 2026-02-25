@@ -69,6 +69,7 @@ sealed interface ChatAction : ChatIntent {
 sealed interface ChatNavAction : ChatIntent {
     data object BackClick : ChatNavAction
     data class UserProfileClick(val userId: String) : ChatNavAction
+    data object SearchClick : ChatNavAction
 }
 
 class ChatViewModel(

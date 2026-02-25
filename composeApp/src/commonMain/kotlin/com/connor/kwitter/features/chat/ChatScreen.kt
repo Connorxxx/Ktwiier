@@ -69,6 +69,7 @@ import com.connor.kwitter.core.result.errorOrNull
 import com.connor.kwitter.core.ui.ErrorScreen
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
+import com.connor.kwitter.core.ui.GlassTopBarIconButton
 import com.connor.kwitter.core.ui.GlassTopBarTitle
 import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.core.ui.LoadingScreen
@@ -80,6 +81,7 @@ import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
 import com.connor.kwitter.features.glass.getNativeTopBarController
 import com.connor.kwitter.domain.messaging.model.Message
+import com.connor.kwitter.features.search.SearchIcon
 import kotlinx.coroutines.flow.Flow
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.chat_delete
@@ -181,6 +183,10 @@ fun ChatScreen(
                     onProfileClick = {
                         dismissKeyboard()
                         onAction(ChatNavAction.UserProfileClick(state.otherUserId))
+                    },
+                    onSearchClick = {
+                        dismissKeyboard()
+                        onAction(ChatNavAction.SearchClick)
                     }
                 )
             }
@@ -375,7 +381,8 @@ private fun ChatTopBar(
     displayName: String,
     avatarUrl: String?,
     onBackClick: () -> Unit,
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    onSearchClick: () -> Unit
 ) {
     GlassTopBar {
         CenterAlignedTopAppBar(
@@ -402,6 +409,14 @@ private fun ChatTopBar(
                     onClick = onBackClick,
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
+            },
+            actions = {
+                GlassTopBarIconButton(
+                    onClick = onSearchClick,
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    SearchIcon(modifier = Modifier.size(18.dp))
+                }
             },
             colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
                 containerColor = Color.Transparent,

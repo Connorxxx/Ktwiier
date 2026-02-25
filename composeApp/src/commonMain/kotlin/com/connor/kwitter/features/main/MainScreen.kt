@@ -83,6 +83,10 @@ import com.connor.kwitter.features.home.HomeAction
 import com.connor.kwitter.features.home.HomeNavAction
 import com.connor.kwitter.features.home.HomeScreen
 import com.connor.kwitter.features.home.HomeViewModel
+import com.connor.kwitter.features.messagesearch.MessageSearchAction
+import com.connor.kwitter.features.messagesearch.MessageSearchNavAction
+import com.connor.kwitter.features.messagesearch.MessageSearchScreen
+import com.connor.kwitter.features.messagesearch.MessageSearchViewModel
 import com.connor.kwitter.features.search.SearchAction
 import com.connor.kwitter.features.search.SearchNavAction
 import com.connor.kwitter.features.search.SearchScreen
@@ -143,7 +147,8 @@ private fun routeUsesNativeTopBar(route: NavigationRoute?): Boolean = when (rout
     is NavigationRoute.UserFollowList,
     NavigationRoute.Search,
     NavigationRoute.ConversationList,
-    is NavigationRoute.Chat -> true
+    is NavigationRoute.Chat,
+    is NavigationRoute.MessageSearch -> true
 
     else -> false
 }
@@ -776,6 +781,67 @@ fun MainScreen(
                                     mainState.onNavigate(
                                         NavigationRoute.UserProfile(userId = action.userId)
                                     )
+                                }
+
+                                ChatNavAction.SearchClick -> {
+                                    val conversationId = state.conversationId
+                                    if (conversationId != null) {
+                                        mainState.onNavigate(
+                                            NavigationRoute.MessageSearch(
+                                                conversationId = conversationId,
+                                                otherUserDisplayName = state.otherUserDisplayName
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+
+            entry<NavigationRoute.MessageSearch> { route ->
+                val vm: MessageSearchViewModel = koinViewModel()
+                val state by vm.uiState.collectAsStateWithLifecycle()
+                val onNativeTopBarModel = rememberNativeTopBarBinding(
+                    coordinator = topBarCoordinator,
+                    route = route,
+                    onBack = mainState.onBack
+                ) { action ->
+                    when (action) {
+                        is NativeTopBarAction.SearchQueryChanged -> {
+                            vm.onEvent(MessageSearchAction.UpdateQuery(action.query))
+                        }
+
+                        NativeTopBarAction.SearchSubmitted -> {
+                            vm.onEvent(MessageSearchAction.SubmitSearch)
+                        }
+
+                        else -> {}
+                    }
+                }
+
+                LaunchedEffect(route.conversationId, route.otherUserDisplayName) {
+                    vm.onEvent(
+                        MessageSearchAction.Load(
+                            conversationId = route.conversationId,
+                            otherUserDisplayName = route.otherUserDisplayName
+                        )
+                    )
+                }
+
+                MessageSearchScreen(
+                    state = state,
+                    useNativeTopBar = useNativeTopBar,
+                    onNativeTopBarModel = onNativeTopBarModel,
+                    onAction = { action ->
+                        when (action) {
+                            is MessageSearchAction -> vm.onEvent(action)
+                            is MessageSearchNavAction -> when (action) {
+                                MessageSearchNavAction.BackClick -> mainState.onBack()
+                                is MessageSearchNavAction.ResultClick -> {
+                                    // For now, just go back to the conversation
+                                    mainState.onBack()
                                 }
                             }
                         }

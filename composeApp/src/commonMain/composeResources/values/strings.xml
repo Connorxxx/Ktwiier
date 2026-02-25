@@ -140,6 +140,9 @@
     <string name="chat_replying_to">Replying to</string>
     <string name="chat_reply_message_unavailable">Original message unavailable</string>
 
+    <string name="message_search_placeholder">Search messages</string>
+    <string name="message_search_no_results">No results found</string>
+
     <string name="user_list_empty_following">Not following anyone yet</string>
     <string name="user_list_empty_followers">No followers yet</string>
 

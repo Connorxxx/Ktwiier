@@ -16,7 +16,7 @@ import com.connor.kwitter.data.messaging.local.MessageEntity
         ConversationEntity::class,
         MessageEntity::class
     ],
-    version = 3
+    version = 4
 )
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {

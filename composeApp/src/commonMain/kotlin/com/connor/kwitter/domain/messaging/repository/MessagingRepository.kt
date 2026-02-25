@@ -4,6 +4,7 @@ import androidx.paging.PagingData
 import arrow.core.Either
 import com.connor.kwitter.domain.messaging.model.Conversation
 import com.connor.kwitter.domain.messaging.model.Message
+import com.connor.kwitter.domain.messaging.model.MessageSearchItem
 import com.connor.kwitter.domain.messaging.model.MessagingError
 import kotlinx.coroutines.flow.Flow
 
@@ -25,4 +26,8 @@ interface MessagingRepository {
     fun onlineStatus(): Flow<Map<String, Boolean>>
     fun sendTyping(conversationId: String)
     fun sendStopTyping(conversationId: String)
+    suspend fun searchMessages(
+        conversationId: String,
+        query: String
+    ): Either<MessagingError, List<MessageSearchItem>>
 }

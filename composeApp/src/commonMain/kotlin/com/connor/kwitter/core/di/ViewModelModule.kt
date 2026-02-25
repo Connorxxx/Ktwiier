@@ -9,6 +9,7 @@ import com.connor.kwitter.features.home.HomeViewModel
 import com.connor.kwitter.features.login.LoginViewModel
 import com.connor.kwitter.features.main.MainViewModel
 import com.connor.kwitter.features.mediaviewer.MediaViewerViewModel
+import com.connor.kwitter.features.messagesearch.MessageSearchViewModel
 import com.connor.kwitter.features.postdetail.PostDetailViewModel
 import com.connor.kwitter.features.userprofile.UserProfileViewModel
 import com.connor.kwitter.features.userlist.UserListViewModel
@@ -35,5 +36,6 @@ val viewModelModule = module {
     viewModelOf(::SearchViewModel)
     viewModelOf(::ConversationListViewModel)
     viewModelOf(::ChatViewModel)
+    viewModelOf(::MessageSearchViewModel)
     viewModelOf(::SettingsViewModel)
 }

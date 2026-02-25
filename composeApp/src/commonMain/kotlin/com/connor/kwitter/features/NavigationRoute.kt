@@ -71,4 +71,10 @@ sealed interface NavigationRoute {
         val otherUserDisplayName: String,
         val otherUserAvatarUrl: String? = null
     ) : NavigationRoute
+
+    @Serializable
+    data class MessageSearch(
+        val conversationId: String,
+        val otherUserDisplayName: String
+    ) : NavigationRoute
 }

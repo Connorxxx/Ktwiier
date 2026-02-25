@@ -17,6 +17,7 @@ import com.connor.kwitter.data.messaging.local.toDomain
 import com.connor.kwitter.data.notification.NotificationService
 import com.connor.kwitter.domain.messaging.model.Conversation
 import com.connor.kwitter.domain.messaging.model.Message
+import com.connor.kwitter.domain.messaging.model.MessageSearchItem
 import com.connor.kwitter.domain.messaging.model.MessagingError
 import com.connor.kwitter.domain.messaging.repository.MessagingRepository
 import com.connor.kwitter.domain.notification.model.NotificationEvent
@@ -42,6 +43,7 @@ class MessagingRepositoryImpl(
 ) : MessagingRepository {
     private companion object {
         const val CONVERSATION_RESOLVE_PAGE_SIZE = 50
+        const val FTS5_TRIGRAM_MIN_LENGTH = 3
     }
 
     private val conversationsRefreshTrigger = MutableStateFlow(0L)
@@ -203,6 +205,50 @@ class MessagingRepositoryImpl(
 
     override fun sendStopTyping(conversationId: String) {
         repositoryScope.launch { notificationService.sendStopTyping(conversationId) }
+    }
+
+    override suspend fun searchMessages(
+        conversationId: String,
+        query: String
+    ): Either<MessagingError, List<MessageSearchItem>> = Either.catch {
+        if (query.length >= FTS5_TRIGRAM_MIN_LENGTH) {
+            val escaped = query.replace("\"", "\"\"")
+            messageDao.searchMessages(
+                conversationId = conversationId,
+                query = "\"$escaped\""
+            ).map { it.toDomain() }
+        } else {
+            messageDao.searchMessagesLike(
+                conversationId = conversationId,
+                query = query
+            ).map { entity ->
+                entity.toDomain().let { item ->
+                    item.copy(highlightedContent = highlightSubstring(item.message.content, query))
+                }
+            }
+        }
+    }.mapLeft { throwable ->
+        MessagingError.Unknown(throwable.message ?: "Search failed")
+    }
+
+    private fun highlightSubstring(content: String, query: String): String {
+        val sb = StringBuilder()
+        var cursor = 0
+        val lowerContent = content.lowercase()
+        val lowerQuery = query.lowercase()
+        while (cursor < content.length) {
+            val index = lowerContent.indexOf(lowerQuery, cursor)
+            if (index == -1) {
+                sb.append(content.substring(cursor))
+                break
+            }
+            sb.append(content.substring(cursor, index))
+            sb.append("<mark>")
+            sb.append(content.substring(index, index + query.length))
+            sb.append("</mark>")
+            cursor = index + query.length
+        }
+        return sb.toString()
     }
 
     private suspend fun observeNotificationEvents() {

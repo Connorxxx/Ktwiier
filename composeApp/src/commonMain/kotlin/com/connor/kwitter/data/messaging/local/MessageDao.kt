@@ -5,7 +5,9 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RawQuery
 import androidx.room.Transaction
+import androidx.room.RoomRawQuery
 import com.connor.kwitter.data.post.local.RemoteKeyEntity
 
 @Dao
@@ -83,4 +85,59 @@ interface MessageDao {
 
     @Query("UPDATE messages SET deletedAt = :deletedAt WHERE id = :messageId")
     suspend fun markMessageAsDeleted(messageId: String, deletedAt: Long)
+
+    @RawQuery
+    suspend fun searchMessagesRaw(query: RoomRawQuery): List<MessageSearchResultEntity>
+
+    suspend fun searchMessages(
+        conversationId: String,
+        query: String,
+        limit: Int = 50
+    ): List<MessageSearchResultEntity> {
+        val sql = """
+            SELECT m.id, m.conversationId, m.senderId, m.content, m.createdAt,
+                   highlight(messages_fts, 0, '<mark>', '</mark>') AS highlightedContent
+            FROM messages_fts fts
+            JOIN messages m ON fts.rowid = m.rowid
+            WHERE fts.content MATCH ?
+              AND m.conversationId = ?
+              AND m.deletedAt IS NULL
+              AND m.recalledAt IS NULL
+            ORDER BY fts.rank
+            LIMIT ?
+        """.trimIndent()
+        val roomRawQuery = RoomRawQuery(sql) { statement ->
+            statement.bindText(1, query)
+            statement.bindText(2, conversationId)
+            statement.bindLong(3, limit.toLong())
+        }
+        return searchMessagesRaw(roomRawQuery)
+    }
+
+    suspend fun searchMessagesLike(
+        conversationId: String,
+        query: String,
+        limit: Int = 50
+    ): List<MessageSearchResultEntity> {
+        val escaped = query.replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+        val pattern = "%$escaped%"
+        val sql = """
+            SELECT id, conversationId, senderId, content, createdAt, content AS highlightedContent
+            FROM messages
+            WHERE conversationId = ?
+              AND content LIKE ? ESCAPE '\'
+              AND deletedAt IS NULL
+              AND recalledAt IS NULL
+            ORDER BY createdAt DESC
+            LIMIT ?
+        """.trimIndent()
+        val roomRawQuery = RoomRawQuery(sql) { statement ->
+            statement.bindText(1, conversationId)
+            statement.bindText(2, pattern)
+            statement.bindLong(3, limit.toLong())
+        }
+        return searchMessagesRaw(roomRawQuery)
+    }
 }

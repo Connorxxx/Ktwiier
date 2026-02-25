@@ -140,6 +140,9 @@
     <string name="chat_replying_to">回复</string>
     <string name="chat_reply_message_unavailable">原消息不可用</string>
 
+    <string name="message_search_placeholder">搜索消息</string>
+    <string name="message_search_no_results">未找到结果</string>
+
     <string name="user_list_empty_following">还没有关注任何人</string>
     <string name="user_list_empty_followers">还没有粉丝</string>
 
