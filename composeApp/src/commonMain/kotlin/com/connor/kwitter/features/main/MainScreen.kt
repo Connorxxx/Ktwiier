@@ -30,7 +30,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -168,8 +167,6 @@ fun MainScreen(
 ) {
     val mainState by mainVm.state.collectAsStateWithLifecycle()
     val json = remember { Json { ignoreUnknownKeys = true } }
-
-    val profileRefreshKey = remember { mutableIntStateOf(0) }
 
     val navigateToMediaViewer: (List<PostMedia>, Int) -> Unit = remember(mainState) {
         { media, index ->
@@ -466,8 +463,8 @@ fun MainScreen(
                     vm.onEvent(UserProfileAction.Load(userId = route.userId))
                 }
 
-                LaunchedEffect(profileRefreshKey.intValue) {
-                    if (profileRefreshKey.intValue > 0) {
+                LaunchedEffect(mainState.profileVersion) {
+                    if (mainState.profileVersion > 0) {
                         vm.onEvent(UserProfileAction.Refresh)
                     }
                 }
@@ -572,7 +569,7 @@ fun MainScreen(
                             is EditProfileNavAction -> when (action) {
                                 EditProfileNavAction.BackClick -> mainState.onBack()
                                 EditProfileNavAction.SaveSuccess -> {
-                                    profileRefreshKey.intValue++
+                                    mainVm.onAction(MainAction.ProfileUpdated)
                                     mainState.onBack()
                                 }
                             }

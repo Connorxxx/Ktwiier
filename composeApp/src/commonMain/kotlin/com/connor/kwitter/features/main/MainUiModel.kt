@@ -39,6 +39,8 @@ data class MainState(
     val isLoading: Boolean = false,
     // 导航栈：认证后包含所有 tab 根路由，detail 页面压在顶部
     val backStack: List<NavigationRoute>,
+    // 每次 profile 被编辑保存后自增，用于通知 UserProfile 刷新
+    val profileVersion: Int = 0,
     // 行为：暴露给 UI 的回调，用于修改状态
     val onNavigate: (NavigationRoute) -> Unit,
     // 替换式导航：移除栈中所有相同类型路由，然后添加新路由（实现 singleTop）
@@ -53,4 +55,5 @@ data class MainState(
  */
 sealed interface MainAction {
     data object Load : MainAction
+    data object ProfileUpdated : MainAction
 }
