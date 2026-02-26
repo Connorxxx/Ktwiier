@@ -33,13 +33,13 @@ interface ConversationDao {
     suspend fun replaceAll(
         label: String,
         conversations: List<ConversationEntity>,
-        nextOffset: Int?
+        nextCursor: String?
     ) {
         clearAll()
         deleteRemoteKeyByLabel(label)
         insertAll(conversations)
-        if (nextOffset != null) {
-            insertOrReplaceRemoteKey(RemoteKeyEntity(label = label, nextOffset = nextOffset))
+        if (nextCursor != null) {
+            insertOrReplaceRemoteKey(RemoteKeyEntity(label = label, nextCursor = nextCursor))
         }
     }
 
@@ -47,11 +47,11 @@ interface ConversationDao {
     suspend fun append(
         label: String,
         conversations: List<ConversationEntity>,
-        nextOffset: Int?
+        nextCursor: String?
     ) {
         insertAll(conversations)
-        if (nextOffset != null) {
-            insertOrReplaceRemoteKey(RemoteKeyEntity(label = label, nextOffset = nextOffset))
+        if (nextCursor != null) {
+            insertOrReplaceRemoteKey(RemoteKeyEntity(label = label, nextCursor = nextCursor))
         } else {
             deleteRemoteKeyByLabel(label)
         }

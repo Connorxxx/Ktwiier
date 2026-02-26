@@ -53,14 +53,15 @@ class MessagingRemoteDataSource(
     suspend fun getMessages(
         conversationId: String,
         limit: Int,
-        offset: Int
+        offset: Int = 0,
+        beforeId: String? = null
     ): Either<MessagingError, MessageList> = either {
         try {
             val response: HttpResponse = httpClient.get(
                 endpoint("$CONVERSATIONS_PATH/$conversationId/messages")
             ) {
                 parameter("limit", limit)
-                parameter("offset", offset)
+                if (beforeId != null) parameter("beforeId", beforeId) else parameter("offset", offset)
             }
             handleResponse(response) {
                 it.body<MessageListResponseDto>().toDomain()
@@ -202,13 +203,15 @@ private data class ConversationDto(
 @Serializable
 private data class ConversationListResponseDto(
     val conversations: List<ConversationDto>,
-    val hasMore: Boolean = false
+    val hasMore: Boolean = false,
+    val nextCursor: String? = null
 )
 
 @Serializable
 private data class MessageListResponseDto(
     val messages: List<MessageDto>,
-    val hasMore: Boolean = false
+    val hasMore: Boolean = false,
+    val nextCursor: String? = null
 )
 
 @Serializable
@@ -255,10 +258,12 @@ private fun ConversationDto.toDomain(): Conversation = Conversation(
 
 private fun ConversationListResponseDto.toDomain(): ConversationList = ConversationList(
     conversations = conversations.map { it.toDomain() },
-    hasMore = hasMore
+    hasMore = hasMore,
+    nextCursor = nextCursor
 )
 
 private fun MessageListResponseDto.toDomain(): MessageList = MessageList(
     messages = messages.map { it.toDomain() },
-    hasMore = hasMore
+    hasMore = hasMore,
+    nextCursor = nextCursor
 )

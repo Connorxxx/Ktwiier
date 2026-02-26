@@ -19,5 +19,6 @@ data class Message(
 
 data class MessageList(
     val messages: List<Message>,
-    val hasMore: Boolean
+    val hasMore: Boolean,
+    val nextCursor: String? = null
 )

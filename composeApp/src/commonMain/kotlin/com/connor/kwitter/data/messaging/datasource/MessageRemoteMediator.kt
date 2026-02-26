@@ -28,13 +28,13 @@ class MessageRemoteMediator(
         loadType: LoadType,
         state: PagingState<Int, MessageEntity>
     ): MediatorResult {
-        val offset = when (loadType) {
-            LoadType.REFRESH -> 0
+        val cursor: String? = when (loadType) {
+            LoadType.REFRESH -> null
             LoadType.PREPEND -> return MediatorResult.Success(endOfPaginationReached = true)
             LoadType.APPEND -> {
                 val remoteKey = messageDao.getRemoteKeyByLabel(label)
                     ?: return MediatorResult.Success(endOfPaginationReached = true)
-                remoteKey.nextOffset
+                remoteKey.nextCursor ?: return MediatorResult.Success(endOfPaginationReached = true)
             }
         }
 
@@ -42,7 +42,7 @@ class MessageRemoteMediator(
             val result = remoteDataSource.getMessages(
                 conversationId = conversationId,
                 limit = PAGE_SIZE,
-                offset = offset
+                beforeId = cursor
             )
 
             result.fold(
@@ -53,26 +53,24 @@ class MessageRemoteMediator(
                     // API returns DESC (newest first). We store with orderIndex where
                     // lower index = newer message. With reversed LazyColumn,
                     // ORDER BY orderIndex ASC puts newest (index 0) at bottom.
-                    val baseIndex = offset
-
                     val entities = messageList.messages.mapIndexed { index, message ->
-                        message.toEntity(orderIndex = baseIndex + index)
+                        message.toEntity(orderIndex = index)
                     }
 
                     val endReached = messageList.messages.isEmpty() || !messageList.hasMore
-                    val nextOffset = if (endReached) null else offset + messageList.messages.size
+                    val nextCursor = if (endReached) null else messageList.nextCursor
 
                     when (loadType) {
                         LoadType.REFRESH -> messageDao.replaceMessages(
                             conversationId = conversationId,
                             label = label,
                             messages = entities,
-                            nextOffset = nextOffset
+                            nextCursor = nextCursor
                         )
                         LoadType.APPEND -> messageDao.appendMessages(
                             label = label,
                             messages = entities,
-                            nextOffset = nextOffset
+                            nextCursor = nextCursor
                         )
                         LoadType.PREPEND -> Unit
                     }

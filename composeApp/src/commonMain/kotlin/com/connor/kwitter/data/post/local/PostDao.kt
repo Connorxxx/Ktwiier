@@ -32,16 +32,16 @@ interface PostDao {
     suspend fun replaceTimeline(
         label: String,
         posts: List<PostEntity>,
-        nextOffset: Int?
+        nextCursor: String?
     ) {
         clearAll()
         deleteRemoteKeyByLabel(label)
         insertAll(posts)
-        if (nextOffset != null) {
+        if (nextCursor != null) {
             insertOrReplaceRemoteKey(
                 RemoteKeyEntity(
                     label = label,
-                    nextOffset = nextOffset
+                    nextCursor = nextCursor
                 )
             )
         }
@@ -51,14 +51,14 @@ interface PostDao {
     suspend fun appendTimeline(
         label: String,
         posts: List<PostEntity>,
-        nextOffset: Int?
+        nextCursor: String?
     ) {
         insertAll(posts)
-        if (nextOffset != null) {
+        if (nextCursor != null) {
             insertOrReplaceRemoteKey(
                 RemoteKeyEntity(
                     label = label,
-                    nextOffset = nextOffset
+                    nextCursor = nextCursor
                 )
             )
         } else {

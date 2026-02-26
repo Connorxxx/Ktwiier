@@ -30,7 +30,8 @@ class ConversationRemoteMediator(
             LoadType.APPEND -> {
                 val remoteKey = conversationDao.getRemoteKeyByLabel(CONVERSATIONS_LABEL)
                     ?: return MediatorResult.Success(endOfPaginationReached = true)
-                remoteKey.nextOffset
+                remoteKey.nextCursor?.toIntOrNull()
+                    ?: return MediatorResult.Success(endOfPaginationReached = true)
             }
         }
 
@@ -49,18 +50,18 @@ class ConversationRemoteMediator(
                     }
 
                     val endReached = conversationList.conversations.isEmpty() || !conversationList.hasMore
-                    val nextOffset = if (endReached) null else offset + conversationList.conversations.size
+                    val nextCursor = if (endReached) null else (offset + conversationList.conversations.size).toString()
 
                     when (loadType) {
                         LoadType.REFRESH -> conversationDao.replaceAll(
                             label = CONVERSATIONS_LABEL,
                             conversations = entities,
-                            nextOffset = nextOffset
+                            nextCursor = nextCursor
                         )
                         LoadType.APPEND -> conversationDao.append(
                             label = CONVERSATIONS_LABEL,
                             conversations = entities,
-                            nextOffset = nextOffset
+                            nextCursor = nextCursor
                         )
                         LoadType.PREPEND -> Unit
                     }

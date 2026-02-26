@@ -62,7 +62,8 @@ data class PostSummary(
 data class PostList(
     val posts: List<Post>,
     val hasMore: Boolean,
-    val total: Int? = null
+    val total: Int? = null,
+    val nextCursor: String? = null
 )
 
 @Serializable
@@ -72,7 +73,8 @@ data class LikeResponse(
 
 data class PostPageQuery(
     val limit: Int = 20,
-    val offset: Int = 0
+    val offset: Int = 0,
+    val beforeId: String? = null
 ) {
     init {
         require(limit > 0) { "limit must be > 0" }

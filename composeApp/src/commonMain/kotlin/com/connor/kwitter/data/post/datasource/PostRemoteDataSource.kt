@@ -37,7 +37,7 @@ class PostRemoteDataSource(
         try {
             val response: HttpResponse = httpClient.get(endpoint(TIMELINE_PATH)) {
                 parameter("limit", query.limit)
-                parameter("offset", query.offset)
+                if (query.beforeId != null) parameter("beforeId", query.beforeId) else parameter("offset", query.offset)
             }
             handleResponse(response) { it.body() }
         } catch (e: Exception) {
@@ -63,7 +63,7 @@ class PostRemoteDataSource(
         try {
             val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId/replies")) {
                 parameter("limit", query.limit)
-                parameter("offset", query.offset)
+                if (query.beforeId != null) parameter("afterId", query.beforeId) else parameter("offset", query.offset)
             }
             handleResponse(response) { it.body() }
         } catch (e: Exception) {
@@ -79,7 +79,7 @@ class PostRemoteDataSource(
         try {
             val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/users/$userId")) {
                 parameter("limit", query.limit)
-                parameter("offset", query.offset)
+                if (query.beforeId != null) parameter("beforeId", query.beforeId) else parameter("offset", query.offset)
             }
             handleResponse(response) { it.body() }
         } catch (e: Exception) {

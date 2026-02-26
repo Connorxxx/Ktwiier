@@ -36,13 +36,13 @@ interface MessageDao {
         conversationId: String,
         label: String,
         messages: List<MessageEntity>,
-        nextOffset: Int?
+        nextCursor: String?
     ) {
         clearByConversation(conversationId)
         deleteRemoteKeyByLabel(label)
         insertAll(messages)
-        if (nextOffset != null) {
-            insertOrReplaceRemoteKey(RemoteKeyEntity(label = label, nextOffset = nextOffset))
+        if (nextCursor != null) {
+            insertOrReplaceRemoteKey(RemoteKeyEntity(label = label, nextCursor = nextCursor))
         }
     }
 
@@ -50,11 +50,11 @@ interface MessageDao {
     suspend fun appendMessages(
         label: String,
         messages: List<MessageEntity>,
-        nextOffset: Int?
+        nextCursor: String?
     ) {
         insertAll(messages)
-        if (nextOffset != null) {
-            insertOrReplaceRemoteKey(RemoteKeyEntity(label = label, nextOffset = nextOffset))
+        if (nextCursor != null) {
+            insertOrReplaceRemoteKey(RemoteKeyEntity(label = label, nextCursor = nextCursor))
         } else {
             deleteRemoteKeyByLabel(label)
         }
@@ -130,7 +130,7 @@ interface MessageDao {
               AND content LIKE ? ESCAPE '\'
               AND deletedAt IS NULL
               AND recalledAt IS NULL
-            ORDER BY createdAt DESC
+            ORDER BY createdAt DESC, CAST(id AS INTEGER) DESC
             LIMIT ?
         """.trimIndent()
         val roomRawQuery = RoomRawQuery(sql) { statement ->

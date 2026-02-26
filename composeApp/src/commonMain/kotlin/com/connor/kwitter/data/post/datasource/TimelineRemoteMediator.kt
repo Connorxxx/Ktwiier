@@ -27,19 +27,19 @@ class TimelineRemoteMediator(
         loadType: LoadType,
         state: PagingState<Int, PostEntity>
     ): MediatorResult {
-        val offset = when (loadType) {
-            LoadType.REFRESH -> 0
+        val cursor: String? = when (loadType) {
+            LoadType.REFRESH -> null
             LoadType.PREPEND -> return MediatorResult.Success(endOfPaginationReached = true)
             LoadType.APPEND -> {
                 val remoteKey = postDao.getRemoteKeyByLabel(TIMELINE_LABEL)
                     ?: return MediatorResult.Success(endOfPaginationReached = true)
-                remoteKey.nextOffset
+                remoteKey.nextCursor ?: return MediatorResult.Success(endOfPaginationReached = true)
             }
         }
 
         return try {
             val result = remoteDataSource.getTimeline(
-                query = PostPageQuery(limit = PAGE_SIZE, offset = offset)
+                query = PostPageQuery(limit = PAGE_SIZE, beforeId = cursor)
             )
 
             result.fold(
@@ -47,29 +47,23 @@ class TimelineRemoteMediator(
                     MediatorResult.Error(Exception(error.toString()))
                 },
                 ifRight = { postList ->
-                    val baseIndex = offset
-
                     val entities = postList.posts.mapIndexed { index, post ->
-                        post.toEntity(timelineIndex = baseIndex + index)
+                        post.toEntity(timelineIndex = index)
                     }
 
                     val endReached = postList.posts.isEmpty() || !postList.hasMore
-                    val nextOffset = if (endReached) {
-                        null
-                    } else {
-                        offset + postList.posts.size
-                    }
+                    val nextCursor = if (endReached) null else postList.nextCursor
 
                     when (loadType) {
                         LoadType.REFRESH -> postDao.replaceTimeline(
                             label = TIMELINE_LABEL,
                             posts = entities,
-                            nextOffset = nextOffset
+                            nextCursor = nextCursor
                         )
                         LoadType.APPEND -> postDao.appendTimeline(
                             label = TIMELINE_LABEL,
                             posts = entities,
-                            nextOffset = nextOffset
+                            nextCursor = nextCursor
                         )
                         LoadType.PREPEND -> Unit
                     }
