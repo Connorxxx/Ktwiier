@@ -35,6 +35,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -148,6 +150,7 @@ fun HomeScreen(
         val topOverlayPadding = paddingValues.calculateTopPadding()
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
         val bottomContentPadding = bottomInsetPadding + LocalMainBottomBarOverlayPadding.current
+        val pullRefreshState = rememberPullToRefreshState()
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -156,7 +159,17 @@ fun HomeScreen(
             PullToRefreshBox(
                 isRefreshing = refreshState is LoadState.Loading,
                 onRefresh = { lazyPagingItems.refresh() },
-                modifier = Modifier.fillMaxSize()
+                state = pullRefreshState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullRefreshState,
+                        isRefreshing = refreshState is LoadState.Loading,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = topOverlayPadding)
+                    )
+                }
             ) {
                 when (refreshState) {
                     is LoadState.Loading if lazyPagingItems.itemCount == 0 -> {

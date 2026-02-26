@@ -25,6 +25,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,12 +117,23 @@ fun ConversationListScreen(
                 null
             }
 
+        val pullRefreshState = rememberPullToRefreshState()
         PullToRefreshBox(
             isRefreshing = refreshState is LoadState.Loading && lazyPagingItems.itemCount > 0,
             onRefresh = { lazyPagingItems.refresh() },
+            state = pullRefreshState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = bottomInsetPadding)
+                .padding(bottom = bottomInsetPadding),
+            indicator = {
+                PullToRefreshDefaults.Indicator(
+                    state = pullRefreshState,
+                    isRefreshing = refreshState is LoadState.Loading && lazyPagingItems.itemCount > 0,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = topOverlayPadding)
+                )
+            }
         ) {
             when (refreshState) {
                 is LoadState.Loading if lazyPagingItems.itemCount == 0 -> {
