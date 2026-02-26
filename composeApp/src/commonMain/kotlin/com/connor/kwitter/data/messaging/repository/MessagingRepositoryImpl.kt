@@ -47,8 +47,8 @@ class MessagingRepositoryImpl(
     }
 
     private val conversationsRefreshTrigger = MutableStateFlow(0L)
-    private val _typingState = MutableStateFlow<Map<String, Boolean>>(emptyMap())
-    private val _onlineStatus = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    private val _typingState = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
+    private val _onlineStatus = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
 
     private val syncEvents = Channel<MessagingSyncEvent>(capacity = Channel.BUFFERED)
     private val projector = MessagingLocalProjector(
@@ -56,7 +56,7 @@ class MessagingRepositoryImpl(
         messageDao = messageDao
     )
 
-    private var activeConversationId: String? = null
+    private var activeConversationId: Long? = null
 
     init {
         repositoryScope.launch { observeNotificationEvents() }
@@ -77,7 +77,7 @@ class MessagingRepositoryImpl(
         }
 
     @OptIn(ExperimentalPagingApi::class)
-    override fun messagesPaging(conversationId: String): Flow<PagingData<Message>> =
+    override fun messagesPaging(conversationId: Long): Flow<PagingData<Message>> =
         Pager(
             config = PagingConfig(pageSize = 50, enablePlaceholders = false),
             remoteMediator = MessageRemoteMediator(
@@ -88,8 +88,8 @@ class MessagingRepositoryImpl(
             pagingSourceFactory = { messageDao.getPagingSource(conversationId) }
         ).flow.map { pagingData -> pagingData.map { it.toDomain() } }
 
-    override suspend fun resolveConversationId(otherUserId: String): String? {
-        if (otherUserId.isBlank()) return null
+    override suspend fun resolveConversationId(otherUserId: Long): Long? {
+        if (otherUserId <= 0L) return null
 
         conversationDao.getByOtherUserId(otherUserId)?.id?.let { return it }
 
@@ -118,10 +118,10 @@ class MessagingRepositoryImpl(
     }
 
     override suspend fun sendMessage(
-        recipientId: String,
+        recipientId: Long,
         content: String,
         imageUrl: String?,
-        replyToMessageId: String?
+        replyToMessageId: Long?
     ): Either<MessagingError, Message> {
         val result = remoteDataSource.sendMessage(recipientId, content, imageUrl, replyToMessageId)
         result.fold(
@@ -134,7 +134,7 @@ class MessagingRepositoryImpl(
     }
 
     override suspend fun deleteMessage(
-        messageId: String
+        messageId: Long
     ): Either<MessagingError, Unit> {
         val result = remoteDataSource.deleteMessage(messageId)
         result.fold(
@@ -153,7 +153,7 @@ class MessagingRepositoryImpl(
     }
 
     override suspend fun recallMessage(
-        messageId: String
+        messageId: Long
     ): Either<MessagingError, Unit> {
         val result = remoteDataSource.recallMessage(messageId)
         result.fold(
@@ -172,7 +172,7 @@ class MessagingRepositoryImpl(
     }
 
     override suspend fun markAsRead(
-        conversationId: String
+        conversationId: Long
     ): Either<MessagingError, Unit> {
         val result = remoteDataSource.markAsRead(conversationId)
         return result.fold(
@@ -189,26 +189,26 @@ class MessagingRepositoryImpl(
         )
     }
 
-    override fun setActiveConversation(conversationId: String?) {
+    override fun setActiveConversation(conversationId: Long?) {
         dispatchSyncEvent(MessagingSyncEvent.ActiveConversationChanged(conversationId))
     }
 
-    override fun typingIndicators(conversationId: String): Flow<Boolean> =
+    override fun typingIndicators(conversationId: Long): Flow<Boolean> =
         _typingState.map { it[conversationId] ?: false }
 
-    override fun onlineStatus(): Flow<Map<String, Boolean>> =
+    override fun onlineStatus(): Flow<Map<Long, Boolean>> =
         _onlineStatus.asStateFlow()
 
-    override fun sendTyping(conversationId: String) {
+    override fun sendTyping(conversationId: Long) {
         repositoryScope.launch { notificationService.sendTyping(conversationId) }
     }
 
-    override fun sendStopTyping(conversationId: String) {
+    override fun sendStopTyping(conversationId: Long) {
         repositoryScope.launch { notificationService.sendStopTyping(conversationId) }
     }
 
     override suspend fun searchMessages(
-        conversationId: String,
+        conversationId: Long,
         query: String
     ): Either<MessagingError, List<MessageSearchItem>> = Either.catch {
         if (query.length >= FTS5_TRIGRAM_MIN_LENGTH) {
@@ -348,7 +348,7 @@ class MessagingRepositoryImpl(
         }
     }
 
-    private fun requestMarkConversationAsRead(conversationId: String) {
+    private fun requestMarkConversationAsRead(conversationId: Long) {
         repositoryScope.launch {
             val result = remoteDataSource.markAsRead(conversationId)
             result.fold(
@@ -377,3 +377,5 @@ class MessagingRepositoryImpl(
         }
     }
 }
+
+

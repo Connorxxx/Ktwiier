@@ -45,23 +45,23 @@ data class PostDetailUiState(
 sealed interface PostDetailIntent
 
 sealed interface PostDetailAction : PostDetailIntent {
-    data class Load(val postId: String) : PostDetailAction
-    data class Refresh(val postId: String) : PostDetailAction
+    data class Load(val postId: Long) : PostDetailAction
+    data class Refresh(val postId: Long) : PostDetailAction
     data object ErrorDismissed : PostDetailAction
-    data class ToggleLike(val postId: String) : PostDetailAction
-    data class ToggleBookmark(val postId: String) : PostDetailAction
+    data class ToggleLike(val postId: Long) : PostDetailAction
+    data class ToggleBookmark(val postId: Long) : PostDetailAction
 }
 
 sealed interface PostDetailNavAction : PostDetailIntent {
     data class ReplyClick(
-        val postId: String,
+        val postId: Long,
         val authorName: String,
         val content: String,
         val avatarUrl: String? = null
     ) : PostDetailNavAction
     data object BackClick : PostDetailNavAction
     data class MediaClick(val media: List<PostMedia>, val index: Int) : PostDetailNavAction
-    data class AuthorClick(val userId: String) : PostDetailNavAction
+    data class AuthorClick(val userId: Long) : PostDetailNavAction
 }
 
 class PostDetailViewModel(
@@ -74,8 +74,8 @@ class PostDetailViewModel(
     }
 
     private val _events = Channel<PostDetailAction>(Channel.UNLIMITED)
-    private var currentPostId: String? = null
-    private var currentThreadPostIds: Set<String> = emptySet()
+    private var currentPostId: Long? = null
+    private var currentThreadPostIds: Set<Long> = emptySet()
 
     init {
         viewModelScope.launch {
@@ -143,7 +143,7 @@ class PostDetailViewModel(
     }
 
     private suspend fun loadPostDetail(
-        postId: String,
+        postId: Long,
         previousState: PostDetailUiState
     ): PostDetailUiState {
         val loadingState = previousState.copy(isLoading = true, error = null)
@@ -183,12 +183,12 @@ class PostDetailViewModel(
         return resolvedState
     }
 
-    private fun buildThreadPostIds(state: PostDetailUiState): Set<String> = buildSet {
+    private fun buildThreadPostIds(state: PostDetailUiState): Set<Long> = buildSet {
         state.post?.id?.let(::add)
         state.threadReplies.forEach { add(it.post.id) }
     }
 
-    private suspend fun loadReplyThread(rootPostId: String): Either<PostError, List<ThreadReplyItem>> = either {
+    private suspend fun loadReplyThread(rootPostId: Long): Either<PostError, List<ThreadReplyItem>> = either {
         loadThreadBranch(
             parentId = rootPostId,
             depth = 0,
@@ -197,9 +197,9 @@ class PostDetailViewModel(
     }
 
     private suspend fun loadThreadBranch(
-        parentId: String,
+        parentId: Long,
         depth: Int,
-        visited: MutableSet<String>
+        visited: MutableSet<Long>
     ): Either<PostError, List<ThreadReplyItem>> = either {
         if (!visited.add(parentId)) {
             return@either emptyList()
@@ -227,7 +227,7 @@ class PostDetailViewModel(
         flattenedReplies
     }
 
-    private suspend fun fetchAllReplies(parentId: String): Either<PostError, List<Post>> = either {
+    private suspend fun fetchAllReplies(parentId: Long): Either<PostError, List<Post>> = either {
         val allReplies = mutableListOf<Post>()
         var offset = 0
         var hasMore = true
@@ -259,7 +259,7 @@ class PostDetailViewModel(
     }
 
     private suspend fun handleToggleLike(
-        postId: String,
+        postId: Long,
         currentState: PostDetailUiState
     ): PostDetailUiState {
         val targetPost = findPost(postId, currentState) ?: return currentState
@@ -300,7 +300,7 @@ class PostDetailViewModel(
     }
 
     private suspend fun handleToggleBookmark(
-        postId: String,
+        postId: Long,
         currentState: PostDetailUiState
     ): PostDetailUiState {
         val targetPost = findPost(postId, currentState) ?: return currentState
@@ -326,14 +326,14 @@ class PostDetailViewModel(
         )
     }
 
-    private fun findPost(postId: String, state: PostDetailUiState): Post? {
+    private fun findPost(postId: Long, state: PostDetailUiState): Post? {
         if (state.post?.id == postId) return state.post
         return state.threadReplies.find { it.post.id == postId }?.post
     }
 
     private fun updatePostInState(
         state: PostDetailUiState,
-        postId: String,
+        postId: Long,
         transform: Post.() -> Post
     ): PostDetailUiState {
         val updatedPost = if (state.post?.id == postId) {
@@ -348,3 +348,5 @@ class PostDetailViewModel(
         return state.copy(post = updatedPost, threadReplies = updatedReplies)
     }
 }
+
+

@@ -14,7 +14,7 @@ import com.connor.kwitter.data.post.local.RemoteKeyEntity
 interface MessageDao {
 
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY orderIndex ASC")
-    fun getPagingSource(conversationId: String): PagingSource<Int, MessageEntity>
+    fun getPagingSource(conversationId: Long): PagingSource<Int, MessageEntity>
 
     @Query("SELECT * FROM remote_keys WHERE label = :label")
     suspend fun getRemoteKeyByLabel(label: String): RemoteKeyEntity?
@@ -23,7 +23,7 @@ interface MessageDao {
     suspend fun insertAll(messages: List<MessageEntity>)
 
     @Query("DELETE FROM messages WHERE conversationId = :conversationId")
-    suspend fun clearByConversation(conversationId: String)
+    suspend fun clearByConversation(conversationId: Long)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrReplaceRemoteKey(remoteKey: RemoteKeyEntity)
@@ -33,10 +33,10 @@ interface MessageDao {
 
     @Transaction
     suspend fun replaceMessages(
-        conversationId: String,
+        conversationId: Long,
         label: String,
         messages: List<MessageEntity>,
-        nextCursor: String?
+        nextCursor: Long?
     ) {
         clearByConversation(conversationId)
         deleteRemoteKeyByLabel(label)
@@ -50,7 +50,7 @@ interface MessageDao {
     suspend fun appendMessages(
         label: String,
         messages: List<MessageEntity>,
-        nextCursor: String?
+        nextCursor: Long?
     ) {
         insertAll(messages)
         if (nextCursor != null) {
@@ -64,33 +64,33 @@ interface MessageDao {
     suspend fun insert(message: MessageEntity)
 
     @Query("SELECT MIN(orderIndex) FROM messages WHERE conversationId = :conversationId")
-    suspend fun getMinOrderIndex(conversationId: String): Int?
+    suspend fun getMinOrderIndex(conversationId: Long): Int?
 
     @Query("UPDATE messages SET readAt = :readAt WHERE conversationId = :conversationId AND senderId != :readByUserId AND readAt IS NULL")
     suspend fun markOutgoingMessagesAsReadByPeer(
-        conversationId: String,
-        readByUserId: String,
+        conversationId: Long,
+        readByUserId: Long,
         readAt: Long
     )
 
     @Query("UPDATE messages SET readAt = :readAt WHERE conversationId = :conversationId AND senderId = :senderId AND readAt IS NULL")
     suspend fun markMessagesAsReadFromSender(
-        conversationId: String,
-        senderId: String,
+        conversationId: Long,
+        senderId: Long,
         readAt: Long
     )
 
     @Query("UPDATE messages SET recalledAt = :recalledAt WHERE id = :messageId")
-    suspend fun markMessageAsRecalled(messageId: String, recalledAt: Long)
+    suspend fun markMessageAsRecalled(messageId: Long, recalledAt: Long)
 
     @Query("UPDATE messages SET deletedAt = :deletedAt WHERE id = :messageId")
-    suspend fun markMessageAsDeleted(messageId: String, deletedAt: Long)
+    suspend fun markMessageAsDeleted(messageId: Long, deletedAt: Long)
 
     @RawQuery
     suspend fun searchMessagesRaw(query: RoomRawQuery): List<MessageSearchResultEntity>
 
     suspend fun searchMessages(
-        conversationId: String,
+        conversationId: Long,
         query: String,
         limit: Int = 50
     ): List<MessageSearchResultEntity> {
@@ -108,14 +108,14 @@ interface MessageDao {
         """.trimIndent()
         val roomRawQuery = RoomRawQuery(sql) { statement ->
             statement.bindText(1, query)
-            statement.bindText(2, conversationId)
+            statement.bindLong(2, conversationId)
             statement.bindLong(3, limit.toLong())
         }
         return searchMessagesRaw(roomRawQuery)
     }
 
     suspend fun searchMessagesLike(
-        conversationId: String,
+        conversationId: Long,
         query: String,
         limit: Int = 50
     ): List<MessageSearchResultEntity> {
@@ -134,10 +134,12 @@ interface MessageDao {
             LIMIT ?
         """.trimIndent()
         val roomRawQuery = RoomRawQuery(sql) { statement ->
-            statement.bindText(1, conversationId)
+            statement.bindLong(1, conversationId)
             statement.bindText(2, pattern)
             statement.bindLong(3, limit.toLong())
         }
         return searchMessagesRaw(roomRawQuery)
     }
 }
+
+

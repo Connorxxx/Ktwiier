@@ -46,7 +46,7 @@ class PostRemoteDataSource(
         }
     }
 
-    suspend fun getPost(postId: String): Either<PostError, Post> = either {
+    suspend fun getPost(postId: Long): Either<PostError, Post> = either {
         try {
             val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId"))
             handleResponse(response) { it.body() }
@@ -57,7 +57,7 @@ class PostRemoteDataSource(
     }
 
     suspend fun getReplies(
-        postId: String,
+        postId: Long,
         query: PostPageQuery
     ): Either<PostError, PostList> = either {
         try {
@@ -73,7 +73,7 @@ class PostRemoteDataSource(
     }
 
     suspend fun getUserPosts(
-        userId: String,
+        userId: Long,
         query: PostPageQuery
     ): Either<PostError, PostList> = either {
         try {
@@ -103,7 +103,7 @@ class PostRemoteDataSource(
         }
     }
 
-    suspend fun likePost(postId: String): Either<PostError, PostStats> = either {
+    suspend fun likePost(postId: Long): Either<PostError, PostStats> = either {
         try {
             val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/like"))
             handleResponse<LikeResponse>(response) { it.body() }.stats
@@ -113,7 +113,7 @@ class PostRemoteDataSource(
         }
     }
 
-    suspend fun unlikePost(postId: String): Either<PostError, PostStats> = either {
+    suspend fun unlikePost(postId: Long): Either<PostError, PostStats> = either {
         try {
             val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/like"))
             handleResponse<LikeResponse>(response) { it.body() }.stats
@@ -123,7 +123,7 @@ class PostRemoteDataSource(
         }
     }
 
-    suspend fun bookmarkPost(postId: String): Either<PostError, Unit> = either {
+    suspend fun bookmarkPost(postId: Long): Either<PostError, Unit> = either {
         try {
             val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/bookmark"))
             handleResponse(response) { }
@@ -133,7 +133,7 @@ class PostRemoteDataSource(
         }
     }
 
-    suspend fun unbookmarkPost(postId: String): Either<PostError, Unit> = either {
+    suspend fun unbookmarkPost(postId: Long): Either<PostError, Unit> = either {
         try {
             val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/bookmark"))
             handleResponse(response) { }
@@ -175,3 +175,4 @@ class PostRemoteDataSource(
 
     private fun endpoint(path: String): String = baseUrl.trimEnd('/') + path
 }
+

@@ -32,7 +32,7 @@ interface PostDao {
     suspend fun replaceTimeline(
         label: String,
         posts: List<PostEntity>,
-        nextCursor: String?
+        nextCursor: Long?
     ) {
         clearAll()
         deleteRemoteKeyByLabel(label)
@@ -51,7 +51,7 @@ interface PostDao {
     suspend fun appendTimeline(
         label: String,
         posts: List<PostEntity>,
-        nextCursor: String?
+        nextCursor: Long?
     ) {
         insertAll(posts)
         if (nextCursor != null) {
@@ -67,11 +67,12 @@ interface PostDao {
     }
 
     @Query("SELECT * FROM posts WHERE id = :postId")
-    suspend fun getPostById(postId: String): PostEntity?
+    suspend fun getPostById(postId: Long): PostEntity?
 
     @Query("UPDATE posts SET isLikedByCurrentUser = :isLiked, likeCount = :likeCount WHERE id = :postId")
-    suspend fun updateLikeState(postId: String, isLiked: Boolean, likeCount: Int)
+    suspend fun updateLikeState(postId: Long, isLiked: Boolean, likeCount: Int)
 
     @Query("UPDATE posts SET isBookmarkedByCurrentUser = :isBookmarked WHERE id = :postId")
-    suspend fun updateBookmarkState(postId: String, isBookmarked: Boolean)
+    suspend fun updateBookmarkState(postId: Long, isBookmarked: Boolean)
 }
+

@@ -289,7 +289,7 @@ private fun CreatePostTopBar(
 
 @Composable
 private fun ReplyContextCard(
-    parentId: String?,
+    parentId: Long?,
     authorName: String?,
     avatarUrl: String?,
     content: String?
@@ -350,7 +350,7 @@ private fun ReplyContextCard(
             parentId?.let {
                 Text(
                     text = "${stringResource(Res.string.create_post_reply_context_post_id)} ${
-                        it.take(
+                        it.toString().take(
                             PREVIEW_POST_ID_LENGTH
                         )
                     }",
@@ -822,7 +822,7 @@ private fun CreatePostReplyPreview() {
         CreatePostScreen(
             state = CreatePostUiState(
                 content = "Totally agree with your point about reducing cognitive load.",
-                parentId = "12345678-9876",
+                parentId = 123456789876L,
                 replyTargetAuthorName = "Connor",
                 replyTargetContent = "The current compose UI feels too bare. Users need context on who and what they are replying to."
             ),
@@ -830,3 +830,4 @@ private fun CreatePostReplyPreview() {
         )
     }
 }
+

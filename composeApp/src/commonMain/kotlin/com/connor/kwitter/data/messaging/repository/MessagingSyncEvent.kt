@@ -5,7 +5,7 @@ import com.connor.kwitter.domain.notification.model.NotificationEvent
 
 internal sealed interface MessagingSyncEvent {
     data class ActiveConversationChanged(
-        val conversationId: String?
+        val conversationId: Long?
     ) : MessagingSyncEvent
 
     data class LocalMessageSent(
@@ -13,17 +13,17 @@ internal sealed interface MessagingSyncEvent {
     ) : MessagingSyncEvent
 
     data class LocalMessageDeleted(
-        val messageId: String,
+        val messageId: Long,
         val deletedAt: Long
     ) : MessagingSyncEvent
 
     data class LocalMessageRecalled(
-        val messageId: String,
+        val messageId: Long,
         val recalledAt: Long
     ) : MessagingSyncEvent
 
     data class LocalConversationReadConfirmed(
-        val conversationId: String,
+        val conversationId: Long,
         val readAt: Long
     ) : MessagingSyncEvent
 
@@ -51,3 +51,4 @@ internal sealed interface MessagingSyncEvent {
         val event: NotificationEvent.UserPresenceChanged
     ) : MessagingSyncEvent
 }
+

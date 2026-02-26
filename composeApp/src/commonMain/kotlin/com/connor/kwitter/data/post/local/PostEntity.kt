@@ -6,13 +6,13 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "posts")
 data class PostEntity(
     @PrimaryKey
-    val id: String,
+    val id: Long,
     val content: String,
     val mediaJson: String,
-    val parentId: String?,
+    val parentId: Long?,
     val createdAt: Long,
     val updatedAt: Long,
-    val authorId: String,
+    val authorId: Long,
     val authorDisplayName: String,
     val authorAvatarUrl: String?,
     val replyCount: Int,
@@ -23,3 +23,4 @@ data class PostEntity(
     val isBookmarkedByCurrentUser: Boolean?,
     val timelineIndex: Int
 )
+

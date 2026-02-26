@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 data class MessageSearchUiState(
-    val conversationId: String = "",
+    val conversationId: Long = 0L,
     val otherUserDisplayName: String = "",
     val query: String = "",
     val results: List<MessageSearchItem> = emptyList(),
@@ -31,7 +31,7 @@ sealed interface MessageSearchIntent
 
 sealed interface MessageSearchAction : MessageSearchIntent {
     data class Load(
-        val conversationId: String,
+        val conversationId: Long,
         val otherUserDisplayName: String
     ) : MessageSearchAction
     data class UpdateQuery(val text: String) : MessageSearchAction
@@ -41,7 +41,7 @@ sealed interface MessageSearchAction : MessageSearchIntent {
 
 sealed interface MessageSearchNavAction : MessageSearchIntent {
     data object BackClick : MessageSearchNavAction
-    data class ResultClick(val messageId: String) : MessageSearchNavAction
+    data class ResultClick(val messageId: Long) : MessageSearchNavAction
 }
 
 class MessageSearchViewModel(
@@ -129,3 +129,5 @@ class MessageSearchViewModel(
         is MessagingError.Unknown -> "Unknown error: ${error.message}"
     }
 }
+
+

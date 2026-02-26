@@ -33,7 +33,7 @@ enum class UserListType { FOLLOWING, FOLLOWERS }
 
 data class UserListUiState(
     val listType: UserListType = UserListType.FOLLOWING,
-    val userId: String = "",
+    val userId: Long = 0L,
     val displayName: String = "",
     val error: String? = null
 ) {
@@ -45,12 +45,12 @@ sealed interface UserListIntent
 
 sealed interface UserListAction : UserListIntent {
     data class Load(
-        val userId: String,
+        val userId: Long,
         val displayName: String,
         val listType: UserListType
     ) : UserListAction
     data class ToggleFollow(
-        val targetUserId: String,
+        val targetUserId: Long,
         val isCurrentlyFollowing: Boolean
     ) : UserListAction
     data object ErrorDismissed : UserListAction
@@ -58,7 +58,7 @@ sealed interface UserListAction : UserListIntent {
 
 sealed interface UserListNavAction : UserListIntent {
     data object BackClick : UserListNavAction
-    data class UserClick(val userId: String) : UserListNavAction
+    data class UserClick(val userId: Long) : UserListNavAction
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -67,13 +67,13 @@ class UserListViewModel(
 ) : ViewModel() {
 
     private data class UserListQuery(
-        val userId: String,
+        val userId: Long,
         val listType: UserListType
     )
 
     private val _events = Channel<UserListAction>(Channel.UNLIMITED)
     private val _query = MutableStateFlow<UserListQuery?>(null)
-    private val _userMods = MutableStateFlow<Map<String, Boolean?>>(emptyMap())
+    private val _userMods = MutableStateFlow<Map<Long, Boolean?>>(emptyMap())
 
     val uiState: StateFlow<UserListUiState> = viewModelScope.launchMolecule(
         mode = RecompositionMode.Immediate

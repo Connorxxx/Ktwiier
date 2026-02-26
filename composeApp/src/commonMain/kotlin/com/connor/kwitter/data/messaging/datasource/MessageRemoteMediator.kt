@@ -11,11 +11,11 @@ import kotlinx.coroutines.CancellationException
 
 private const val PAGE_SIZE = 50
 
-internal fun messagesLabel(conversationId: String): String = "messages_$conversationId"
+internal fun messagesLabel(conversationId: Long): String = "messages_$conversationId"
 
 @OptIn(ExperimentalPagingApi::class)
 class MessageRemoteMediator(
-    private val conversationId: String,
+    private val conversationId: Long,
     private val remoteDataSource: MessagingRemoteDataSource,
     private val messageDao: MessageDao
 ) : RemoteMediator<Int, MessageEntity>() {
@@ -28,7 +28,7 @@ class MessageRemoteMediator(
         loadType: LoadType,
         state: PagingState<Int, MessageEntity>
     ): MediatorResult {
-        val cursor: String? = when (loadType) {
+        val cursor: Long? = when (loadType) {
             LoadType.REFRESH -> null
             LoadType.PREPEND -> return MediatorResult.Success(endOfPaginationReached = true)
             LoadType.APPEND -> {
@@ -85,3 +85,5 @@ class MessageRemoteMediator(
         }
     }
 }
+
+

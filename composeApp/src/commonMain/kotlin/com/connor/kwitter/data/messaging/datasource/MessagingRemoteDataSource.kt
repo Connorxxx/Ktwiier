@@ -51,10 +51,10 @@ class MessagingRemoteDataSource(
     }
 
     suspend fun getMessages(
-        conversationId: String,
+        conversationId: Long,
         limit: Int,
         offset: Int = 0,
-        beforeId: String? = null
+        beforeId: Long? = null
     ): Either<MessagingError, MessageList> = either {
         try {
             val response: HttpResponse = httpClient.get(
@@ -73,10 +73,10 @@ class MessagingRemoteDataSource(
     }
 
     suspend fun sendMessage(
-        recipientId: String,
+        recipientId: Long,
         content: String,
         imageUrl: String?,
-        replyToMessageId: String? = null
+        replyToMessageId: Long? = null
     ): Either<MessagingError, Message> = either {
         try {
             val response: HttpResponse = httpClient.post(
@@ -95,7 +95,7 @@ class MessagingRemoteDataSource(
     }
 
     suspend fun deleteMessage(
-        messageId: String
+        messageId: Long
     ): Either<MessagingError, Unit> = either {
         try {
             val response: HttpResponse = httpClient.delete(
@@ -109,7 +109,7 @@ class MessagingRemoteDataSource(
     }
 
     suspend fun recallMessage(
-        messageId: String
+        messageId: Long
     ): Either<MessagingError, Unit> = either {
         try {
             val response: HttpResponse = httpClient.put(
@@ -123,7 +123,7 @@ class MessagingRemoteDataSource(
     }
 
     suspend fun markAsRead(
-        conversationId: String
+        conversationId: Long
     ): Either<MessagingError, Long> = either {
         try {
             val response: HttpResponse = httpClient.put(
@@ -171,7 +171,7 @@ class MessagingRemoteDataSource(
 
 @Serializable
 private data class ConversationUserDto(
-    val id: String,
+    val id: Long,
     val displayName: String,
     val username: String,
     val avatarUrl: String? = null
@@ -179,21 +179,21 @@ private data class ConversationUserDto(
 
 @Serializable
 private data class MessageDto(
-    val id: String,
-    val conversationId: String,
-    val senderId: String,
+    val id: Long,
+    val conversationId: Long,
+    val senderId: Long,
     val content: String,
     val imageUrl: String? = null,
     val readAt: Long? = null,
     val createdAt: Long,
-    val replyToMessageId: String? = null,
+    val replyToMessageId: Long? = null,
     val deletedAt: Long? = null,
     val recalledAt: Long? = null
 )
 
 @Serializable
 private data class ConversationDto(
-    val id: String,
+    val id: Long,
     val otherUser: ConversationUserDto,
     val lastMessage: MessageDto? = null,
     val unreadCount: Int,
@@ -204,27 +204,27 @@ private data class ConversationDto(
 private data class ConversationListResponseDto(
     val conversations: List<ConversationDto>,
     val hasMore: Boolean = false,
-    val nextCursor: String? = null
+    val nextCursor: Long? = null
 )
 
 @Serializable
 private data class MessageListResponseDto(
     val messages: List<MessageDto>,
     val hasMore: Boolean = false,
-    val nextCursor: String? = null
+    val nextCursor: Long? = null
 )
 
 @Serializable
 private data class SendMessageRequestDto(
-    val recipientId: String,
+    val recipientId: Long,
     val content: String,
     val imageUrl: String? = null,
-    val replyToMessageId: String? = null
+    val replyToMessageId: Long? = null
 )
 
 @Serializable
 private data class MarkReadResponseDto(
-    val conversationId: String,
+    val conversationId: Long,
     val readAt: Long
 )
 
@@ -267,3 +267,5 @@ private fun MessageListResponseDto.toDomain(): MessageList = MessageList(
     hasMore = hasMore,
     nextCursor = nextCursor
 )
+
+

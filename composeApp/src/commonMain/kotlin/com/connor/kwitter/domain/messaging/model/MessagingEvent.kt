@@ -1,8 +1,8 @@
 package com.connor.kwitter.domain.messaging.model
 
 data class NewMessageEvent(
-    val messageId: String,
-    val conversationId: String,
+    val messageId: Long,
+    val conversationId: Long,
     val senderDisplayName: String,
     val senderUsername: String,
     val contentPreview: String,
@@ -10,7 +10,8 @@ data class NewMessageEvent(
 )
 
 data class MessagesReadEvent(
-    val conversationId: String,
-    val readByUserId: String,
+    val conversationId: Long,
+    val readByUserId: Long,
     val timestamp: Long
 )
+

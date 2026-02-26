@@ -658,7 +658,7 @@ private fun formatJoinDate(timestamp: Long): String {
 }
 
 private val previewProfile = UserProfile(
-    id = "user_1",
+    id = 1L,
     username = "connor",
     displayName = "Connor",
     bio = "Building Ktwiier with Kotlin Multiplatform and Compose.",
@@ -674,12 +674,12 @@ private val previewProfile = UserProfile(
 
 private val previewPosts = listOf(
     Post(
-        id = "post_1",
+        id = 101L,
         content = "Finished the user profile screen polish today. The tab interactions feel much better now.",
         createdAt = 1700001000000L,
         updatedAt = 1700001000000L,
         author = PostAuthor(
-            id = "user_1",
+            id = 1L,
             displayName = "Connor",
             avatarUrl = null
         ),
@@ -692,12 +692,12 @@ private val previewPosts = listOf(
         isBookmarkedByCurrentUser = false
     ),
     Post(
-        id = "post_2",
+        id = 102L,
         content = "Anyone else using Molecule for MVI? Curious how you structure reducers across features.",
         createdAt = 1700002000000L,
         updatedAt = 1700002000000L,
         author = PostAuthor(
-            id = "user_1",
+            id = 1L,
             displayName = "Connor",
             avatarUrl = null
         ),
@@ -718,7 +718,7 @@ private fun UserProfileScreenPreview() {
         UserProfileScreen(
             state = UserProfileUiState(
                 profile = previewProfile,
-                currentUserId = "viewer_1"
+                currentUserId = 999L
             ),
             postsPaging = flowOf(PagingData.from(previewPosts)),
             repliesPaging = flowOf(PagingData.empty()),
@@ -731,13 +731,13 @@ private fun UserProfileScreenPreview() {
 @Preview
 @Composable
 private fun UserProfileScreenOwnPreview() {
-    val ownProfile = previewProfile.copy(id = "viewer_1", isFollowedByCurrentUser = null)
+    val ownProfile = previewProfile.copy(id = 999L, isFollowedByCurrentUser = null)
 
     KwitterTheme(darkTheme = true) {
         UserProfileScreen(
             state = UserProfileUiState(
                 profile = ownProfile,
-                currentUserId = "viewer_1"
+                currentUserId = 999L
             ),
             postsPaging = flowOf(PagingData.from(previewPosts)),
             repliesPaging = flowOf(PagingData.empty()),

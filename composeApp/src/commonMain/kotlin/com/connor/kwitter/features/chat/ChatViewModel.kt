@@ -32,11 +32,11 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 data class ChatUiState(
-    val conversationId: String? = null,
-    val otherUserId: String = "",
+    val conversationId: Long? = null,
+    val otherUserId: Long = 0L,
     val otherUserDisplayName: String = "",
     val otherUserAvatarUrl: String? = null,
-    val currentUserId: String? = null,
+    val currentUserId: Long? = null,
     val isSending: Boolean = false,
     val messageInput: String = "",
     val error: String? = null,
@@ -51,16 +51,16 @@ sealed interface ChatIntent
 
 sealed interface ChatAction : ChatIntent {
     data class Load(
-        val conversationId: String?,
-        val otherUserId: String,
+        val conversationId: Long?,
+        val otherUserId: Long,
         val otherUserDisplayName: String,
         val otherUserAvatarUrl: String?
     ) : ChatAction
     data class UpdateMessageInput(val text: String) : ChatAction
     data object SendMessage : ChatAction
     data object ErrorDismissed : ChatAction
-    data class DeleteMessage(val messageId: String) : ChatAction
-    data class RecallMessage(val messageId: String) : ChatAction
+    data class DeleteMessage(val messageId: Long) : ChatAction
+    data class RecallMessage(val messageId: Long) : ChatAction
     data class StartReply(val message: Message) : ChatAction
     data object CancelReply : ChatAction
     data object ScreenDisposed : ChatAction
@@ -68,7 +68,7 @@ sealed interface ChatAction : ChatIntent {
 
 sealed interface ChatNavAction : ChatIntent {
     data object BackClick : ChatNavAction
-    data class UserProfileClick(val userId: String) : ChatNavAction
+    data class UserProfileClick(val userId: Long) : ChatNavAction
     data object SearchClick : ChatNavAction
 }
 
@@ -78,7 +78,7 @@ class ChatViewModel(
 ) : ViewModel() {
 
     private val _events = Channel<ChatAction>(Channel.UNLIMITED)
-    private val _conversationId = MutableStateFlow<String?>(null)
+    private val _conversationId = MutableStateFlow<Long?>(null)
     private var typingJob: Job? = null
 
     companion object {
@@ -170,7 +170,7 @@ class ChatViewModel(
         )
     }
 
-    private fun handleTypingDebounce(conversationId: String?) {
+    private fun handleTypingDebounce(conversationId: Long?) {
         conversationId ?: return
         typingJob?.cancel()
         messagingRepository.sendTyping(conversationId)
@@ -217,14 +217,14 @@ class ChatViewModel(
         )
     }
 
-    private suspend fun deleteMessage(currentState: ChatUiState, messageId: String): ChatUiState {
+    private suspend fun deleteMessage(currentState: ChatUiState, messageId: Long): ChatUiState {
         return messagingRepository.deleteMessage(messageId).fold(
             ifLeft = { error -> currentState.copy(error = formatError(error)) },
             ifRight = { currentState }
         )
     }
 
-    private suspend fun recallMessage(currentState: ChatUiState, messageId: String): ChatUiState {
+    private suspend fun recallMessage(currentState: ChatUiState, messageId: Long): ChatUiState {
         return messagingRepository.recallMessage(messageId).fold(
             ifLeft = { error -> currentState.copy(error = formatError(error)) },
             ifRight = { currentState }
@@ -246,3 +246,5 @@ class ChatViewModel(
         super.onCleared()
     }
 }
+
+

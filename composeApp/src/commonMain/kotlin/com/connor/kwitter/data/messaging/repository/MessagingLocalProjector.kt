@@ -39,17 +39,17 @@ internal class MessagingLocalProjector(
         return MessagingProjectionResult()
     }
 
-    suspend fun projectMessageDeleted(messageId: String, deletedAt: Long) {
+    suspend fun projectMessageDeleted(messageId: Long, deletedAt: Long) {
         messageDao.markMessageAsDeleted(messageId, deletedAt)
         conversationDao.updateLastMessageDeleted(messageId, deletedAt)
     }
 
-    suspend fun projectMessageRecalled(messageId: String, recalledAt: Long) {
+    suspend fun projectMessageRecalled(messageId: Long, recalledAt: Long) {
         messageDao.markMessageAsRecalled(messageId, recalledAt)
         conversationDao.updateLastMessageRecalled(messageId, recalledAt)
     }
 
-    suspend fun projectConversationRead(conversationId: String, readAt: Long) {
+    suspend fun projectConversationRead(conversationId: Long, readAt: Long) {
         conversationDao.updateUnreadCount(conversationId, 0)
 
         val conversation = conversationDao.getById(conversationId) ?: return
@@ -70,8 +70,13 @@ internal class MessagingLocalProjector(
         event: NotificationEvent.NewMessage,
         isActiveConversation: Boolean
     ): MessagingProjectionResult {
-        val existingConversation = conversationDao.getById(event.conversationId)
-        val senderId = existingConversation?.otherUserId.orEmpty()
+        val existingConversation =
+            conversationDao.getById(event.conversationId) ?: return MessagingProjectionResult(
+                requiresConversationRefresh = true,
+                shouldMarkConversationAsRead = isActiveConversation
+            )
+
+        val senderId = existingConversation.otherUserId
 
         val incomingMessage = Message(
             id = event.messageId,
@@ -85,13 +90,6 @@ internal class MessagingLocalProjector(
 
         val minMessageIndex = messageDao.getMinOrderIndex(event.conversationId) ?: 0
         messageDao.insert(incomingMessage.toEntity(orderIndex = minMessageIndex - 1))
-
-        if (existingConversation == null) {
-            return MessagingProjectionResult(
-                requiresConversationRefresh = true,
-                shouldMarkConversationAsRead = isActiveConversation
-            )
-        }
 
         val minConversationIndex = conversationDao.getMinOrderIndex() ?: 0
         conversationDao.insertOrReplace(
@@ -133,3 +131,4 @@ internal class MessagingLocalProjector(
         }
     }
 }
+

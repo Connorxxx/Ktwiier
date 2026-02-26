@@ -57,18 +57,18 @@ sealed interface SearchAction : SearchIntent {
     data class SelectTab(val tab: SearchTab) : SearchAction
     data class SetSortOrder(val sort: String) : SearchAction
     data class ToggleLike(
-        val postId: String,
+        val postId: Long,
         val isCurrentlyLiked: Boolean,
         val currentLikeCount: Int
     ) : SearchAction
 
     data class ToggleBookmark(
-        val postId: String,
+        val postId: Long,
         val isCurrentlyBookmarked: Boolean
     ) : SearchAction
 
     data class ToggleFollow(
-        val targetUserId: String,
+        val targetUserId: Long,
         val isCurrentlyFollowing: Boolean
     ) : SearchAction
 
@@ -77,10 +77,10 @@ sealed interface SearchAction : SearchIntent {
 
 sealed interface SearchNavAction : SearchIntent {
     data object BackClick : SearchNavAction
-    data class PostClick(val postId: String) : SearchNavAction
+    data class PostClick(val postId: Long) : SearchNavAction
     data class MediaClick(val media: List<PostMedia>, val index: Int) : SearchNavAction
-    data class AuthorClick(val userId: String) : SearchNavAction
-    data class UserClick(val userId: String) : SearchNavAction
+    data class AuthorClick(val userId: Long) : SearchNavAction
+    data class UserClick(val userId: Long) : SearchNavAction
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -100,8 +100,8 @@ class SearchViewModel(
 
     private val _events = Channel<SearchAction>(Channel.UNLIMITED)
     private val _searchQuery = MutableStateFlow(SearchQuery())
-    private val _postMods = MutableStateFlow<Map<String, PostModification>>(emptyMap())
-    private val _userMods = MutableStateFlow<Map<String, Boolean?>>(emptyMap())
+    private val _postMods = MutableStateFlow<Map<Long, PostModification>>(emptyMap())
+    private val _userMods = MutableStateFlow<Map<Long, Boolean?>>(emptyMap())
 
     val uiState: StateFlow<SearchUiState> = viewModelScope.launchMolecule(
         mode = RecompositionMode.Immediate
@@ -297,7 +297,7 @@ class SearchViewModel(
         )
     }
 
-    private fun Post.applyMods(mods: Map<String, PostModification>): Post {
+    private fun Post.applyMods(mods: Map<Long, PostModification>): Post {
         val mod = mods[id] ?: return this
         return copy(
             isLikedByCurrentUser = mod.isLikedByCurrentUser ?: isLikedByCurrentUser,

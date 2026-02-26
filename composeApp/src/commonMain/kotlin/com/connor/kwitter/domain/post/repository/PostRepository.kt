@@ -15,20 +15,21 @@ interface PostRepository {
     val timelinePaging: Flow<PagingData<Post>>
     val postMutations: Flow<PostMutationEvent>
     suspend fun getTimeline(query: PostPageQuery = PostPageQuery()): Either<PostError, PostList>
-    suspend fun getPost(postId: String): Either<PostError, Post>
+    suspend fun getPost(postId: Long): Either<PostError, Post>
     suspend fun getReplies(
-        postId: String,
+        postId: Long,
         query: PostPageQuery = PostPageQuery()
     ): Either<PostError, PostList>
     suspend fun getUserPosts(
-        userId: String,
+        userId: Long,
         query: PostPageQuery = PostPageQuery()
     ): Either<PostError, PostList>
     suspend fun createPost(request: CreatePostRequest): Either<PostError, Post>
-    suspend fun likePost(postId: String): Either<PostError, PostStats>
-    suspend fun unlikePost(postId: String): Either<PostError, PostStats>
-    suspend fun bookmarkPost(postId: String): Either<PostError, Unit>
-    suspend fun unbookmarkPost(postId: String): Either<PostError, Unit>
-    suspend fun updateLocalLikeState(postId: String, isLiked: Boolean, likeCount: Int)
-    suspend fun updateLocalBookmarkState(postId: String, isBookmarked: Boolean)
+    suspend fun likePost(postId: Long): Either<PostError, PostStats>
+    suspend fun unlikePost(postId: Long): Either<PostError, PostStats>
+    suspend fun bookmarkPost(postId: Long): Either<PostError, Unit>
+    suspend fun unbookmarkPost(postId: Long): Either<PostError, Unit>
+    suspend fun updateLocalLikeState(postId: Long, isLiked: Boolean, likeCount: Int)
+    suspend fun updateLocalBookmarkState(postId: Long, isBookmarked: Boolean)
 }
+

@@ -24,5 +24,7 @@ interface AuthRepository {
 
     val authEvents: Flow<AuthEvent>
 
-    val currentUserId: Flow<String?>
+    val currentUserId: Flow<Long?>
 }
+
+

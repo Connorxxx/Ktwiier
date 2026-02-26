@@ -1,14 +1,14 @@
 package com.connor.kwitter.domain.messaging.model
 
 data class Message(
-    val id: String,
-    val conversationId: String,
-    val senderId: String,
+    val id: Long,
+    val conversationId: Long,
+    val senderId: Long,
     val content: String,
     val imageUrl: String?,
     val readAt: Long?,
     val createdAt: Long,
-    val replyToMessageId: String? = null,
+    val replyToMessageId: Long? = null,
     val deletedAt: Long? = null,
     val recalledAt: Long? = null
 ) {
@@ -20,5 +20,7 @@ data class Message(
 data class MessageList(
     val messages: List<Message>,
     val hasMore: Boolean,
-    val nextCursor: String? = null
+    val nextCursor: Long? = null
 )
+
+

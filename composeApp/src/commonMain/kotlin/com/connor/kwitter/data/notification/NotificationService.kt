@@ -113,12 +113,12 @@ class NotificationService(
         _connectionState.value = ConnectionState.Disconnected
     }
 
-    suspend fun sendSubscribePost(postId: String) {
-        currentSession?.send("""{"type":"subscribe_post","postId":"$postId"}""")
+    suspend fun sendSubscribePost(postId: Long) {
+        currentSession?.send("""{"type":"subscribe_post","postId":$postId}""")
     }
 
-    suspend fun sendUnsubscribePost(postId: String) {
-        currentSession?.send("""{"type":"unsubscribe_post","postId":"$postId"}""")
+    suspend fun sendUnsubscribePost(postId: Long) {
+        currentSession?.send("""{"type":"unsubscribe_post","postId":$postId}""")
     }
 
     private suspend fun handleMessage(text: String) {
@@ -222,12 +222,12 @@ class NotificationService(
         }
     }
 
-    suspend fun sendTyping(conversationId: String) {
-        currentSession?.send("""{"type":"typing","conversationId":"$conversationId"}""")
+    suspend fun sendTyping(conversationId: Long) {
+        currentSession?.send("""{"type":"typing","conversationId":$conversationId}""")
     }
 
-    suspend fun sendStopTyping(conversationId: String) {
-        currentSession?.send("""{"type":"stop_typing","conversationId":"$conversationId"}""")
+    suspend fun sendStopTyping(conversationId: Long) {
+        currentSession?.send("""{"type":"stop_typing","conversationId":$conversationId}""")
     }
 }
 
@@ -242,3 +242,5 @@ private class WebSocketSessionHolder(
         }
     }
 }
+
+

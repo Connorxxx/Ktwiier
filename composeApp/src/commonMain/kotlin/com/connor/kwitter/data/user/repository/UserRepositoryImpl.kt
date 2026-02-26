@@ -23,7 +23,7 @@ class UserRepositoryImpl(
         const val PAGE_SIZE = 20
     }
 
-    override suspend fun getUserProfile(userId: String): Either<UserError, UserProfile> {
+    override suspend fun getUserProfile(userId: Long): Either<UserError, UserProfile> {
         return remoteDataSource.getUserProfile(userId)
     }
 
@@ -41,15 +41,15 @@ class UserRepositoryImpl(
         return remoteDataSource.uploadAvatar(bytes, fileName, mimeType)
     }
 
-    override suspend fun followUser(userId: String): Either<UserError, Unit> {
+    override suspend fun followUser(userId: Long): Either<UserError, Unit> {
         return remoteDataSource.followUser(userId)
     }
 
-    override suspend fun unfollowUser(userId: String): Either<UserError, Unit> {
+    override suspend fun unfollowUser(userId: Long): Either<UserError, Unit> {
         return remoteDataSource.unfollowUser(userId)
     }
 
-    override fun userPostsPaging(userId: String): Flow<PagingData<Post>> = Pager(
+    override fun userPostsPaging(userId: Long): Flow<PagingData<Post>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
     ) {
         OffsetPagingSource { limit, offset ->
@@ -58,7 +58,7 @@ class UserRepositoryImpl(
         }
     }.flow
 
-    override fun userRepliesPaging(userId: String): Flow<PagingData<Post>> = Pager(
+    override fun userRepliesPaging(userId: Long): Flow<PagingData<Post>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
     ) {
         OffsetPagingSource { limit, offset ->
@@ -67,7 +67,7 @@ class UserRepositoryImpl(
         }
     }.flow
 
-    override fun userLikesPaging(userId: String): Flow<PagingData<Post>> = Pager(
+    override fun userLikesPaging(userId: Long): Flow<PagingData<Post>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
     ) {
         OffsetPagingSource { limit, offset ->
@@ -76,7 +76,7 @@ class UserRepositoryImpl(
         }
     }.flow
 
-    override fun userFollowingPaging(userId: String): Flow<PagingData<UserListItem>> = Pager(
+    override fun userFollowingPaging(userId: Long): Flow<PagingData<UserListItem>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
     ) {
         OffsetPagingSource { limit, offset ->
@@ -85,7 +85,7 @@ class UserRepositoryImpl(
         }
     }.flow
 
-    override fun userFollowersPaging(userId: String): Flow<PagingData<UserListItem>> = Pager(
+    override fun userFollowersPaging(userId: Long): Flow<PagingData<UserListItem>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
     ) {
         OffsetPagingSource { limit, offset ->

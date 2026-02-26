@@ -27,7 +27,7 @@ class TimelineRemoteMediator(
         loadType: LoadType,
         state: PagingState<Int, PostEntity>
     ): MediatorResult {
-        val cursor: String? = when (loadType) {
+        val cursor: Long? = when (loadType) {
             LoadType.REFRESH -> null
             LoadType.PREPEND -> return MediatorResult.Success(endOfPaginationReached = true)
             LoadType.APPEND -> {

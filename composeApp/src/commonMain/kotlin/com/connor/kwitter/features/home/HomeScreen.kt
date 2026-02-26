@@ -554,27 +554,27 @@ private fun PlusIcon(
 
 private val previewPosts = listOf(
     Post(
-        id = "1",
+        id = 1L,
         content = "Just shipped a new feature for the app! Really excited about how the UI turned out after all the iterations.",
         createdAt = 1700000000000L,
         updatedAt = 1700000000000L,
-        author = PostAuthor(id = "1", displayName = "Connor"),
+        author = PostAuthor(id = 1L, displayName = "Connor"),
         stats = PostStats(replyCount = 5, likeCount = 12, viewCount = 200)
     ),
     Post(
-        id = "2",
+        id = 2L,
         content = "Anyone else working on KMP projects? Would love to hear about your experience with Compose Multiplatform.",
         createdAt = 1700001000000L,
         updatedAt = 1700001000000L,
-        author = PostAuthor(id = "2", displayName = "Alice"),
+        author = PostAuthor(id = 2L, displayName = "Alice"),
         stats = PostStats(replyCount = 0, likeCount = 3, viewCount = 50)
     ),
     Post(
-        id = "3",
+        id = 3L,
         content = "Good morning!",
         createdAt = 1700002000000L,
         updatedAt = 1700002000000L,
-        author = PostAuthor(id = "3", displayName = "Bob"),
+        author = PostAuthor(id = 3L, displayName = "Bob"),
         stats = PostStats(replyCount = 2, likeCount = 1, viewCount = 30)
     )
 )
@@ -614,3 +614,4 @@ private fun HomeScreenEmptyPreview() {
         )
     }
 }
+

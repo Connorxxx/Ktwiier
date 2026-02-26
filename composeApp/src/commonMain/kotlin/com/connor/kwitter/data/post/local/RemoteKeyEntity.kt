@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class RemoteKeyEntity(
     @PrimaryKey
     val label: String,
-    val nextCursor: String?
+    val nextCursor: Long?
 )
+

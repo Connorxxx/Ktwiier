@@ -38,7 +38,7 @@ class UserRemoteDataSource(
     }
 
     suspend fun getUserProfile(
-        userId: String
+        userId: Long
     ): Either<UserError, UserProfile> = either {
         try {
             val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId"))
@@ -90,7 +90,7 @@ class UserRemoteDataSource(
     }
 
     suspend fun followUser(
-        userId: String
+        userId: Long
     ): Either<UserError, Unit> = either {
         try {
             val response: HttpResponse = httpClient.post(endpoint("$USERS_PATH/$userId/follow"))
@@ -102,7 +102,7 @@ class UserRemoteDataSource(
     }
 
     suspend fun unfollowUser(
-        userId: String
+        userId: Long
     ): Either<UserError, Unit> = either {
         try {
             val response: HttpResponse = httpClient.delete(endpoint("$USERS_PATH/$userId/follow"))
@@ -114,7 +114,7 @@ class UserRemoteDataSource(
     }
 
     suspend fun getUserPosts(
-        userId: String,
+        userId: Long,
         query: PostPageQuery
     ): Either<UserError, PostList> = either {
         try {
@@ -130,7 +130,7 @@ class UserRemoteDataSource(
     }
 
     suspend fun getUserReplies(
-        userId: String,
+        userId: Long,
         query: PostPageQuery
     ): Either<UserError, PostList> = either {
         try {
@@ -146,7 +146,7 @@ class UserRemoteDataSource(
     }
 
     suspend fun getUserLikes(
-        userId: String,
+        userId: Long,
         query: PostPageQuery
     ): Either<UserError, PostList> = either {
         try {
@@ -162,7 +162,7 @@ class UserRemoteDataSource(
     }
 
     suspend fun getUserFollowing(
-        userId: String,
+        userId: Long,
         limit: Int,
         offset: Int
     ): Either<UserError, UserList> = either {
@@ -179,7 +179,7 @@ class UserRemoteDataSource(
     }
 
     suspend fun getUserFollowers(
-        userId: String,
+        userId: Long,
         limit: Int,
         offset: Int
     ): Either<UserError, UserList> = either {
@@ -237,7 +237,7 @@ private data class UserProfileResponseDto(
 
 @Serializable
 private data class UserDto(
-    val id: String,
+    val id: Long,
     val username: String,
     val displayName: String,
     val bio: String,

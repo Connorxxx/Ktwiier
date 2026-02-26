@@ -21,12 +21,12 @@ sealed interface NavigationRoute {
     data object Home : NavigationRoute
 
     @Serializable
-    data class PostDetail(val postId: String) : NavigationRoute
+    data class PostDetail(val postId: Long) : NavigationRoute
 
     @Serializable
     data class CreatePost(
-        val parentId: String? = null,
-        val returnToPostId: String? = null,
+        val parentId: Long? = null,
+        val returnToPostId: Long? = null,
         val replyToAuthorName: String? = null,
         val replyToContent: String? = null,
         val replyToAvatarUrl: String? = null
@@ -40,17 +40,17 @@ sealed interface NavigationRoute {
 
     @Serializable
     data class UserProfile(
-        val userId: String
+        val userId: Long
     ) : NavigationRoute
 
     @Serializable
     data class EditProfile(
-        val userId: String
+        val userId: Long
     ) : NavigationRoute
 
     @Serializable
     data class UserFollowList(
-        val userId: String,
+        val userId: Long,
         val displayName: String,
         val listType: String // "following" or "followers"
     ) : NavigationRoute
@@ -66,15 +66,16 @@ sealed interface NavigationRoute {
 
     @Serializable
     data class Chat(
-        val conversationId: String? = null,
-        val otherUserId: String,
+        val conversationId: Long? = null,
+        val otherUserId: Long,
         val otherUserDisplayName: String,
         val otherUserAvatarUrl: String? = null
     ) : NavigationRoute
 
     @Serializable
     data class MessageSearch(
-        val conversationId: String,
+        val conversationId: Long,
         val otherUserDisplayName: String
     ) : NavigationRoute
 }
+

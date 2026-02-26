@@ -45,7 +45,7 @@ data class EditProfileUiState(
 sealed interface EditProfileIntent
 
 sealed interface EditProfileAction : EditProfileIntent {
-    data class Load(val userId: String) : EditProfileAction
+    data class Load(val userId: Long) : EditProfileAction
     data class DisplayNameChanged(val value: String) : EditProfileAction
     data class UsernameChanged(val value: String) : EditProfileAction
     data class BioChanged(val value: String) : EditProfileAction
@@ -137,7 +137,7 @@ class EditProfileViewModel(
     }
 
     private suspend fun loadProfile(
-        userId: String,
+        userId: Long,
         currentState: EditProfileUiState
     ): EditProfileUiState {
         val loadingState = currentState.copy(isLoading = true, error = null)
@@ -205,3 +205,4 @@ class EditProfileViewModel(
         is UserError.Unknown -> "Unknown error: ${error.message}"
     }
 }
+

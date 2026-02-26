@@ -33,7 +33,7 @@ interface ConversationDao {
     suspend fun replaceAll(
         label: String,
         conversations: List<ConversationEntity>,
-        nextCursor: String?
+        nextCursor: Long?
     ) {
         clearAll()
         deleteRemoteKeyByLabel(label)
@@ -47,7 +47,7 @@ interface ConversationDao {
     suspend fun append(
         label: String,
         conversations: List<ConversationEntity>,
-        nextCursor: String?
+        nextCursor: Long?
     ) {
         insertAll(conversations)
         if (nextCursor != null) {
@@ -58,13 +58,13 @@ interface ConversationDao {
     }
 
     @Query("SELECT * FROM conversations WHERE id = :conversationId")
-    suspend fun getById(conversationId: String): ConversationEntity?
+    suspend fun getById(conversationId: Long): ConversationEntity?
 
     @Query("SELECT * FROM conversations WHERE otherUserId = :otherUserId LIMIT 1")
-    suspend fun getByOtherUserId(otherUserId: String): ConversationEntity?
+    suspend fun getByOtherUserId(otherUserId: Long): ConversationEntity?
 
     @Query("UPDATE conversations SET unreadCount = :unreadCount WHERE id = :conversationId")
-    suspend fun updateUnreadCount(conversationId: String, unreadCount: Int)
+    suspend fun updateUnreadCount(conversationId: Long, unreadCount: Int)
 
     @Query("SELECT MIN(orderIndex) FROM conversations")
     suspend fun getMinOrderIndex(): Int?
@@ -73,8 +73,9 @@ interface ConversationDao {
     suspend fun insertOrReplace(conversation: ConversationEntity)
 
     @Query("UPDATE conversations SET lastMessageRecalledAt = :recalledAt WHERE lastMessageId = :messageId")
-    suspend fun updateLastMessageRecalled(messageId: String, recalledAt: Long)
+    suspend fun updateLastMessageRecalled(messageId: Long, recalledAt: Long)
 
     @Query("UPDATE conversations SET lastMessageDeletedAt = :deletedAt WHERE lastMessageId = :messageId")
-    suspend fun updateLastMessageDeleted(messageId: String, deletedAt: Long)
+    suspend fun updateLastMessageDeleted(messageId: Long, deletedAt: Long)
 }
+

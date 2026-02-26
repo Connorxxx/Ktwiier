@@ -34,7 +34,7 @@ fun ConversationEntity.toDomain(): Conversation = Conversation(
         Message(
             id = lastMessageId,
             conversationId = id,
-            senderId = lastMessageSenderId ?: "",
+            senderId = lastMessageSenderId ?: 0L,
             content = lastMessageContent,
             imageUrl = null,
             readAt = lastMessageReadAt,
@@ -46,3 +46,5 @@ fun ConversationEntity.toDomain(): Conversation = Conversation(
     unreadCount = unreadCount,
     createdAt = createdAt
 )
+
+

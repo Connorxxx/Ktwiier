@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class AuthResponse(
-    val id: String,
+    val id: Long,
     val email: String,
     val username: String,
     val displayName: String,
@@ -15,3 +15,4 @@ data class AuthResponse(
     val refreshToken: String,
     val expiresIn: Long
 )
+

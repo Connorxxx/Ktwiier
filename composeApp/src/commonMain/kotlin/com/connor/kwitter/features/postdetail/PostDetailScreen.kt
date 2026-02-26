@@ -159,7 +159,7 @@ fun PostDetailScreen(
 
             state.post != null -> {
                 var expandedReplyIds by remember(state.post.id) {
-                    mutableStateOf(emptySet<String>())
+                    mutableStateOf(emptySet<Long>())
                 }
                 LaunchedEffect(state.threadReplies) {
                     val currentReplyIds = state.threadReplies.map { it.post.id }.toSet()
@@ -676,7 +676,7 @@ private fun ReplyIcon(
 
 private fun visibleThreadReplies(
     replies: List<ThreadReplyItem>,
-    expandedReplyIds: Set<String>
+    expandedReplyIds: Set<Long>
 ): List<ThreadReplyItem> {
     if (replies.isEmpty()) return emptyList()
 
@@ -693,8 +693,8 @@ private fun visibleThreadReplies(
 
 private fun isReplyVisible(
     reply: ThreadReplyItem,
-    repliesById: Map<String, ThreadReplyItem>,
-    expandedReplyIds: Set<String>
+    repliesById: Map<Long, ThreadReplyItem>,
+    expandedReplyIds: Set<Long>
 ): Boolean {
     var currentParentId = reply.post.parentId ?: return false
 
@@ -711,9 +711,9 @@ private fun isReplyVisible(
 }
 
 private fun toggleReplyExpansion(
-    currentExpandedReplyIds: Set<String>,
-    replyId: String
-): Set<String> {
+    currentExpandedReplyIds: Set<Long>,
+    replyId: Long
+): Set<Long> {
     return if (replyId in currentExpandedReplyIds) {
         currentExpandedReplyIds - replyId
     } else {
@@ -775,12 +775,12 @@ private fun ExpandCollapseChevron(
 }
 
 private val previewAuthor = PostAuthor(
-    id = "1",
+    id = 1L,
     displayName = "Connor"
 )
 
 private val previewPost = Post(
-    id = "1",
+    id = 1L,
     content = "Hello, this is a sample post for preview purposes!",
     createdAt = 1700000000000L,
     updatedAt = 1700000000000L,
@@ -791,24 +791,24 @@ private val previewPost = Post(
 private val previewReplies = listOf(
     ThreadReplyItem(
         post = Post(
-            id = "2",
+            id = 2L,
             content = "Great post!",
-            parentId = "1",
+            parentId = 1L,
             createdAt = 1700001000000L,
             updatedAt = 1700001000000L,
-            author = PostAuthor(id = "2", displayName = "Alice"),
+            author = PostAuthor(id = 2L, displayName = "Alice"),
             stats = PostStats(replyCount = 1, likeCount = 1, viewCount = 10)
         ),
         depth = 0
     ),
     ThreadReplyItem(
         post = Post(
-            id = "3",
+            id = 3L,
             content = "Thanks for sharing.",
-            parentId = "2",
+            parentId = 2L,
             createdAt = 1700002000000L,
             updatedAt = 1700002000000L,
-            author = PostAuthor(id = "3", displayName = "Bob"),
+            author = PostAuthor(id = 3L, displayName = "Bob"),
             stats = PostStats(replyCount = 0, likeCount = 0, viewCount = 5)
         ),
         depth = 1
@@ -839,3 +839,4 @@ private fun PostDetailScreenLoadingPreview() {
         )
     }
 }
+

@@ -10,24 +10,26 @@ import kotlinx.coroutines.flow.Flow
 
 interface MessagingRepository {
     val conversationsPaging: Flow<PagingData<Conversation>>
-    fun messagesPaging(conversationId: String): Flow<PagingData<Message>>
-    suspend fun resolveConversationId(otherUserId: String): String?
+    fun messagesPaging(conversationId: Long): Flow<PagingData<Message>>
+    suspend fun resolveConversationId(otherUserId: Long): Long?
     suspend fun sendMessage(
-        recipientId: String,
+        recipientId: Long,
         content: String,
         imageUrl: String? = null,
-        replyToMessageId: String? = null
+        replyToMessageId: Long? = null
     ): Either<MessagingError, Message>
-    suspend fun deleteMessage(messageId: String): Either<MessagingError, Unit>
-    suspend fun recallMessage(messageId: String): Either<MessagingError, Unit>
-    suspend fun markAsRead(conversationId: String): Either<MessagingError, Unit>
-    fun setActiveConversation(conversationId: String?)
-    fun typingIndicators(conversationId: String): Flow<Boolean>
-    fun onlineStatus(): Flow<Map<String, Boolean>>
-    fun sendTyping(conversationId: String)
-    fun sendStopTyping(conversationId: String)
+    suspend fun deleteMessage(messageId: Long): Either<MessagingError, Unit>
+    suspend fun recallMessage(messageId: Long): Either<MessagingError, Unit>
+    suspend fun markAsRead(conversationId: Long): Either<MessagingError, Unit>
+    fun setActiveConversation(conversationId: Long?)
+    fun typingIndicators(conversationId: Long): Flow<Boolean>
+    fun onlineStatus(): Flow<Map<Long, Boolean>>
+    fun sendTyping(conversationId: Long)
+    fun sendStopTyping(conversationId: Long)
     suspend fun searchMessages(
-        conversationId: String,
+        conversationId: Long,
         query: String
     ): Either<MessagingError, List<MessageSearchItem>>
 }
+
+

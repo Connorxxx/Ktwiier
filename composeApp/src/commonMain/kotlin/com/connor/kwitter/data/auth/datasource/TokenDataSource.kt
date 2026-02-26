@@ -17,7 +17,7 @@ import kotlin.time.Clock
 data class StoredTokens(
     val accessToken: String,
     val refreshToken: String,
-    val userId: String,
+    val userId: Long,
     val expiresIn: Long,
     val obtainedAt: Long
 )
@@ -28,7 +28,7 @@ class TokenDataSource(
     private companion object {
         val ACCESS_TOKEN_KEY = stringPreferencesKey("access_token")
         val REFRESH_TOKEN_KEY = stringPreferencesKey("refresh_token")
-        val USER_ID_KEY = stringPreferencesKey("user_id")
+        val USER_ID_KEY = longPreferencesKey("user_id")
         val EXPIRES_IN_KEY = longPreferencesKey("expires_in")
         val OBTAINED_AT_KEY = longPreferencesKey("obtained_at")
     }
@@ -44,7 +44,7 @@ class TokenDataSource(
         }
         .catch { emit(null) }
 
-    val currentUserId: Flow<String?> = dataStore.data
+    val currentUserId: Flow<Long?> = dataStore.data
         .map { preferences -> preferences[USER_ID_KEY] }
         .catch { emit(null) }
 
@@ -63,7 +63,7 @@ class TokenDataSource(
     suspend fun saveTokens(
         accessToken: String,
         refreshToken: String,
-        userId: String,
+        userId: Long,
         expiresIn: Long
     ): Either<AuthError, Unit> = either {
         try {

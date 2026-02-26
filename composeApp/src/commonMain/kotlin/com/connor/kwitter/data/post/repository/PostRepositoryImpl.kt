@@ -53,19 +53,19 @@ class PostRepositoryImpl(
         return remoteDataSource.getTimeline(query)
     }
 
-    override suspend fun getPost(postId: String): Either<PostError, Post> {
+    override suspend fun getPost(postId: Long): Either<PostError, Post> {
         return remoteDataSource.getPost(postId)
     }
 
     override suspend fun getReplies(
-        postId: String,
+        postId: Long,
         query: PostPageQuery
     ): Either<PostError, PostList> {
         return remoteDataSource.getReplies(postId, query)
     }
 
     override suspend fun getUserPosts(
-        userId: String,
+        userId: Long,
         query: PostPageQuery
     ): Either<PostError, PostList> {
         return remoteDataSource.getUserPosts(userId, query)
@@ -83,27 +83,28 @@ class PostRepositoryImpl(
         }
     }
 
-    override suspend fun likePost(postId: String): Either<PostError, PostStats> {
+    override suspend fun likePost(postId: Long): Either<PostError, PostStats> {
         return remoteDataSource.likePost(postId)
     }
 
-    override suspend fun unlikePost(postId: String): Either<PostError, PostStats> {
+    override suspend fun unlikePost(postId: Long): Either<PostError, PostStats> {
         return remoteDataSource.unlikePost(postId)
     }
 
-    override suspend fun bookmarkPost(postId: String): Either<PostError, Unit> {
+    override suspend fun bookmarkPost(postId: Long): Either<PostError, Unit> {
         return remoteDataSource.bookmarkPost(postId)
     }
 
-    override suspend fun unbookmarkPost(postId: String): Either<PostError, Unit> {
+    override suspend fun unbookmarkPost(postId: Long): Either<PostError, Unit> {
         return remoteDataSource.unbookmarkPost(postId)
     }
 
-    override suspend fun updateLocalLikeState(postId: String, isLiked: Boolean, likeCount: Int) {
+    override suspend fun updateLocalLikeState(postId: Long, isLiked: Boolean, likeCount: Int) {
         postDao.updateLikeState(postId, isLiked, likeCount)
     }
 
-    override suspend fun updateLocalBookmarkState(postId: String, isBookmarked: Boolean) {
+    override suspend fun updateLocalBookmarkState(postId: Long, isBookmarked: Boolean) {
         postDao.updateBookmarkState(postId, isBookmarked)
     }
 }
+

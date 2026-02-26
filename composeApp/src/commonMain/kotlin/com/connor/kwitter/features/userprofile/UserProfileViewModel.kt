@@ -37,7 +37,7 @@ enum class ProfileTab { POSTS, REPLIES, LIKES }
 
 data class UserProfileUiState(
     val profile: com.connor.kwitter.domain.user.model.UserProfile? = null,
-    val currentUserId: String? = null,
+    val currentUserId: Long? = null,
     val selectedTab: ProfileTab = ProfileTab.POSTS,
     val isLoadingProfile: Boolean = false,
     val isFollowLoading: Boolean = false,
@@ -54,17 +54,17 @@ data class UserProfileUiState(
 sealed interface UserProfileIntent
 
 sealed interface UserProfileAction : UserProfileIntent {
-    data class Load(val userId: String) : UserProfileAction
+    data class Load(val userId: Long) : UserProfileAction
     data object Refresh : UserProfileAction
     data class SelectTab(val tab: ProfileTab) : UserProfileAction
     data object ToggleFollow : UserProfileAction
     data class ToggleLike(
-        val postId: String,
+        val postId: Long,
         val isCurrentlyLiked: Boolean,
         val currentLikeCount: Int
     ) : UserProfileAction
     data class ToggleBookmark(
-        val postId: String,
+        val postId: Long,
         val isCurrentlyBookmarked: Boolean
     ) : UserProfileAction
     data object ErrorDismissed : UserProfileAction
@@ -72,13 +72,13 @@ sealed interface UserProfileAction : UserProfileIntent {
 
 sealed interface UserProfileNavAction : UserProfileIntent {
     data object BackClick : UserProfileNavAction
-    data class PostClick(val postId: String) : UserProfileNavAction
+    data class PostClick(val postId: Long) : UserProfileNavAction
     data class MediaClick(val media: List<PostMedia>, val index: Int) : UserProfileNavAction
-    data class AuthorClick(val userId: String) : UserProfileNavAction
+    data class AuthorClick(val userId: Long) : UserProfileNavAction
     data object EditProfileClick : UserProfileNavAction
     data object FollowingClick : UserProfileNavAction
     data object FollowersClick : UserProfileNavAction
-    data class MessageClick(val userId: String, val displayName: String) : UserProfileNavAction
+    data class MessageClick(val userId: Long, val displayName: String) : UserProfileNavAction
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -95,9 +95,9 @@ class UserProfileViewModel(
     )
 
     private val _events = Channel<UserProfileAction>(Channel.UNLIMITED)
-    private val _userId = MutableStateFlow("")
+    private val _userId = MutableStateFlow<Long?>(null)
     private val _refreshTrigger = MutableStateFlow(0)
-    private val _postMods = MutableStateFlow<Map<String, PostModification>>(emptyMap())
+    private val _postMods = MutableStateFlow<Map<Long, PostModification>>(emptyMap())
 
     val uiState: StateFlow<UserProfileUiState> = viewModelScope.launchMolecule(
         mode = RecompositionMode.Immediate
@@ -109,7 +109,7 @@ class UserProfileViewModel(
 
     val postsPaging: Flow<PagingData<Post>> = pagingTrigger
         .flatMapLatest { userId ->
-            if (userId.isBlank()) flowOf(PagingData.empty())
+            if (userId == null) flowOf(PagingData.empty())
             else userRepository.userPostsPaging(userId)
         }
         .cachedIn(viewModelScope)
@@ -120,7 +120,7 @@ class UserProfileViewModel(
 
     val repliesPaging: Flow<PagingData<Post>> = pagingTrigger
         .flatMapLatest { userId ->
-            if (userId.isBlank()) flowOf(PagingData.empty())
+            if (userId == null) flowOf(PagingData.empty())
             else userRepository.userRepliesPaging(userId)
         }
         .cachedIn(viewModelScope)
@@ -131,7 +131,7 @@ class UserProfileViewModel(
 
     val likesPaging: Flow<PagingData<Post>> = pagingTrigger
         .flatMapLatest { userId ->
-            if (userId.isBlank()) flowOf(PagingData.empty())
+            if (userId == null) flowOf(PagingData.empty())
             else userRepository.userLikesPaging(userId)
         }
         .cachedIn(viewModelScope)
@@ -173,7 +173,7 @@ class UserProfileViewModel(
     }
 
     private suspend fun loadProfile(
-        userId: String,
+        userId: Long,
         previousState: UserProfileUiState
     ): UserProfileUiState {
         _userId.value = userId
@@ -324,7 +324,7 @@ class UserProfileViewModel(
         )
     }
 
-    private fun Post.applyMods(mods: Map<String, PostModification>): Post {
+    private fun Post.applyMods(mods: Map<Long, PostModification>): Post {
         val mod = mods[id] ?: return this
         return copy(
             isLikedByCurrentUser = mod.isLikedByCurrentUser ?: isLikedByCurrentUser,

@@ -110,7 +110,7 @@ fun UserListScreen(
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
 
         when {
-            (refreshState is LoadState.Loading || state.userId.isBlank()) && pagingItems.itemCount == 0 -> {
+            (refreshState is LoadState.Loading || state.userId <= 0L) && pagingItems.itemCount == 0 -> {
                 LoadingScreen(
                     contentPadding = PaddingValues(
                         top = topOverlayPadding,

@@ -35,7 +35,7 @@ import kotlinx.coroutines.sync.withLock
 
 data class CreatePostUiState(
     val content: String = "",
-    val parentId: String? = null,
+    val parentId: Long? = null,
     val replyTargetAuthorName: String? = null,
     val replyTargetContent: String? = null,
     val replyTargetAvatarUrl: String? = null,
@@ -56,7 +56,7 @@ sealed interface CreatePostIntent
 sealed interface CreatePostAction : CreatePostIntent {
     data class ContentChanged(val content: String) : CreatePostAction
     data class SetReplyTarget(
-        val parentId: String?,
+        val parentId: Long?,
         val authorName: String? = null,
         val content: String? = null,
         val avatarUrl: String? = null
@@ -239,3 +239,4 @@ class CreatePostViewModel(
         is MediaError.Unknown -> "Upload failed: ${error.message}"
     }
 }
+

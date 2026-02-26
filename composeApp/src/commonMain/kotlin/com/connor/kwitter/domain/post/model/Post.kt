@@ -4,10 +4,10 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class Post(
-    val id: String,
+    val id: Long,
     val content: String,
     val media: List<PostMedia> = emptyList(),
-    val parentId: String? = null,
+    val parentId: Long? = null,
     val createdAt: Long,
     val updatedAt: Long,
     val author: PostAuthor,
@@ -37,7 +37,7 @@ enum class PostMediaType {
 
 @Serializable
 data class PostAuthor(
-    val id: String,
+    val id: Long,
     val displayName: String,
     //val email: String,
     val avatarUrl: String? = null
@@ -52,7 +52,7 @@ data class PostStats(
 
 @Serializable
 data class PostSummary(
-    val id: String,
+    val id: Long,
     val content: String,
     val author: PostAuthor,
     val createdAt: Long
@@ -63,7 +63,7 @@ data class PostList(
     val posts: List<Post>,
     val hasMore: Boolean,
     val total: Int? = null,
-    val nextCursor: String? = null
+    val nextCursor: Long? = null
 )
 
 @Serializable
@@ -74,10 +74,11 @@ data class LikeResponse(
 data class PostPageQuery(
     val limit: Int = 20,
     val offset: Int = 0,
-    val beforeId: String? = null
+    val beforeId: Long? = null
 ) {
     init {
         require(limit > 0) { "limit must be > 0" }
         require(offset >= 0) { "offset must be >= 0" }
     }
 }
+

@@ -21,7 +21,7 @@ class NotificationRepositoryImpl(
     override val connectionState: StateFlow<ConnectionState> =
         notificationService.connectionState
 
-    override fun observePostLikedEvents(postId: String): Flow<NotificationEvent.PostLiked> =
+    override fun observePostLikedEvents(postId: Long): Flow<NotificationEvent.PostLiked> =
         notificationService.notificationEvents
             .onStart { notificationService.sendSubscribePost(postId) }
             .onCompletion {
@@ -30,3 +30,4 @@ class NotificationRepositoryImpl(
                 }
             }.filterIsInstance()
 }
+

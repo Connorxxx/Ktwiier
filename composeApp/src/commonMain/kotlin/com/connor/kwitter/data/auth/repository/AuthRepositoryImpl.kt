@@ -49,7 +49,7 @@ class AuthRepositoryImpl(
 
     override val authEvents: Flow<AuthEvent> = notificationService.authEvents
 
-    override val currentUserId: Flow<String?> = tokenDataSource.currentUserId
+    override val currentUserId: Flow<Long?> = tokenDataSource.currentUserId
 
     init {
         // Start/stop WebSocket based on session state
@@ -129,3 +129,5 @@ class AuthRepositoryImpl(
         return tokenDataSource.clearTokens()
     }
 }
+
+

@@ -21,15 +21,15 @@ sealed interface ConversationListAction : ConversationListIntent
 sealed interface ConversationListNavAction : ConversationListIntent {
     data object BackClick : ConversationListNavAction
     data class ConversationClick(
-        val conversationId: String,
-        val otherUserId: String,
+        val conversationId: Long,
+        val otherUserId: Long,
         val otherUserDisplayName: String,
         val otherUserAvatarUrl: String?
     ) : ConversationListNavAction
 }
 
 data class ConversationListUiState(
-    val onlineStatus: Map<String, Boolean> = emptyMap()
+    val onlineStatus: Map<Long, Boolean> = emptyMap()
 )
 
 class ConversationListViewModel(
@@ -55,3 +55,5 @@ class ConversationListViewModel(
         return ConversationListUiState(onlineStatus = onlineStatus)
     }
 }
+
+

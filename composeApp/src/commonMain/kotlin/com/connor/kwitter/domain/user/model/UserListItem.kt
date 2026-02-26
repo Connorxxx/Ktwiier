@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class UserListItem(
-    val id: String,
+    val id: Long,
     val username: String,
     val displayName: String,
     val bio: String,

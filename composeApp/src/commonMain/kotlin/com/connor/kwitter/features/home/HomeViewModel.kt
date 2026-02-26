@@ -29,7 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 data class HomeUiState(
-    val currentUserId: String? = null,
+    val currentUserId: Long? = null,
     val currentUserAvatarUrl: String? = null,
     val isRefreshing: Boolean = false,
     val error: String? = null,
@@ -46,22 +46,22 @@ sealed interface HomeAction : HomeIntent {
     data object NewPostsBannerClick : HomeAction
     data object ResetNewPostCount : HomeAction
     data class ToggleLike(
-        val postId: String,
+        val postId: Long,
         val isCurrentlyLiked: Boolean,
         val currentLikeCount: Int
     ) : HomeAction
 
     data class ToggleBookmark(
-        val postId: String,
+        val postId: Long,
         val isCurrentlyBookmarked: Boolean
     ) : HomeAction
 }
 
 sealed interface HomeNavAction : HomeIntent {
-    data class PostClick(val postId: String) : HomeNavAction
+    data class PostClick(val postId: Long) : HomeNavAction
     data object CreatePostClick : HomeNavAction
     data class MediaClick(val media: List<PostMedia>, val index: Int) : HomeNavAction
-    data class AuthorClick(val userId: String) : HomeNavAction
+    data class AuthorClick(val userId: Long) : HomeNavAction
     data object SearchClick : HomeNavAction
     data object MessagesClick : HomeNavAction
 }
@@ -204,3 +204,5 @@ class HomeViewModel(
         is PostError.Unknown -> "Unknown error: ${error.message}"
     }
 }
+
+
