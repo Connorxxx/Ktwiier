@@ -200,11 +200,11 @@ class MessagingRepositoryImpl(
         _onlineStatus.asStateFlow()
 
     override fun sendTyping(conversationId: Long) {
-        repositoryScope.launch { notificationService.sendTyping(conversationId) }
+        repositoryScope.launch { notificationService.sendTyping(conversationId, isTyping = true) }
     }
 
     override fun sendStopTyping(conversationId: Long) {
-        repositoryScope.launch { notificationService.sendStopTyping(conversationId) }
+        repositoryScope.launch { notificationService.sendTyping(conversationId, isTyping = false) }
     }
 
     override suspend fun searchMessages(

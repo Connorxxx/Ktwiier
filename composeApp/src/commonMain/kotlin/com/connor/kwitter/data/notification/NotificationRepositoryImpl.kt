@@ -23,10 +23,10 @@ class NotificationRepositoryImpl(
 
     override fun observePostLikedEvents(postId: Long): Flow<NotificationEvent.PostLiked> =
         notificationService.notificationEvents
-            .onStart { notificationService.sendSubscribePost(postId) }
+            .onStart { notificationService.subscribeToPost(postId) }
             .onCompletion {
                 withContext(NonCancellable) {
-                    notificationService.sendUnsubscribePost(postId)
+                    notificationService.unsubscribeFromPost(postId)
                 }
             }.filterIsInstance()
 }

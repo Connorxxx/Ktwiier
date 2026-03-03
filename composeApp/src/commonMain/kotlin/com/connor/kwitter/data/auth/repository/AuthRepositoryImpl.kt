@@ -52,7 +52,7 @@ class AuthRepositoryImpl(
     override val currentUserId: Flow<Long?> = tokenDataSource.currentUserId
 
     init {
-        // Start/stop WebSocket based on session state
+        // Start/stop SSE connection based on session state
         repositoryScope.launch {
             _session.collect { state ->
                 when (state) {

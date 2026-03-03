@@ -4,9 +4,13 @@ import com.connor.kwitter.domain.auth.model.AuthEvent
 import com.connor.kwitter.domain.notification.model.ConnectionState
 import com.connor.kwitter.domain.notification.model.NotificationEvent
 import io.ktor.client.HttpClient
-import io.ktor.client.plugins.websocket.webSocket
-import io.ktor.websocket.Frame
-import io.ktor.websocket.readText
+import io.ktor.client.plugins.sse.sse
+import io.ktor.client.request.delete
+import io.ktor.client.request.post
+import io.ktor.client.request.put
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -19,19 +23,16 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 class NotificationService(
     private val httpClient: HttpClient,
     private val baseUrl: String
 ) {
     private companion object {
-        const val WS_PATH = "/v1/notifications/ws"
+        const val SSE_PATH = "/v1/notifications/stream"
         val BACKOFF_DELAYS = longArrayOf(1000, 2000, 4000, 8000, 16000)
-        const val PING_INTERVAL_MS = 30_000L
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -46,7 +47,6 @@ class NotificationService(
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
     private var connectionJob: Job? = null
-    private var currentSession: WebSocketSessionHolder? = null
 
     fun connect(scope: CoroutineScope) {
         disconnect()
@@ -55,36 +55,15 @@ class NotificationService(
             while (isActive) {
                 _connectionState.value = ConnectionState.Connecting
                 try {
-                    val wsUrl = baseUrl
-                        .replace("http://", "ws://")
-                        .replace("https://", "wss://")
-                        .trimEnd('/') + WS_PATH
-
-                    httpClient.webSocket(wsUrl) {
+                    httpClient.sse(
+                        urlString = "$baseUrl$SSE_PATH",
+                        showCommentEvents = false
+                    ) {
                         _connectionState.value = ConnectionState.Connected
                         retryCount = 0
-                        currentSession = WebSocketSessionHolder(this)
 
-                        val pingJob = launch {
-                            while (isActive) {
-                                delay(PING_INTERVAL_MS)
-                                try {
-                                    outgoing.send(Frame.Text("""{"type":"ping"}"""))
-                                } catch (_: Exception) {
-                                    break
-                                }
-                            }
-                        }
-
-                        try {
-                            for (frame in incoming) {
-                                if (frame is Frame.Text) {
-                                    handleMessage(frame.readText())
-                                }
-                            }
-                        } finally {
-                            pingJob.cancel()
-                            currentSession = null
+                        incoming.collect { sseEvent ->
+                            handleSseEvent(sseEvent.event, sseEvent.data)
                         }
                     }
                 } catch (e: CancellationException) {
@@ -94,7 +73,6 @@ class NotificationService(
                 }
 
                 _connectionState.value = ConnectionState.Disconnected
-                currentSession = null
 
                 if (!isActive) break
                 val delayMs = BACKOFF_DELAYS[retryCount.coerceAtMost(BACKOFF_DELAYS.lastIndex)]
@@ -109,138 +87,62 @@ class NotificationService(
     fun disconnect() {
         connectionJob?.cancel()
         connectionJob = null
-        currentSession = null
         _connectionState.value = ConnectionState.Disconnected
     }
 
-    suspend fun sendSubscribePost(postId: Long) {
-        currentSession?.send("""{"type":"subscribe_post","postId":$postId}""")
-    }
-
-    suspend fun sendUnsubscribePost(postId: Long) {
-        currentSession?.send("""{"type":"unsubscribe_post","postId":$postId}""")
-    }
-
-    private suspend fun handleMessage(text: String) {
-        // Backwards compatibility: raw "auth_revoked" text
-        if (text == "auth_revoked") {
-            _authEvents.emit(AuthEvent.ForceLogout("Session revoked by server"))
-            return
-        }
-
-        val jsonObject = try {
-            json.parseToJsonElement(text).jsonObject
-        } catch (_: Exception) {
-            return
-        }
-
-        val type = jsonObject["type"]?.jsonPrimitive?.content ?: return
-
-        when (type) {
-            "new_post" -> parseNewPost(jsonObject)?.let { _notificationEvents.emit(it) }
-            "post_liked" -> parsePostLiked(jsonObject)?.let { _notificationEvents.emit(it) }
-            "new_message" -> parseNewMessage(jsonObject)?.let { _notificationEvents.emit(it) }
-            "messages_read" -> parseMessagesRead(jsonObject)?.let { _notificationEvents.emit(it) }
-            "message_recalled" -> parseMessageRecalled(jsonObject)?.let { _notificationEvents.emit(it) }
-            "typing_indicator" -> parseTypingIndicator(jsonObject)?.let { _notificationEvents.emit(it) }
-            "presence_snapshot" -> parsePresenceSnapshot(jsonObject)?.let { _notificationEvents.emit(it) }
-            "user_presence_changed" -> parseUserPresenceChanged(jsonObject)?.let { _notificationEvents.emit(it) }
-            "error" -> { /* Log or ignore server errors for now */ }
-            "connected", "subscribed", "unsubscribed", "pong" -> { /* Acknowledged, no action */ }
+    private suspend fun handleSseEvent(eventType: String?, data: String?) {
+        when (eventType) {
+            "new_post" -> parseData<NotificationEvent.NewPostCreated>(data)?.let { _notificationEvents.emit(it) }
+            "post_liked" -> parseData<NotificationEvent.PostLiked>(data)?.let { _notificationEvents.emit(it) }
+            "new_message" -> parseData<NotificationEvent.NewMessage>(data)?.let { _notificationEvents.emit(it) }
+            "messages_read" -> parseData<NotificationEvent.MessagesRead>(data)?.let { _notificationEvents.emit(it) }
+            "message_recalled" -> parseData<NotificationEvent.MessageRecalled>(data)?.let { _notificationEvents.emit(it) }
+            "typing_indicator" -> parseData<NotificationEvent.TypingIndicator>(data)?.let { _notificationEvents.emit(it) }
+            "presence_snapshot" -> parseData<NotificationEvent.PresenceSnapshot>(data)?.let { _notificationEvents.emit(it) }
+            "user_presence_changed" -> parseData<NotificationEvent.UserPresenceChanged>(data)?.let { _notificationEvents.emit(it) }
+            "auth_revoked" -> _authEvents.emit(AuthEvent.ForceLogout(data ?: "Session revoked by server"))
+            "connected", "subscribed", "unsubscribed" -> { /* ack */ }
         }
     }
 
-    private fun parseNewPost(jsonObject: JsonObject): NotificationEvent.NewPostCreated? {
-        val data = jsonObject["data"] ?: return null
+    private inline fun <reified T> parseData(data: String?): T? {
+        if (data == null) return null
         return try {
-            json.decodeFromJsonElement(NotificationEvent.NewPostCreated.serializer(), data)
+            json.decodeFromString<T>(data)
         } catch (_: Exception) {
             null
         }
     }
 
-    private fun parsePostLiked(jsonObject: JsonObject): NotificationEvent.PostLiked? {
-        val data = jsonObject["data"] ?: return null
-        return try {
-            json.decodeFromJsonElement(NotificationEvent.PostLiked.serializer(), data)
-        } catch (_: Exception) {
-            null
-        }
-    }
+    // Commands via REST
 
-    private fun parseNewMessage(jsonObject: JsonObject): NotificationEvent.NewMessage? {
-        val data = jsonObject["data"] ?: return null
-        return try {
-            json.decodeFromJsonElement(NotificationEvent.NewMessage.serializer(), data)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun parseMessagesRead(jsonObject: JsonObject): NotificationEvent.MessagesRead? {
-        val data = jsonObject["data"] ?: return null
-        return try {
-            json.decodeFromJsonElement(NotificationEvent.MessagesRead.serializer(), data)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun parseMessageRecalled(jsonObject: JsonObject): NotificationEvent.MessageRecalled? {
-        val data = jsonObject["data"] ?: return null
-        return try {
-            json.decodeFromJsonElement(NotificationEvent.MessageRecalled.serializer(), data)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun parseTypingIndicator(jsonObject: JsonObject): NotificationEvent.TypingIndicator? {
-        val data = jsonObject["data"] ?: return null
-        return try {
-            json.decodeFromJsonElement(NotificationEvent.TypingIndicator.serializer(), data)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun parseUserPresenceChanged(jsonObject: JsonObject): NotificationEvent.UserPresenceChanged? {
-        val data = jsonObject["data"] ?: return null
-        return try {
-            json.decodeFromJsonElement(NotificationEvent.UserPresenceChanged.serializer(), data)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun parsePresenceSnapshot(jsonObject: JsonObject): NotificationEvent.PresenceSnapshot? {
-        val data = jsonObject["data"] ?: return null
-        return try {
-            json.decodeFromJsonElement(NotificationEvent.PresenceSnapshot.serializer(), data)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    suspend fun sendTyping(conversationId: Long) {
-        currentSession?.send("""{"type":"typing","conversationId":$conversationId}""")
-    }
-
-    suspend fun sendStopTyping(conversationId: Long) {
-        currentSession?.send("""{"type":"stop_typing","conversationId":$conversationId}""")
-    }
-}
-
-private class WebSocketSessionHolder(
-    private val session: io.ktor.websocket.WebSocketSession
-) {
-    suspend fun send(text: String) {
+    suspend fun subscribeToPost(postId: Long) {
         try {
-            session.outgoing.send(Frame.Text(text))
+            httpClient.post("$baseUrl/v1/notifications/posts/$postId/subscribe")
         } catch (_: Exception) {
-            // Session may be closed
+            // Best-effort
+        }
+    }
+
+    suspend fun unsubscribeFromPost(postId: Long) {
+        try {
+            httpClient.delete("$baseUrl/v1/notifications/posts/$postId/subscribe")
+        } catch (_: Exception) {
+            // Best-effort
+        }
+    }
+
+    suspend fun sendTyping(conversationId: Long, isTyping: Boolean) {
+        try {
+            httpClient.put("$baseUrl/v1/messaging/conversations/$conversationId/typing") {
+                contentType(ContentType.Application.Json)
+                setBody(TypingRequest(isTyping))
+            }
+        } catch (_: Exception) {
+            // Best-effort
         }
     }
 }
 
-
+@Serializable
+private data class TypingRequest(val isTyping: Boolean)
