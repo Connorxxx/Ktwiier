@@ -4,6 +4,12 @@ import kotlinx.serialization.Serializable
 
 sealed interface NotificationEvent {
 
+    sealed interface PostLikeChanged : NotificationEvent {
+        val postId: Long
+        val newLikeCount: Int
+        val isLiked: Boolean
+    }
+
     @Serializable
     data class NewPostCreated(
         val postId: Long,
@@ -16,13 +22,23 @@ sealed interface NotificationEvent {
 
     @Serializable
     data class PostLiked(
-        val postId: Long,
+        override val postId: Long,
         val likedByUserId: Long,
         val likedByDisplayName: String,
         val likedByUsername: String,
-        val newLikeCount: Int,
+        override val newLikeCount: Int,
+        override val isLiked: Boolean = true,
         val timestamp: Long
-    ) : NotificationEvent
+    ) : PostLikeChanged
+
+    @Serializable
+    data class PostUnliked(
+        override val postId: Long,
+        val unlikedByUserId: Long,
+        override val newLikeCount: Int,
+        override val isLiked: Boolean = false,
+        val timestamp: Long
+    ) : PostLikeChanged
 
     @Serializable
     data class NewMessage(
@@ -76,4 +92,3 @@ sealed interface NotificationEvent {
         val timestamp: Long
     )
 }
-

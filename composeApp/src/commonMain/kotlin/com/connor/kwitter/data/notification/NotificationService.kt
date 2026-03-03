@@ -94,6 +94,7 @@ class NotificationService(
         when (eventType) {
             "new_post" -> parseData<NotificationEvent.NewPostCreated>(data)?.let { _notificationEvents.emit(it) }
             "post_liked" -> parseData<NotificationEvent.PostLiked>(data)?.let { _notificationEvents.emit(it) }
+            "post_unliked" -> parseData<NotificationEvent.PostUnliked>(data)?.let { _notificationEvents.emit(it) }
             "new_message" -> parseData<NotificationEvent.NewMessage>(data)?.let { _notificationEvents.emit(it) }
             "messages_read" -> parseData<NotificationEvent.MessagesRead>(data)?.let { _notificationEvents.emit(it) }
             "message_recalled" -> parseData<NotificationEvent.MessageRecalled>(data)?.let { _notificationEvents.emit(it) }

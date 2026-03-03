@@ -118,10 +118,13 @@ class PostDetailViewModel(
         // Collect = auto subscribe, cancel = auto unsubscribe
         LaunchedEffect(currentPostId) {
             val postId = currentPostId ?: return@LaunchedEffect
-            notificationRepository.observePostLikedEvents(postId).collect { event ->
+            notificationRepository.observePostLikeEvents(postId).collect { event ->
                 if (event.postId == postId || event.postId in currentThreadPostIds) {
                     state = updatePostInState(state, event.postId) {
-                        copy(stats = stats.copy(likeCount = event.newLikeCount))
+                        copy(
+                            isLikedByCurrentUser = event.isLiked,
+                            stats = stats.copy(likeCount = event.newLikeCount)
+                        )
                     }
                 }
             }
@@ -348,5 +351,4 @@ class PostDetailViewModel(
         return state.copy(post = updatedPost, threadReplies = updatedReplies)
     }
 }
-
 
