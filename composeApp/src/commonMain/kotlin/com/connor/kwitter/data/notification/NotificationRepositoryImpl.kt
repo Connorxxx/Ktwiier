@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.onSubscription
 import kotlinx.coroutines.withContext
 
 class NotificationRepositoryImpl(
@@ -23,7 +24,7 @@ class NotificationRepositoryImpl(
 
     override fun observePostLikeEvents(postId: Long): Flow<NotificationEvent.PostLikeChanged> =
         notificationService.notificationEvents
-            .onStart { notificationService.subscribeToPost(postId) }
+            .onSubscription { notificationService.subscribeToPost(postId) }
             .onCompletion {
                 withContext(NonCancellable) {
                     notificationService.unsubscribeFromPost(postId)

@@ -77,9 +77,7 @@ class NotificationService(
                 if (!isActive) break
                 val delayMs = BACKOFF_DELAYS[retryCount.coerceAtMost(BACKOFF_DELAYS.lastIndex)]
                 delay(delayMs)
-                if (retryCount < Int.MAX_VALUE) {
-                    retryCount++
-                }
+                retryCount++
             }
         }
     }
