@@ -1,6 +1,8 @@
 package com.connor.cronet.engine
 
 import com.connor.cronet.engine.internal.CronetEngineFactory
+import com.connor.cronet.engine.internal.fault.CronetFaultInjector
+import com.connor.cronet.engine.internal.fault.CronetInvariantRecorder
 import com.connor.cronet.engine.internal.lifecycle.ActiveRequestHandle
 import com.connor.cronet.engine.internal.lifecycle.EngineLifecycle
 import com.connor.cronet.engine.internal.request.CronetRequestExecutor
@@ -49,11 +51,15 @@ internal class CronetClientEngine(
     )
 
     private val lifecycle = EngineLifecycle()
+    private val faultInjector: CronetFaultInjector = config.faultInjector
+    private val invariantRecorder: CronetInvariantRecorder = config.invariantRecorder
 
     private val requestExecutor: CronetRequestExecutor = DefaultCronetRequestExecutor(
         cronetEngine = cronetEngine,
         callbackExecutor = callbackExecutor,
         telemetry = telemetry,
+        faultInjector = faultInjector,
+        invariantRecorder = invariantRecorder,
     )
 
     override suspend fun execute(data: HttpRequestData): HttpResponseData {
@@ -61,6 +67,12 @@ internal class CronetClientEngine(
         val requestId = lifecycle.registerActiveRequest(
             handle = CallContextRequestHandle(callContext = requestCallContext),
         )
+        recordInvariant {
+            invariantRecorder.onRequestRegistered(
+                requestId = requestId,
+                activeRequestCount = lifecycle.currentActiveRequestCount,
+            )
+        }
 
         return try {
             requestExecutor.execute(
@@ -69,6 +81,12 @@ internal class CronetClientEngine(
             )
         } finally {
             lifecycle.unregisterActiveRequest(requestId)
+            recordInvariant {
+                invariantRecorder.onRequestUnregistered(
+                    requestId = requestId,
+                    activeRequestCount = lifecycle.currentActiveRequestCount,
+                )
+            }
         }
     }
 
@@ -81,6 +99,7 @@ internal class CronetClientEngine(
 
         val closeCause = ClientEngineClosedException()
         try {
+            injectCloseFault(activeRequestCount = lifecycle.currentActiveRequestCount)
             lifecycle.cancelAllActiveRequests(cause = closeCause)
 
             val drainedInInitialWindow = lifecycle.awaitActiveRequestsToDrain(
@@ -96,6 +115,9 @@ internal class CronetClientEngine(
             }
 
             if (!drained) {
+                recordInvariant {
+                    invariantRecorder.onCloseDrainTimeout(lifecycle.currentActiveRequestCount)
+                }
                 reportEngineShutdownFailure(
                     IllegalStateException(
                         "Cronet engine close timed out while waiting for active requests to drain " +
@@ -117,6 +139,16 @@ internal class CronetClientEngine(
 
     private fun reportEngineShutdownFailure(cause: Throwable) {
         runCatching { telemetry.onEngineShutdownFailure(cause) }
+    }
+
+    private fun injectCloseFault(activeRequestCount: Int) {
+        runCatching {
+            faultInjector.onEngineCloseStarted(activeRequestCount)
+        }.onFailure(::reportEngineShutdownFailure)
+    }
+
+    private fun recordInvariant(record: () -> Unit) {
+        runCatching(record)
     }
 
     private class CallContextRequestHandle(callContext: CoroutineContext) : ActiveRequestHandle {

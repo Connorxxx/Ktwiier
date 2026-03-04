@@ -1,6 +1,10 @@
 package com.connor.cronet.engine
 
 import android.content.Context
+import com.connor.cronet.engine.internal.fault.CronetFaultInjector
+import com.connor.cronet.engine.internal.fault.CronetInvariantRecorder
+import com.connor.cronet.engine.internal.fault.NoopCronetFaultInjector
+import com.connor.cronet.engine.internal.fault.NoopCronetInvariantRecorder
 import io.ktor.client.engine.HttpClientEngineConfig
 
 class CronetEngineConfig : HttpClientEngineConfig() {
@@ -34,6 +38,16 @@ class CronetEngineConfig : HttpClientEngineConfig() {
      * Additional wait time after a second forced cancel pass when initial drain times out.
      */
     var closeForceDrainTimeoutMillis: Long = DEFAULT_CLOSE_FORCE_DRAIN_TIMEOUT_MILLIS
+
+    /**
+     * Deterministic fault injection hooks used by Step 11 scenario matrix.
+     */
+    internal var faultInjector: CronetFaultInjector = NoopCronetFaultInjector
+
+    /**
+     * Invariant recorder used by Step 11 fault matrix and observability checks.
+     */
+    internal var invariantRecorder: CronetInvariantRecorder = NoopCronetInvariantRecorder
 
     fun context(context: Context) {
         appContext = context.applicationContext

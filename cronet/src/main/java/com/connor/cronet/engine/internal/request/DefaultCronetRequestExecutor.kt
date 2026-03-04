@@ -1,5 +1,11 @@
 package com.connor.cronet.engine.internal.request
 
+import com.connor.cronet.engine.internal.fault.CronetFaultInjector
+import com.connor.cronet.engine.internal.fault.CronetInvariantRecorder
+import com.connor.cronet.engine.internal.fault.CronetRequestFaultContext
+import com.connor.cronet.engine.internal.fault.CronetRequestPhase
+import com.connor.cronet.engine.internal.fault.NoopCronetFaultInjector
+import com.connor.cronet.engine.internal.fault.NoopCronetInvariantRecorder
 import com.connor.cronet.engine.internal.request.mapping.CronetRequestBuilderMapper
 import com.connor.cronet.engine.internal.request.mapping.toKtorHeaders
 import com.connor.cronet.engine.internal.request.mapping.toKtorProtocolVersion
@@ -11,8 +17,6 @@ import com.connor.cronet.engine.internal.telemetry.CronetRequestFailure
 import com.connor.cronet.engine.internal.telemetry.CronetRequestTelemetryEvent
 import com.connor.cronet.engine.internal.telemetry.CronetTelemetry
 import com.connor.cronet.engine.internal.telemetry.TimeoutKind
-import io.ktor.client.network.sockets.ConnectTimeoutException
-import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.ConnectTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.client.plugins.HttpTimeoutCapability
@@ -31,6 +35,7 @@ import io.ktor.utils.io.writeFully
 import java.nio.ByteBuffer
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -53,6 +58,8 @@ internal class DefaultCronetRequestExecutor(
     private val cronetEngine: CronetEngine,
     private val callbackExecutor: Executor,
     private val telemetry: CronetTelemetry,
+    private val faultInjector: CronetFaultInjector = NoopCronetFaultInjector,
+    private val invariantRecorder: CronetInvariantRecorder = NoopCronetInvariantRecorder,
 ) : CronetRequestExecutor {
     private val requestBuilderMapper: CronetRequestBuilderMapper = CronetRequestBuilderMapper(
         cronetEngine = cronetEngine,
@@ -69,11 +76,13 @@ internal class DefaultCronetRequestExecutor(
             DEFAULT_STREAM_PROFILE
         }
         val requestStartNanos = System.nanoTime()
+        val requestKey = REQUEST_KEY_SEQUENCE.incrementAndGet()
         val requestStartedAt = GMTDate()
         val responseDeferred = CompletableDeferred<HttpResponseData>(callContext[Job])
         val responseBodyChannel = ByteChannel(autoFlush = true)
         val bodyEvents = Channel<BodyEvent>(capacity = responseStreamProfile.bodyEventQueueCapacity)
         val callback = CronetUrlRequestCallback(
+            requestKey = requestKey,
             requestData = data,
             callContext = callContext,
             requestStartedAt = requestStartedAt,
@@ -83,7 +92,29 @@ internal class DefaultCronetRequestExecutor(
             bodyEvents = bodyEvents,
             responseStreamProfile = responseStreamProfile,
             telemetry = telemetry,
+            faultInjector = faultInjector,
+            invariantRecorder = invariantRecorder,
         )
+
+        fun failRequestBeforeCallbackExecution(cause: Throwable): Nothing {
+            bodyEvents.close()
+            responseBodyChannel.cancel(cause)
+            emitRequestTelemetry(
+                telemetry = telemetry,
+                requestData = data,
+                requestStartNanos = requestStartNanos,
+                completionReason = CronetRequestCompletionReason.Failed,
+                responseInfo = null,
+                cause = cause,
+            )
+            recordTerminalInvariant(
+                invariantRecorder = invariantRecorder,
+                requestKey = requestKey,
+                completionReason = CronetRequestCompletionReason.Failed,
+                duplicate = false,
+            )
+            throw cause
+        }
 
         CoroutineScope(callContext + CoroutineName("cronet-body-channel-writer")).launch {
             try {
@@ -117,33 +148,13 @@ internal class DefaultCronetRequestExecutor(
                 callback = callback,
             )
         } catch (cause: Throwable) {
-            bodyEvents.close()
-            responseBodyChannel.cancel(cause)
-            emitRequestTelemetry(
-                telemetry = telemetry,
-                requestData = data,
-                requestStartNanos = requestStartNanos,
-                completionReason = CronetRequestCompletionReason.Failed,
-                responseInfo = null,
-                cause = cause,
-            )
-            throw cause
+            failRequestBeforeCallbackExecution(cause)
         }
 
         val urlRequest = try {
             preparedRequest.requestBuilder.build()
         } catch (cause: Throwable) {
-            bodyEvents.close()
-            responseBodyChannel.cancel(cause)
-            emitRequestTelemetry(
-                telemetry = telemetry,
-                requestData = data,
-                requestStartNanos = requestStartNanos,
-                completionReason = CronetRequestCompletionReason.Failed,
-                responseInfo = null,
-                cause = cause,
-            )
-            throw cause
+            failRequestBeforeCallbackExecution(cause)
         }
         val requestCancellation = RequestCancellationController(urlRequest)
         callback.bindRequestCanceler(requestCancellation::cancel)
@@ -154,20 +165,14 @@ internal class DefaultCronetRequestExecutor(
             }
         }
 
+        callback.onBeforeRequestStart()?.let { cause ->
+            failRequestBeforeCallbackExecution(cause)
+        }
+
         try {
             urlRequest.start()
         } catch (cause: Throwable) {
-            bodyEvents.close()
-            responseBodyChannel.cancel(cause)
-            emitRequestTelemetry(
-                telemetry = telemetry,
-                requestData = data,
-                requestStartNanos = requestStartNanos,
-                completionReason = CronetRequestCompletionReason.Failed,
-                responseInfo = null,
-                cause = cause,
-            )
-            throw cause
+            failRequestBeforeCallbackExecution(cause)
         }
         callback.onRequestStarted()
 
@@ -180,6 +185,7 @@ internal class DefaultCronetRequestExecutor(
     }
 
     private class CronetUrlRequestCallback(
+        private val requestKey: Long,
         private val requestData: HttpRequestData,
         private val callContext: CoroutineContext,
         private val requestStartedAt: GMTDate,
@@ -189,8 +195,10 @@ internal class DefaultCronetRequestExecutor(
         private val bodyEvents: Channel<BodyEvent>,
         private val responseStreamProfile: ResponseStreamProfile,
         private val telemetry: CronetTelemetry,
+        private val faultInjector: CronetFaultInjector,
+        private val invariantRecorder: CronetInvariantRecorder,
     ) : UrlRequest.Callback() {
-        private val terminal = AtomicBoolean(false)
+        private val terminal = SingleTerminalLatch()
         private val responseStarted = AtomicBoolean(false)
         private var readBuffer: ByteBuffer? = null
         @Volatile
@@ -214,19 +222,33 @@ internal class DefaultCronetRequestExecutor(
             requestCanceler = canceler
         }
 
+        fun onBeforeRequestStart(): Throwable? {
+            return injectFault(phase = CronetRequestPhase.BeforeStart)
+        }
+
         fun onRequestStarted() {
             startRequestTimeout()
             startConnectTimeout()
         }
 
         override fun onRedirectReceived(request: UrlRequest, info: UrlResponseInfo, newLocationUrl: String) {
-            if (terminal.get()) return
+            if (terminal.isTerminal) return
             request.followRedirect()
         }
 
         override fun onResponseStarted(request: UrlRequest, info: UrlResponseInfo) {
             if (!responseStarted.compareAndSet(false, true)) return
             latestResponseInfo = info
+
+            val injectedFailure = injectFault(
+                phase = CronetRequestPhase.ResponseStarted,
+            )
+            if (injectedFailure != null) {
+                finishFailure(injectedFailure, info)
+                requestCancel(injectedFailure)
+                return
+            }
+
             cancelConnectTimeout()
             resetSocketTimeout()
 
@@ -274,14 +296,32 @@ internal class DefaultCronetRequestExecutor(
         }
 
         override fun onReadCompleted(request: UrlRequest, info: UrlResponseInfo, byteBuffer: ByteBuffer) {
-            if (terminal.get()) return
+            if (terminal.isTerminal) return
 
             byteBuffer.flip()
+            val chunkSizeBytes = byteBuffer.remaining().takeIf { it > 0 }
+
+            val injectedFailure = injectFault(
+                phase = CronetRequestPhase.ReadCompleted,
+                bodyChunkSizeBytes = chunkSizeBytes,
+            )
+            if (injectedFailure != null) {
+                finishFailure(injectedFailure, info)
+                requestCancel(injectedFailure)
+                return
+            }
+
             if (byteBuffer.hasRemaining()) {
                 val bytes = ByteArray(byteBuffer.remaining())
                 byteBuffer.get(bytes)
 
                 if (bodyEvents.trySend(BodyEvent.BytesChunk(bytes)).isFailure) {
+                    runCatching {
+                        invariantRecorder.onBodyQueueOverflow(
+                            requestKey = requestKey,
+                            queueCapacity = responseStreamProfile.bodyEventQueueCapacity,
+                        )
+                    }
                     val overflow = BodyQueueOverflowException(
                         streamProfileName = responseStreamProfile.name,
                         queueCapacity = responseStreamProfile.bodyEventQueueCapacity,
@@ -294,7 +334,7 @@ internal class DefaultCronetRequestExecutor(
             byteBuffer.clear()
             resetSocketTimeout()
 
-            if (!terminal.get()) {
+            if (!terminal.isTerminal) {
                 request.read(byteBuffer)
             }
         }
@@ -325,7 +365,25 @@ internal class DefaultCronetRequestExecutor(
         }
 
         private fun finishSuccess(responseInfo: UrlResponseInfo) {
-            if (!terminal.compareAndSet(false, true)) return
+            if (!terminal.tryEnterTerminal()) {
+                recordTerminalInvariant(
+                    invariantRecorder = invariantRecorder,
+                    requestKey = requestKey,
+                    completionReason = CronetRequestCompletionReason.Succeeded,
+                    duplicate = true,
+                )
+                return
+            }
+
+            recordTerminalInvariant(
+                invariantRecorder = invariantRecorder,
+                requestKey = requestKey,
+                completionReason = CronetRequestCompletionReason.Succeeded,
+                duplicate = false,
+            )
+            injectFault(
+                phase = CronetRequestPhase.TerminalSucceeded,
+            )
 
             latestResponseInfo = responseInfo
             cancelAllTimeouts()
@@ -343,7 +401,36 @@ internal class DefaultCronetRequestExecutor(
         }
 
         private fun finishFailure(cause: Throwable, responseInfo: UrlResponseInfo? = null) {
-            if (!terminal.compareAndSet(false, true)) return
+            val completionReason = if (cause is CancellationException) {
+                CronetRequestCompletionReason.Canceled
+            } else {
+                CronetRequestCompletionReason.Failed
+            }
+
+            if (!terminal.tryEnterTerminal()) {
+                recordTerminalInvariant(
+                    invariantRecorder = invariantRecorder,
+                    requestKey = requestKey,
+                    completionReason = completionReason,
+                    duplicate = true,
+                )
+                return
+            }
+
+            recordTerminalInvariant(
+                invariantRecorder = invariantRecorder,
+                requestKey = requestKey,
+                completionReason = completionReason,
+                duplicate = false,
+            )
+            injectFault(
+                phase = if (cause is CancellationException) {
+                    CronetRequestPhase.TerminalCanceled
+                } else {
+                    CronetRequestPhase.TerminalFailed
+                },
+                cause = cause,
+            )
 
             val finalResponseInfo = responseInfo ?: latestResponseInfo
             latestResponseInfo = finalResponseInfo
@@ -357,11 +444,7 @@ internal class DefaultCronetRequestExecutor(
                 telemetry = telemetry,
                 requestData = requestData,
                 requestStartNanos = requestStartNanos,
-                completionReason = if (cause is CancellationException) {
-                    CronetRequestCompletionReason.Canceled
-                } else {
-                    CronetRequestCompletionReason.Failed
-                },
+                completionReason = completionReason,
                 responseInfo = finalResponseInfo,
                 cause = cause,
             )
@@ -378,7 +461,7 @@ internal class DefaultCronetRequestExecutor(
             val timeoutMillis = requestTimeoutMillis ?: return
             requestTimeoutJob = timeoutScope.launch {
                 delay(timeoutMillis)
-                if (!terminal.get()) {
+                if (!terminal.isTerminal) {
                     val timeoutCause = HttpRequestTimeoutException(requestData)
                     finishFailure(timeoutCause)
                     requestCancel(timeoutCause)
@@ -391,7 +474,7 @@ internal class DefaultCronetRequestExecutor(
             val timeoutMillis = connectTimeoutMillis ?: return
             connectTimeoutJob = timeoutScope.launch {
                 delay(timeoutMillis)
-                if (!terminal.get() && !responseStarted.get()) {
+                if (!terminal.isTerminal && !responseStarted.get()) {
                     val timeoutCause = ConnectTimeoutException(requestData)
                     finishFailure(timeoutCause)
                     requestCancel(timeoutCause)
@@ -409,7 +492,7 @@ internal class DefaultCronetRequestExecutor(
             val timeoutMillis = socketTimeoutMillis ?: return
             socketTimeoutJob = timeoutScope.launch {
                 delay(timeoutMillis)
-                if (!terminal.get() && responseStarted.get()) {
+                if (!terminal.isTerminal && responseStarted.get()) {
                     val timeoutCause = SocketTimeoutException(requestData)
                     finishFailure(timeoutCause)
                     requestCancel(timeoutCause)
@@ -428,6 +511,25 @@ internal class DefaultCronetRequestExecutor(
 
         private fun requestCancel(cause: Throwable?) {
             requestCanceler?.invoke(cause)
+        }
+
+        private fun injectFault(
+            phase: CronetRequestPhase,
+            bodyChunkSizeBytes: Int? = null,
+            cause: Throwable? = null,
+        ): Throwable? {
+            return runCatching {
+                faultInjector.onRequestPhase(
+                    CronetRequestFaultContext(
+                        requestKey = requestKey,
+                        method = requestData.method.value,
+                        url = requestData.url.toString(),
+                        phase = phase,
+                        bodyChunkSizeBytes = bodyChunkSizeBytes,
+                        cause = cause,
+                    ),
+                )
+            }.exceptionOrNull()
         }
 
         private fun isCallCancelled(): Boolean {
@@ -457,6 +559,8 @@ internal class DefaultCronetRequestExecutor(
     }
 
     private companion object {
+        val REQUEST_KEY_SEQUENCE: AtomicLong = AtomicLong(0L)
+
         const val DEFAULT_READ_BUFFER_CAPACITY_BYTES: Int = 16 * 1024
         const val SSE_READ_BUFFER_CAPACITY_BYTES: Int = 4 * 1024
 
@@ -533,6 +637,21 @@ private fun Long?.toFiniteTimeoutOrNull(): Long? {
         -> null
 
         else -> this
+    }
+}
+
+private fun recordTerminalInvariant(
+    invariantRecorder: CronetInvariantRecorder,
+    requestKey: Long,
+    completionReason: CronetRequestCompletionReason,
+    duplicate: Boolean,
+) {
+    runCatching {
+        invariantRecorder.onTerminalEvent(
+            requestKey = requestKey,
+            completionReason = completionReason,
+            duplicate = duplicate,
+        )
     }
 }
 
