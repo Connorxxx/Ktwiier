@@ -3,8 +3,10 @@ package com.connor.cronet.engine.internal
 import android.content.Context
 import com.connor.cronet.engine.CronetEngineConfig
 import com.connor.cronet.engine.CronetHttpCache
+import com.connor.cronet.engine.internal.telemetry.CronetProviderSource
 import com.connor.cronet.engine.internal.telemetry.CronetTelemetry
 import org.chromium.net.CronetEngine
+import org.chromium.net.CronetProvider
 
 internal class CronetEngineFactory(
     private val providerSelector: CronetProviderSelector = DefaultCronetProviderSelector,
@@ -23,6 +25,7 @@ internal class CronetEngineFactory(
         telemetry.onProviderSelected(
             providerName = provider.name,
             providerVersion = provider.version,
+            providerSource = provider.toProviderSource(),
         )
 
         return provider.createBuilder()
@@ -67,6 +70,14 @@ internal class CronetEngineFactory(
                 setStoragePath(storagePath)
                 enableHttpCache(CronetEngine.Builder.HTTP_CACHE_DISK, cache.maxSizeBytes)
             }
+        }
+    }
+
+    private fun CronetProvider.toProviderSource(): CronetProviderSource {
+        return when (name) {
+            CronetProvider.PROVIDER_NAME_APP_PACKAGED -> CronetProviderSource.AppPackaged
+            CronetProvider.PROVIDER_NAME_FALLBACK -> CronetProviderSource.Fallback
+            else -> CronetProviderSource.Platform
         }
     }
 }

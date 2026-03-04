@@ -53,6 +53,7 @@ internal class CronetClientEngine(
     private val requestExecutor: CronetRequestExecutor = DefaultCronetRequestExecutor(
         cronetEngine = cronetEngine,
         callbackExecutor = callbackExecutor,
+        telemetry = telemetry,
     )
 
     override suspend fun execute(data: HttpRequestData): HttpResponseData {
