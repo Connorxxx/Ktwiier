@@ -5,6 +5,8 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 internal sealed interface EngineState {
     data object Created : EngineState
@@ -22,6 +24,8 @@ internal class EngineLifecycle {
     private val requestIdSequence = AtomicLong(0L)
     private val activeRequestCount = AtomicInteger(0)
     private val activeRequests = ConcurrentHashMap<Long, ActiveRequestHandle>()
+    private val drainLock = ReentrantLock()
+    private val drained = drainLock.newCondition()
 
     fun registerActiveRequest(handle: ActiveRequestHandle): Long {
         ensureAcceptingRequests()
@@ -35,7 +39,7 @@ internal class EngineLifecycle {
         // Close may win the race after registration; force immediate self-cancel in that case.
         if (!isAcceptingRequests()) {
             if (activeRequests.remove(requestId, handle)) {
-                activeRequestCount.decrementAndGet()
+                decrementActiveRequestCount()
                 handle.cancel(ClientEngineClosedException())
             }
             throw ClientEngineClosedException()
@@ -46,7 +50,7 @@ internal class EngineLifecycle {
 
     fun unregisterActiveRequest(requestId: Long) {
         if (activeRequests.remove(requestId) != null) {
-            activeRequestCount.decrementAndGet()
+            decrementActiveRequestCount()
         }
     }
 
@@ -67,11 +71,27 @@ internal class EngineLifecycle {
     fun cancelAllActiveRequests(cause: Throwable? = null) {
         val cancellationCause = cause ?: ClientEngineClosedException()
 
-        activeRequests.forEach { requestId, handle ->
-            if (activeRequests.remove(requestId, handle)) {
-                activeRequestCount.decrementAndGet()
-                runCatching { handle.cancel(cancellationCause) }
+        activeRequests.forEach { _, handle ->
+            runCatching { handle.cancel(cancellationCause) }
+        }
+    }
+
+    fun awaitActiveRequestsToDrain(timeoutMillis: Long): Boolean {
+        if (activeRequestCount.get() == 0) {
+            return true
+        }
+
+        var remainingNanos = timeoutMillis.coerceAtLeast(0L) * NANOS_PER_MILLI
+        drainLock.withLock {
+            while (activeRequestCount.get() > 0 && remainingNanos > 0L) {
+                remainingNanos = try {
+                    drained.awaitNanos(remainingNanos)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return false
+                }
             }
+            return activeRequestCount.get() == 0
         }
     }
 
@@ -106,5 +126,18 @@ internal class EngineLifecycle {
 
             EngineState.Closing, EngineState.Closed -> false
         }
+    }
+
+    private fun decrementActiveRequestCount() {
+        val remaining = activeRequestCount.decrementAndGet()
+        if (remaining == 0) {
+            drainLock.withLock {
+                drained.signalAll()
+            }
+        }
+    }
+
+    private companion object {
+        const val NANOS_PER_MILLI: Long = 1_000_000L
     }
 }

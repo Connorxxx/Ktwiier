@@ -25,6 +25,16 @@ class CronetEngineConfig : HttpClientEngineConfig() {
      */
     var callbackThreadCount: Int = 2
 
+    /**
+     * Max wait time for active requests to drain after close() triggers cancellation.
+     */
+    var closeDrainTimeoutMillis: Long = DEFAULT_CLOSE_DRAIN_TIMEOUT_MILLIS
+
+    /**
+     * Additional wait time after a second forced cancel pass when initial drain times out.
+     */
+    var closeForceDrainTimeoutMillis: Long = DEFAULT_CLOSE_FORCE_DRAIN_TIMEOUT_MILLIS
+
     fun context(context: Context) {
         appContext = context.applicationContext
     }
@@ -39,6 +49,17 @@ class CronetEngineConfig : HttpClientEngineConfig() {
         require(callbackThreadCount > 0) {
             "CronetEngineConfig.callbackThreadCount must be > 0"
         }
+        require(closeDrainTimeoutMillis >= 0L) {
+            "CronetEngineConfig.closeDrainTimeoutMillis must be >= 0"
+        }
+        require(closeForceDrainTimeoutMillis >= 0L) {
+            "CronetEngineConfig.closeForceDrainTimeoutMillis must be >= 0"
+        }
+    }
+
+    private companion object {
+        const val DEFAULT_CLOSE_DRAIN_TIMEOUT_MILLIS: Long = 5_000L
+        const val DEFAULT_CLOSE_FORCE_DRAIN_TIMEOUT_MILLIS: Long = 1_000L
     }
 }
 

@@ -79,16 +79,44 @@ internal class CronetClientEngine(
 
         super.close()
 
+        val closeCause = ClientEngineClosedException()
         try {
-            lifecycle.cancelAllActiveRequests(cause = ClientEngineClosedException())
+            lifecycle.cancelAllActiveRequests(cause = closeCause)
+
+            val drainedInInitialWindow = lifecycle.awaitActiveRequestsToDrain(
+                timeoutMillis = config.closeDrainTimeoutMillis,
+            )
+            val drained = if (drainedInInitialWindow) {
+                true
+            } else {
+                lifecycle.cancelAllActiveRequests(cause = closeCause)
+                lifecycle.awaitActiveRequestsToDrain(
+                    timeoutMillis = config.closeForceDrainTimeoutMillis,
+                )
+            }
+
+            if (!drained) {
+                reportEngineShutdownFailure(
+                    IllegalStateException(
+                        "Cronet engine close timed out while waiting for active requests to drain " +
+                            "[active_requests=${lifecycle.currentActiveRequestCount}]",
+                    ),
+                )
+            }
 
             runCatching { requestExecutor.close() }
+                .onFailure(::reportEngineShutdownFailure)
+            runCatching { cronetEngine.shutdown() }
+                .onFailure(::reportEngineShutdownFailure)
             runCatching { callbackExecutor.shutdown() }
-
-            runCatching { cronetEngine.shutdown() }.onFailure(telemetry::onEngineShutdownFailure)
+                .onFailure(::reportEngineShutdownFailure)
         } finally {
             lifecycle.markClosed()
         }
+    }
+
+    private fun reportEngineShutdownFailure(cause: Throwable) {
+        runCatching { telemetry.onEngineShutdownFailure(cause) }
     }
 
     private class CallContextRequestHandle(callContext: CoroutineContext) : ActiveRequestHandle {
