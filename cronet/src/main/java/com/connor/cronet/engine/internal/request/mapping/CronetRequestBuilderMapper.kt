@@ -6,6 +6,7 @@ import io.ktor.client.request.forEachHeader
 import io.ktor.http.HttpHeaders
 import io.ktor.utils.io.InternalAPI
 import java.util.concurrent.Executor
+import kotlin.coroutines.CoroutineContext
 import org.chromium.net.CronetEngine
 import org.chromium.net.UrlRequest
 
@@ -22,6 +23,7 @@ internal class CronetRequestBuilderMapper(
 
     fun map(
         data: HttpRequestData,
+        callContext: CoroutineContext,
         callback: UrlRequest.Callback,
     ): PreparedCronetRequest {
         val requestBody = data.classifyRequestBody()
@@ -62,16 +64,39 @@ internal class CronetRequestBuilderMapper(
             }
 
             is CronetRequestBody.ReadChannelBody -> {
-                throw UnsupportedOutgoingContentException(
-                    content = requestBody.content,
-                    detail = "ReadChannelContent upload bridge is planned for Step 7",
+                if (requestBody.content.contentLength == 0L) {
+                    return PreparedCronetRequest(
+                        requestBuilder = requestBuilder,
+                        requestBody = requestBody,
+                    )
+                }
+
+                require(hasContentType) {
+                    "Cronet upload requires Content-Type header when request body is present"
+                }
+                requestBuilder.setUploadDataProvider(
+                    StreamingUploadDataProvider.fromReadChannelContent(requestBody.content),
+                    callbackExecutor,
                 )
             }
 
             is CronetRequestBody.WriteChannelBody -> {
-                throw UnsupportedOutgoingContentException(
-                    content = requestBody.content,
-                    detail = "WriteChannelContent upload bridge is planned for Step 7",
+                if (requestBody.content.contentLength == 0L) {
+                    return PreparedCronetRequest(
+                        requestBuilder = requestBuilder,
+                        requestBody = requestBody,
+                    )
+                }
+
+                require(hasContentType) {
+                    "Cronet upload requires Content-Type header when request body is present"
+                }
+                requestBuilder.setUploadDataProvider(
+                    StreamingUploadDataProvider.fromWriteChannelContent(
+                        content = requestBody.content,
+                        callContext = callContext,
+                    ),
+                    callbackExecutor,
                 )
             }
         }

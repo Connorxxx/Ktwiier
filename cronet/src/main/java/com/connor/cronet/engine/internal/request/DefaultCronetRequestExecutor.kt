@@ -5,9 +5,17 @@ import com.connor.cronet.engine.internal.request.mapping.toKtorHeaders
 import com.connor.cronet.engine.internal.request.mapping.toKtorProtocolVersion
 import com.connor.cronet.engine.internal.request.mapping.toKtorStatusCode
 import com.connor.cronet.engine.internal.request.pump.DirectByteBufferPool
+import io.ktor.client.plugins.ConnectTimeoutException
+import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.client.plugins.HttpTimeoutCapability
+import io.ktor.client.plugins.HttpTimeoutConfig
+import io.ktor.client.plugins.SocketTimeoutException
+import io.ktor.client.plugins.sse.SSECapability
+import io.ktor.client.request.ClientUpgradeContent
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.client.request.ResponseAdapterAttributeKey
+import io.ktor.http.isWebsocket
 import io.ktor.util.date.GMTDate
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.InternalAPI
@@ -22,6 +30,7 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.chromium.net.CronetEngine
 import org.chromium.net.CronetException
@@ -83,6 +92,7 @@ internal class DefaultCronetRequestExecutor(
         val preparedRequest = try {
             requestBuilderMapper.map(
                 data = data,
+                callContext = callContext,
                 callback = callback,
             )
         } catch (cause: Throwable) {
@@ -98,10 +108,12 @@ internal class DefaultCronetRequestExecutor(
             responseBodyChannel.cancel(cause)
             throw cause
         }
+        val requestCancellation = RequestCancellationController(urlRequest)
+        callback.bindRequestCanceler(requestCancellation::cancel)
 
         callContext[Job]?.invokeOnCompletion { cause ->
             if (cause != null) {
-                urlRequest.cancel()
+                requestCancellation.cancel(cause)
             }
         }
 
@@ -112,11 +124,12 @@ internal class DefaultCronetRequestExecutor(
             responseBodyChannel.cancel(cause)
             throw cause
         }
+        callback.onRequestStarted()
 
         return try {
             responseDeferred.await()
         } catch (cause: Throwable) {
-            urlRequest.cancel()
+            requestCancellation.cancel(cause)
             throw cause
         }
     }
@@ -132,6 +145,29 @@ internal class DefaultCronetRequestExecutor(
         private val terminal = AtomicBoolean(false)
         private val responseStarted = AtomicBoolean(false)
         private var readBuffer: ByteBuffer? = null
+        private val timeoutScope = CoroutineScope(callContext + CoroutineName("cronet-timeout-controller"))
+        private val timeoutConfig = requestData.getCapabilityOrNull(HttpTimeoutCapability)
+        private val requestTimeoutMillis: Long? = if (requestData.supportsRequestTimeout()) {
+            timeoutConfig.requestTimeoutOrNull()
+        } else {
+            null
+        }
+        private val connectTimeoutMillis: Long? = timeoutConfig.connectTimeoutOrNull()
+        private val socketTimeoutMillis: Long? = timeoutConfig.socketTimeoutOrNull()
+        private var requestTimeoutJob: Job? = null
+        private var connectTimeoutJob: Job? = null
+        private var socketTimeoutJob: Job? = null
+        @Volatile
+        private var requestCanceler: ((Throwable?) -> Unit)? = null
+
+        fun bindRequestCanceler(canceler: (Throwable?) -> Unit) {
+            requestCanceler = canceler
+        }
+
+        fun onRequestStarted() {
+            startRequestTimeout()
+            startConnectTimeout()
+        }
 
         override fun onRedirectReceived(request: UrlRequest, info: UrlResponseInfo, newLocationUrl: String) {
             if (terminal.get()) return
@@ -140,6 +176,8 @@ internal class DefaultCronetRequestExecutor(
 
         override fun onResponseStarted(request: UrlRequest, info: UrlResponseInfo) {
             if (!responseStarted.compareAndSet(false, true)) return
+            cancelConnectTimeout()
+            resetSocketTimeout()
 
             val responseData = kotlin.runCatching {
                 val status = info.toKtorStatusCode()
@@ -167,13 +205,16 @@ internal class DefaultCronetRequestExecutor(
                 )
             }.getOrElse { cause ->
                 finishFailure(cause)
-                request.cancel()
+                requestCancel(cause)
                 return
             }
 
             if (!responseDeferred.complete(responseData)) {
-                finishFailure(CancellationException("Cronet response was canceled before response start completed"))
-                request.cancel()
+                val cancellationCause = callCancellationOrDefault(
+                    message = "Cronet response was canceled before response start completed",
+                )
+                finishFailure(cancellationCause)
+                requestCancel(cancellationCause)
                 return
             }
 
@@ -190,16 +231,16 @@ internal class DefaultCronetRequestExecutor(
                 byteBuffer.get(bytes)
 
                 if (bodyEvents.trySend(BodyEvent.BytesChunk(bytes)).isFailure) {
-                    finishFailure(
-                        BodyQueueOverflowException(
-                            "Cronet response body queue overflowed while bridging callback thread to channel writer",
-                        ),
+                    val overflow = BodyQueueOverflowException(
+                        "Cronet response body queue overflowed while bridging callback thread to channel writer",
                     )
-                    request.cancel()
+                    finishFailure(overflow)
+                    requestCancel(overflow)
                     return
                 }
             }
             byteBuffer.clear()
+            resetSocketTimeout()
 
             if (!terminal.get()) {
                 request.read(byteBuffer)
@@ -211,16 +252,29 @@ internal class DefaultCronetRequestExecutor(
         }
 
         override fun onFailed(request: UrlRequest, info: UrlResponseInfo?, error: CronetException) {
-            finishFailure(error)
+            val mappedFailure = if (isCallCancelled()) {
+                callCancellationOrDefault(
+                    message = "Cronet request failed after call cancellation",
+                    fallbackCause = error,
+                )
+            } else {
+                error
+            }
+            finishFailure(mappedFailure)
         }
 
         override fun onCanceled(request: UrlRequest, info: UrlResponseInfo?) {
-            finishFailure(CancellationException("Cronet request was canceled"))
+            finishFailure(
+                callCancellationOrDefault(
+                    message = "Cronet request was canceled",
+                ),
+            )
         }
 
         private fun finishSuccess() {
             if (!terminal.compareAndSet(false, true)) return
 
+            cancelAllTimeouts()
             bodyEvents.trySend(BodyEvent.Completed)
             bodyEvents.close()
             releaseReadBuffer()
@@ -229,6 +283,7 @@ internal class DefaultCronetRequestExecutor(
         private fun finishFailure(cause: Throwable) {
             if (!terminal.compareAndSet(false, true)) return
 
+            cancelAllTimeouts()
             if (!responseStarted.get()) {
                 responseDeferred.completeExceptionally(cause)
             }
@@ -242,6 +297,85 @@ internal class DefaultCronetRequestExecutor(
             val buffer = readBuffer ?: return
             readBuffer = null
             READ_BUFFER_POOL.release(buffer)
+        }
+
+        private fun startRequestTimeout() {
+            requestTimeoutJob?.cancel()
+            val timeoutMillis = requestTimeoutMillis ?: return
+            requestTimeoutJob = timeoutScope.launch {
+                delay(timeoutMillis)
+                if (!terminal.get()) {
+                    val timeoutCause = HttpRequestTimeoutException(requestData)
+                    finishFailure(timeoutCause)
+                    requestCancel(timeoutCause)
+                }
+            }
+        }
+
+        private fun startConnectTimeout() {
+            connectTimeoutJob?.cancel()
+            val timeoutMillis = connectTimeoutMillis ?: return
+            connectTimeoutJob = timeoutScope.launch {
+                delay(timeoutMillis)
+                if (!terminal.get() && !responseStarted.get()) {
+                    val timeoutCause = ConnectTimeoutException(requestData)
+                    finishFailure(timeoutCause)
+                    requestCancel(timeoutCause)
+                }
+            }
+        }
+
+        private fun cancelConnectTimeout() {
+            connectTimeoutJob?.cancel()
+            connectTimeoutJob = null
+        }
+
+        private fun resetSocketTimeout() {
+            socketTimeoutJob?.cancel()
+            val timeoutMillis = socketTimeoutMillis ?: return
+            socketTimeoutJob = timeoutScope.launch {
+                delay(timeoutMillis)
+                if (!terminal.get() && responseStarted.get()) {
+                    val timeoutCause = SocketTimeoutException(requestData)
+                    finishFailure(timeoutCause)
+                    requestCancel(timeoutCause)
+                }
+            }
+        }
+
+        private fun cancelAllTimeouts() {
+            requestTimeoutJob?.cancel()
+            connectTimeoutJob?.cancel()
+            socketTimeoutJob?.cancel()
+            requestTimeoutJob = null
+            connectTimeoutJob = null
+            socketTimeoutJob = null
+        }
+
+        private fun requestCancel(cause: Throwable?) {
+            requestCanceler?.invoke(cause)
+        }
+
+        private fun isCallCancelled(): Boolean {
+            return callContext[Job]?.isCancelled == true
+        }
+
+        private fun callCancellationOrDefault(
+            message: String,
+            fallbackCause: Throwable? = null,
+        ): CancellationException {
+            val job = callContext[Job]
+            if (job != null && job.isCancelled) {
+                runCatching { job.getCancellationException() }
+                    .getOrNull()
+                    ?.let { return it }
+            }
+
+            return CancellationException(message).apply {
+                if (fallbackCause != null) {
+                    initCause(fallbackCause)
+                }
+            }
         }
     }
 
@@ -261,4 +395,46 @@ internal class DefaultCronetRequestExecutor(
     }
 
     private class BodyQueueOverflowException(message: String) : IllegalStateException(message)
+
+    private class RequestCancellationController(
+        private val request: UrlRequest,
+    ) {
+        private val cancelRequested = AtomicBoolean(false)
+
+        fun cancel(_: Throwable?) {
+            if (!cancelRequested.compareAndSet(false, true)) {
+                return
+            }
+            runCatching { request.cancel() }
+        }
+    }
+}
+
+private fun HttpTimeoutConfig?.requestTimeoutOrNull(): Long? {
+    return this?.requestTimeoutMillis.toFiniteTimeoutOrNull()
+}
+
+private fun HttpTimeoutConfig?.connectTimeoutOrNull(): Long? {
+    return this?.connectTimeoutMillis.toFiniteTimeoutOrNull()
+}
+
+private fun HttpTimeoutConfig?.socketTimeoutOrNull(): Long? {
+    return this?.socketTimeoutMillis.toFiniteTimeoutOrNull()
+}
+
+private fun Long?.toFiniteTimeoutOrNull(): Long? {
+    return when (this) {
+        null,
+        HttpTimeoutConfig.INFINITE_TIMEOUT_MS,
+        -> null
+
+        else -> this
+    }
+}
+
+@OptIn(InternalAPI::class)
+private fun HttpRequestData.supportsRequestTimeout(): Boolean {
+    return !url.protocol.isWebsocket() &&
+        body !is ClientUpgradeContent &&
+        getCapabilityOrNull(SSECapability) == null
 }
