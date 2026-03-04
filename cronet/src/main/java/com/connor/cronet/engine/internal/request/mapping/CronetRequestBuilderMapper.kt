@@ -1,6 +1,7 @@
 package com.connor.cronet.engine.internal.request.mapping
 
 import com.connor.cronet.engine.CronetRequestAnnotationsAttributeKey
+import io.ktor.client.plugins.sse.SSECapability
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.forEachHeader
 import io.ktor.http.HttpHeaders
@@ -32,6 +33,9 @@ internal class CronetRequestBuilderMapper(
             callback,
             callbackExecutor,
         ).setHttpMethod(data.method.value)
+        if (data.getCapabilityOrNull(SSECapability) != null) {
+            requestBuilder.disableCache()
+        }
 
         var hasContentType = false
         data.forEachHeader { key, value ->

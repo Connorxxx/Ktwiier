@@ -51,10 +51,15 @@ internal class DefaultCronetRequestExecutor(
         data: HttpRequestData,
         callContext: CoroutineContext,
     ): HttpResponseData {
+        val responseStreamProfile = if (data.getCapabilityOrNull(SSECapability) != null) {
+            SSE_STREAM_PROFILE
+        } else {
+            DEFAULT_STREAM_PROFILE
+        }
         val requestStartedAt = GMTDate()
         val responseDeferred = CompletableDeferred<HttpResponseData>(callContext[Job])
         val responseBodyChannel = ByteChannel(autoFlush = true)
-        val bodyEvents = Channel<BodyEvent>(capacity = BODY_EVENT_QUEUE_CAPACITY)
+        val bodyEvents = Channel<BodyEvent>(capacity = responseStreamProfile.bodyEventQueueCapacity)
         val callback = CronetUrlRequestCallback(
             requestData = data,
             callContext = callContext,
@@ -62,6 +67,7 @@ internal class DefaultCronetRequestExecutor(
             responseDeferred = responseDeferred,
             responseBodyChannel = responseBodyChannel,
             bodyEvents = bodyEvents,
+            responseStreamProfile = responseStreamProfile,
         )
 
         CoroutineScope(callContext + CoroutineName("cronet-body-channel-writer")).launch {
@@ -141,6 +147,7 @@ internal class DefaultCronetRequestExecutor(
         private val responseDeferred: CompletableDeferred<HttpResponseData>,
         private val responseBodyChannel: ByteChannel,
         private val bodyEvents: Channel<BodyEvent>,
+        private val responseStreamProfile: ResponseStreamProfile,
     ) : UrlRequest.Callback() {
         private val terminal = AtomicBoolean(false)
         private val responseStarted = AtomicBoolean(false)
@@ -218,7 +225,7 @@ internal class DefaultCronetRequestExecutor(
                 return
             }
 
-            val nextReadBuffer = READ_BUFFER_POOL.acquire().also { readBuffer = it }
+            val nextReadBuffer = responseStreamProfile.readBufferPool.acquire().also { readBuffer = it }
             request.read(nextReadBuffer)
         }
 
@@ -232,7 +239,8 @@ internal class DefaultCronetRequestExecutor(
 
                 if (bodyEvents.trySend(BodyEvent.BytesChunk(bytes)).isFailure) {
                     val overflow = BodyQueueOverflowException(
-                        "Cronet response body queue overflowed while bridging callback thread to channel writer",
+                        streamProfileName = responseStreamProfile.name,
+                        queueCapacity = responseStreamProfile.bodyEventQueueCapacity,
                     )
                     finishFailure(overflow)
                     requestCancel(overflow)
@@ -296,7 +304,7 @@ internal class DefaultCronetRequestExecutor(
         private fun releaseReadBuffer() {
             val buffer = readBuffer ?: return
             readBuffer = null
-            READ_BUFFER_POOL.release(buffer)
+            responseStreamProfile.readBufferPool.release(buffer)
         }
 
         private fun startRequestTimeout() {
@@ -364,11 +372,9 @@ internal class DefaultCronetRequestExecutor(
             message: String,
             fallbackCause: Throwable? = null,
         ): CancellationException {
-            val job = callContext[Job]
-            if (job != null && job.isCancelled) {
-                runCatching { job.getCancellationException() }
-                    .getOrNull()
-                    ?.let { return it }
+            val existingCancellation = fallbackCause as? CancellationException
+            if (existingCancellation != null) {
+                return existingCancellation
             }
 
             return CancellationException(message).apply {
@@ -385,23 +391,55 @@ internal class DefaultCronetRequestExecutor(
     }
 
     private companion object {
-        const val READ_BUFFER_CAPACITY_BYTES: Int = 16 * 1024
-        const val BODY_EVENT_QUEUE_CAPACITY: Int = 64
+        const val DEFAULT_READ_BUFFER_CAPACITY_BYTES: Int = 16 * 1024
+        const val SSE_READ_BUFFER_CAPACITY_BYTES: Int = 4 * 1024
 
-        val READ_BUFFER_POOL: DirectByteBufferPool = DirectByteBufferPool(
-            bufferSizeBytes = READ_BUFFER_CAPACITY_BYTES,
+        const val DEFAULT_BODY_EVENT_QUEUE_CAPACITY: Int = 64
+        const val SSE_BODY_EVENT_QUEUE_CAPACITY: Int = 256
+
+        val DEFAULT_READ_BUFFER_POOL: DirectByteBufferPool = DirectByteBufferPool(
+            bufferSizeBytes = DEFAULT_READ_BUFFER_CAPACITY_BYTES,
             maxPooledBuffers = 128,
+        )
+
+        val SSE_READ_BUFFER_POOL: DirectByteBufferPool = DirectByteBufferPool(
+            bufferSizeBytes = SSE_READ_BUFFER_CAPACITY_BYTES,
+            maxPooledBuffers = 256,
+        )
+
+        val DEFAULT_STREAM_PROFILE: ResponseStreamProfile = ResponseStreamProfile(
+            name = "default-http-response",
+            bodyEventQueueCapacity = DEFAULT_BODY_EVENT_QUEUE_CAPACITY,
+            readBufferPool = DEFAULT_READ_BUFFER_POOL,
+        )
+
+        val SSE_STREAM_PROFILE: ResponseStreamProfile = ResponseStreamProfile(
+            name = "sse-response-stream",
+            bodyEventQueueCapacity = SSE_BODY_EVENT_QUEUE_CAPACITY,
+            readBufferPool = SSE_READ_BUFFER_POOL,
         )
     }
 
-    private class BodyQueueOverflowException(message: String) : IllegalStateException(message)
+    private data class ResponseStreamProfile(
+        val name: String,
+        val bodyEventQueueCapacity: Int,
+        val readBufferPool: DirectByteBufferPool,
+    )
+
+    private class BodyQueueOverflowException(
+        streamProfileName: String,
+        queueCapacity: Int,
+    ) : IllegalStateException(
+        "Cronet response body queue overflowed while bridging callback thread to channel writer " +
+            "[profile=$streamProfileName, queue_capacity=$queueCapacity]",
+    )
 
     private class RequestCancellationController(
         private val request: UrlRequest,
     ) {
         private val cancelRequested = AtomicBoolean(false)
 
-        fun cancel(_: Throwable?) {
+        fun cancel(cause: Throwable?) {
             if (!cancelRequested.compareAndSet(false, true)) {
                 return
             }

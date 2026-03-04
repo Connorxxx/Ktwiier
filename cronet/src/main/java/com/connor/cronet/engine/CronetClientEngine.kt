@@ -12,6 +12,7 @@ import io.ktor.client.engine.HttpClientEngineBase
 import io.ktor.client.engine.HttpClientEngineCapability
 import io.ktor.client.engine.callContext
 import io.ktor.client.plugins.HttpTimeoutCapability
+import io.ktor.client.plugins.sse.SSECapability
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.utils.io.InternalAPI
@@ -30,7 +31,10 @@ internal class CronetClientEngine(
     /**
      * Keep capabilities conservative until each capability is fully implemented and verified.
      */
-    override val supportedCapabilities: Set<HttpClientEngineCapability<*>> = setOf(HttpTimeoutCapability)
+    override val supportedCapabilities: Set<HttpClientEngineCapability<*>> = setOf(
+        HttpTimeoutCapability,
+        SSECapability,
+    )
 
     init {
         config.validate()
