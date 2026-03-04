@@ -3,7 +3,6 @@ package com.connor.kwitter.core.di
 import com.connor.kwitter.data.auth.datasource.RefreshResult
 import com.connor.kwitter.data.auth.datasource.TokenDataSource
 import com.connor.kwitter.data.auth.datasource.TokenRefresher
-import io.ktor.client.HttpClient
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
@@ -31,7 +30,7 @@ val networkModule = module {
         val tokenDataSource: TokenDataSource = get()
         val tokenRefresher: TokenRefresher = get()
 
-        HttpClient {
+        createPlatformHttpClient {
             install(ContentNegotiation) {
                 json(Json {
                     prettyPrint = true

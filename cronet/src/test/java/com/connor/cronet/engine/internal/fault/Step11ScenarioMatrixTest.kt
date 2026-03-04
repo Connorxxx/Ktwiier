@@ -11,51 +11,64 @@ import org.junit.Test
 
 class Step11ScenarioMatrixTest {
     @Test
-    fun `callback thread saturation overflows bounded queue and fails once`() {
-        val harness = DeterministicRequestScenarioHarness(queueCapacity = 2)
+    fun `callback thread saturation is throttled by write completion credit`() {
+        val harness = CreditDrivenRequestScenarioHarness()
 
-        harness.emitReadChunk()
-        harness.emitReadChunk()
-        harness.emitReadChunk() // overflow
+        harness.emitReadCompleted() // first chunk enters write bridge
+        harness.emitReadCompleted() // suppressed: no read credit until write completes
+        harness.emitReadCompleted() // suppressed again
 
-        val snapshot = harness.snapshot()
-        assertEquals(1L, snapshot.bodyQueueOverflowCount)
-        assertEquals(1L, snapshot.terminalEventCount)
-        assertEquals(0L, snapshot.duplicateTerminalEventCount)
+        val mid = harness.snapshot()
+        assertEquals(1, mid.deliveredReadCallbacks)
+        assertEquals(2, mid.suppressedReadCallbacks)
+        assertEquals(0L, mid.invariants.terminalEventCount)
+
+        harness.completeWriteSuccess()
+        harness.succeed()
+
+        val final = harness.snapshot()
+        assertEquals(1L, final.invariants.terminalEventCount)
+        assertEquals(0L, final.invariants.duplicateTerminalEventCount)
+        assertEquals(0L, final.invariants.bodyQueueOverflowCount)
     }
 
     @Test
-    fun `slow consumer triggers deterministic degradation without dead terminal loop`() {
-        val harness = DeterministicRequestScenarioHarness(queueCapacity = 1)
+    fun `slow consumer throttles transport reads without overflow failure`() {
+        val harness = CreditDrivenRequestScenarioHarness()
 
-        harness.emitReadChunk()
-        // consumer lags and does not drain in time
-        harness.emitReadChunk() // overflow -> fail fast
-        harness.consumeChunk() // late drain should not affect terminal
+        harness.emitReadCompleted()
+        repeat(5) { harness.emitReadCompleted() } // all suppressed while writer is still busy
+        harness.completeWriteSuccess() // releases one read credit
+
+        harness.emitReadCompleted()
+        harness.completeWriteSuccess()
+        harness.succeed()
 
         val snapshot = harness.snapshot()
-        assertEquals(1L, snapshot.bodyQueueOverflowCount)
-        assertEquals(1L, snapshot.terminalEventCount)
+        assertTrue("suppressed callbacks should show backpressure", snapshot.suppressedReadCallbacks > 0)
+        assertEquals(2, snapshot.deliveredReadCallbacks)
+        assertEquals(0L, snapshot.invariants.bodyQueueOverflowCount)
+        assertEquals(1L, snapshot.invariants.terminalEventCount)
+        assertEquals(0L, snapshot.invariants.duplicateTerminalEventCount)
     }
 
     @Test
     fun `network switch mid stream converges to one failed terminal`() {
-        val harness = DeterministicRequestScenarioHarness(queueCapacity = 8)
+        val harness = CreditDrivenRequestScenarioHarness()
 
-        harness.emitReadChunk()
-        harness.consumeChunk()
+        harness.emitReadCompleted()
+        harness.completeWriteSuccess()
         harness.fail()
         harness.fail() // late callback equivalent
 
         val snapshot = harness.snapshot()
-        assertEquals(0L, snapshot.bodyQueueOverflowCount)
-        assertEquals(1L, snapshot.terminalEventCount)
-        assertEquals(1L, snapshot.duplicateTerminalEventCount)
+        assertEquals(1L, snapshot.invariants.terminalEventCount)
+        assertEquals(1L, snapshot.invariants.duplicateTerminalEventCount)
     }
 
     @Test
     fun `cancel and onFailed race keeps one winner and one duplicate`() {
-        val harness = DeterministicRequestScenarioHarness(queueCapacity = 8)
+        val harness = CreditDrivenRequestScenarioHarness()
         val startGate = CountDownLatch(1)
         val finished = CountDownLatch(2)
 
@@ -74,37 +87,49 @@ class Step11ScenarioMatrixTest {
         assertTrue(finished.await(2, TimeUnit.SECONDS))
 
         val snapshot = harness.snapshot()
-        assertEquals(1L, snapshot.terminalEventCount)
-        assertEquals(1L, snapshot.duplicateTerminalEventCount)
+        assertEquals(1L, snapshot.invariants.terminalEventCount)
+        assertEquals(1L, snapshot.invariants.duplicateTerminalEventCount)
     }
 }
 
-private class DeterministicRequestScenarioHarness(
-    private val queueCapacity: Int,
+private class CreditDrivenRequestScenarioHarness(
 ) {
     private val requestKey = 1L
     private val terminalLatch = SingleTerminalLatch()
     private val recorder = AtomicCronetInvariantRecorder()
-    private var queueDepth = 0
+    private var readCreditAvailable = true
+    private var writeInFlight = false
+    private var deliveredReadCallbacks = 0
+    private var suppressedReadCallbacks = 0
 
-    fun emitReadChunk() {
+    fun emitReadCompleted() {
         if (terminalLatch.isTerminal) {
             return
         }
 
-        if (queueDepth >= queueCapacity) {
-            recorder.onBodyQueueOverflow(requestKey = requestKey, queueCapacity = queueCapacity)
-            fail()
+        if (!readCreditAvailable) {
+            suppressedReadCallbacks += 1
             return
         }
 
-        queueDepth += 1
+        readCreditAvailable = false
+        writeInFlight = true
+        deliveredReadCallbacks += 1
     }
 
-    fun consumeChunk() {
-        if (queueDepth > 0) {
-            queueDepth -= 1
+    fun completeWriteSuccess() {
+        if (terminalLatch.isTerminal) {
+            return
         }
+
+        if (writeInFlight) {
+            writeInFlight = false
+            readCreditAvailable = true
+        }
+    }
+
+    fun succeed() {
+        recordTerminal(CronetRequestCompletionReason.Succeeded)
     }
 
     fun fail() {
@@ -115,7 +140,13 @@ private class DeterministicRequestScenarioHarness(
         recordTerminal(CronetRequestCompletionReason.Canceled)
     }
 
-    fun snapshot(): CronetInvariantSnapshot = recorder.snapshot()
+    fun snapshot(): HarnessSnapshot {
+        return HarnessSnapshot(
+            deliveredReadCallbacks = deliveredReadCallbacks,
+            suppressedReadCallbacks = suppressedReadCallbacks,
+            invariants = recorder.snapshot(),
+        )
+    }
 
     private fun recordTerminal(reason: CronetRequestCompletionReason) {
         val won = terminalLatch.tryEnterTerminal()
@@ -126,3 +157,9 @@ private class DeterministicRequestScenarioHarness(
         )
     }
 }
+
+private data class HarnessSnapshot(
+    val deliveredReadCallbacks: Int,
+    val suppressedReadCallbacks: Int,
+    val invariants: CronetInvariantSnapshot,
+)

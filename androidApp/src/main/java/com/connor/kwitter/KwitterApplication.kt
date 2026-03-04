@@ -6,6 +6,8 @@ import com.connor.kwitter.core.di.authModule
 import com.connor.kwitter.core.di.mediaModule
 import com.connor.kwitter.core.di.messagingModule
 import com.connor.kwitter.core.di.networkModule
+import com.connor.kwitter.core.di.NETWORK_ENGINE_CRONET
+import com.connor.kwitter.core.di.NETWORK_ENGINE_PROPERTY_KEY
 import com.connor.kwitter.core.di.notificationModule
 import com.connor.kwitter.core.di.platformModule
 import com.connor.kwitter.core.di.postModule
@@ -27,6 +29,13 @@ class KwitterApplication : Application() {
 
             // 注入 Android Context
             androidContext(this@KwitterApplication)
+
+            // 网络引擎灰度开关: "cronet" / "cio"
+            properties(
+                mapOf(
+                    NETWORK_ENGINE_PROPERTY_KEY to NETWORK_ENGINE_CRONET,
+                ),
+            )
 
             // 加载模块
             modules(

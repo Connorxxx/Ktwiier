@@ -4,6 +4,7 @@ import io.ktor.http.content.OutgoingContent
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.cancel
+import io.ktor.utils.io.close
 import io.ktor.utils.io.readAvailable
 import java.io.IOException
 import java.nio.ByteBuffer
@@ -284,7 +285,7 @@ internal class StreamingUploadDataProvider private constructor(
         ): StreamingUploadDataProvider {
             return StreamingUploadDataProvider(
                 uploadLength = content.contentLength,
-                sourceFactory = UploadSourceFactory {
+                sourceFactory = {
                     val channel = ByteChannel(autoFlush = true)
                     val producerScope = CoroutineScope(
                         callContext + SupervisorJob(callContext[Job]) + CoroutineName("cronet-upload-producer"),
@@ -292,11 +293,11 @@ internal class StreamingUploadDataProvider private constructor(
                     val producer = producerScope.launch {
                         runCatching { content.writeTo(channel) }
                             .onSuccess { channel.close() }
-                            .onFailure { channel.close(it) }
+                            .onFailure { channel.close() }
                     }
                     producer.invokeOnCompletion { cause ->
                         if (cause != null) {
-                            channel.close(cause)
+                            channel.close()
                         }
                     }
 
@@ -319,7 +320,7 @@ internal class StreamingUploadDataProvider private constructor(
         ): StreamingUploadDataProvider {
             return StreamingUploadDataProvider(
                 uploadLength = content.contentLength,
-                sourceFactory = UploadSourceFactory {
+                sourceFactory = {
                     throw UnsupportedOperationException(reason)
                 },
                 rewindMode = RewindMode.Unsupported(reason),
