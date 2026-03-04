@@ -10,7 +10,7 @@ import io.ktor.client.engine.HttpClientEngineCapability
 import io.ktor.client.engine.callContext
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
-import io.ktor.util.InternalAPI
+import io.ktor.utils.io.InternalAPI
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -53,7 +53,6 @@ internal class CronetClientEngine(
         requestExecutor.close()
         callbackExecutor.shutdown()
 
-        runCatching { cronetEngine.shutdown() }
-            .onFailure(telemetry::onEngineShutdownFailure)
+        runCatching { cronetEngine.shutdown() }.onFailure(telemetry::onEngineShutdownFailure)
     }
 }
