@@ -388,27 +388,37 @@ internal class DefaultCronetRequestExecutor(
 
             resetSocketTimeout()
 
-            bodyWriteScope.launch {
-                runCatching {
+            val bufferRecycled = AtomicBoolean(false)
+            fun recycleBufferOnce() {
+                if (!bufferRecycled.compareAndSet(false, true)) return
+                byteBuffer.clear()
+                readCreditRing.recycle(byteBuffer)
+            }
+
+            val writeJob = bodyWriteScope.launch {
+                try {
                     writeMutex.withLock {
                         responseBodyChannel.writeFully(byteBuffer)
                     }
-                }.onFailure { cause ->
-                    byteBuffer.clear()
-                    readCreditRing.recycle(byteBuffer)
+                } catch (cause: Throwable) {
                     finishFailure(cause, info)
                     requestCancel(cause)
                     return@launch
+                } finally {
+                    recycleBufferOnce()
                 }
-
-                byteBuffer.clear()
-                readCreditRing.recycle(byteBuffer)
 
                 if (terminal.isTerminal) {
                     return@launch
                 }
 
                 scheduleReadIfAwaitingCredit(request = request, info = info)
+            }
+            writeJob.invokeOnCompletion { cause ->
+                if (cause != null) {
+                    // If terminal cancellation happens before this coroutine starts, release this chunk here.
+                    recycleBufferOnce()
+                }
             }
 
             scheduleReadOrAwaitCredit(request = request, info = info)
@@ -567,6 +577,9 @@ internal class DefaultCronetRequestExecutor(
         }
 
         private fun markTransportTerminal() {
+            // Transport terminal callback means Cronet request lifecycle is closed.
+            // If a read was in-flight but no matching onReadCompleted arrives, reclaim it here.
+            clearActiveReadBuffer(null)?.let(readCreditRing::recycle)
             releaseReadBuffers()
         }
 
