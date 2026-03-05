@@ -36,11 +36,11 @@ import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.InternalAPI
 import io.ktor.utils.io.writeFully
 import java.nio.ByteBuffer
-import java.util.ArrayDeque
-import java.util.Collections
 import java.util.IdentityHashMap
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicIntegerArray
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.CoroutineContext
@@ -804,47 +804,76 @@ internal class DefaultCronetRequestExecutor(
     private class ReadCreditRing(
         private val profile: ResponseStreamProfile,
     ) {
-        private val lock = Any()
-        private val available = ArrayDeque<ByteBuffer>()
-        private val owned = Collections.newSetFromMap(IdentityHashMap<ByteBuffer, Boolean>())
-        private val availableSet = Collections.newSetFromMap(IdentityHashMap<ByteBuffer, Boolean>())
+        private val capacity = profile.maxInFlightBuffers
+        private val buffers: Array<ByteBuffer> = Array(capacity) {
+            profile.readBufferPool.acquire()
+        }
+        private val slotStates: AtomicIntegerArray = AtomicIntegerArray(capacity)
+        private val acquireCursor: AtomicInteger = AtomicInteger(0)
+        private val released = AtomicBoolean(false)
+        private val bufferSlotIndex = IdentityHashMap<ByteBuffer, Int>(capacity)
 
-        fun acquireForRead(): ByteBuffer? {
-            return synchronized(lock) {
-                if (available.isNotEmpty()) {
-                    val buffer = available.removeFirst()
-                    availableSet.remove(buffer)
-                    buffer.apply { clear() }
-                } else if (owned.size < profile.maxInFlightBuffers) {
-                    profile.readBufferPool.acquire().also { owned.add(it) }
-                } else {
-                    null
-                }
+        init {
+            buffers.forEachIndexed { index, buffer ->
+                bufferSlotIndex[buffer] = index
             }
         }
 
+        fun acquireForRead(): ByteBuffer? {
+            if (released.get()) {
+                return null
+            }
+
+            val start = acquireCursor.getAndIncrement()
+            for (offset in 0 until capacity) {
+                val slot = floorMod(start = start, offset = offset, size = capacity)
+                if (!slotStates.compareAndSet(slot, SLOT_AVAILABLE, SLOT_IN_FLIGHT)) {
+                    continue
+                }
+                return buffers[slot].apply { clear() }
+            }
+
+            return null
+        }
+
         fun recycle(buffer: ByteBuffer) {
-            synchronized(lock) {
-                if (!owned.contains(buffer)) {
-                    return
-                }
-                if (!availableSet.add(buffer)) {
-                    return
-                }
+            if (released.get()) {
+                return
+            }
+
+            val slot = bufferSlotIndex[buffer] ?: return
+            if (slotStates.compareAndSet(slot, SLOT_IN_FLIGHT, SLOT_AVAILABLE)) {
                 buffer.clear()
-                available.addLast(buffer)
             }
         }
 
         fun releaseAll() {
-            val snapshot = synchronized(lock) {
-                val buffers = owned.toList()
-                available.clear()
-                availableSet.clear()
-                owned.clear()
-                buffers
+            if (!released.compareAndSet(false, true)) {
+                return
             }
-            snapshot.forEach(profile.readBufferPool::release)
+
+            for (slot in 0 until capacity) {
+                while (true) {
+                    val state = slotStates.get(slot)
+                    if (state == SLOT_RELEASED) {
+                        break
+                    }
+                    if (slotStates.compareAndSet(slot, state, SLOT_RELEASED)) {
+                        profile.readBufferPool.release(buffers[slot])
+                        break
+                    }
+                }
+            }
+        }
+
+        private fun floorMod(start: Int, offset: Int, size: Int): Int {
+            return Math.floorMod(start.toLong() + offset.toLong(), size.toLong()).toInt()
+        }
+
+        private companion object {
+            const val SLOT_AVAILABLE: Int = 0
+            const val SLOT_IN_FLIGHT: Int = 1
+            const val SLOT_RELEASED: Int = 2
         }
     }
 
