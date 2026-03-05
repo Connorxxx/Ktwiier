@@ -16,8 +16,7 @@ internal class MessagingLocalProjector(
     private val messageDao: MessageDao
 ) {
     suspend fun projectMessageSent(message: Message): MessagingProjectionResult {
-        val minMessageIndex = messageDao.getMinOrderIndex(message.conversationId) ?: 0
-        messageDao.insert(message.toEntity(orderIndex = minMessageIndex - 1))
+        messageDao.insert(message.toEntity())
 
         val existingConversation = conversationDao.getById(message.conversationId)
             ?: return MessagingProjectionResult(requiresConversationRefresh = true)
@@ -88,8 +87,7 @@ internal class MessagingLocalProjector(
             createdAt = event.timestamp
         )
 
-        val minMessageIndex = messageDao.getMinOrderIndex(event.conversationId) ?: 0
-        messageDao.insert(incomingMessage.toEntity(orderIndex = minMessageIndex - 1))
+        messageDao.insert(incomingMessage.toEntity())
 
         val minConversationIndex = conversationDao.getMinOrderIndex() ?: 0
         conversationDao.insertOrReplace(
@@ -131,4 +129,3 @@ internal class MessagingLocalProjector(
         }
     }
 }
-

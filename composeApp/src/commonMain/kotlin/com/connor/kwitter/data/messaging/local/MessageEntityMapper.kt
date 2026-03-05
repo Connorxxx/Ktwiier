@@ -3,7 +3,7 @@ package com.connor.kwitter.data.messaging.local
 import com.connor.kwitter.domain.messaging.model.Message
 import com.connor.kwitter.domain.messaging.model.MessageSearchItem
 
-fun Message.toEntity(orderIndex: Int): MessageEntity = MessageEntity(
+fun Message.toEntity(): MessageEntity = MessageEntity(
     id = id,
     conversationId = conversationId,
     senderId = senderId,
@@ -11,7 +11,6 @@ fun Message.toEntity(orderIndex: Int): MessageEntity = MessageEntity(
     imageUrl = imageUrl,
     readAt = readAt,
     createdAt = createdAt,
-    orderIndex = orderIndex,
     replyToMessageId = replyToMessageId,
     deletedAt = deletedAt,
     recalledAt = recalledAt

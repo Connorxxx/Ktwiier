@@ -13,10 +13,8 @@ data class MessageEntity(
     val imageUrl: String?,
     val readAt: Long?,
     val createdAt: Long,
-    val orderIndex: Int,
     val replyToMessageId: Long? = null,
     val deletedAt: Long? = null,
     val recalledAt: Long? = null
 )
-
 

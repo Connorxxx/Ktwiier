@@ -13,7 +13,13 @@ import com.connor.kwitter.data.post.local.RemoteKeyEntity
 @Dao
 interface MessageDao {
 
-    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY orderIndex ASC")
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE conversationId = :conversationId
+        ORDER BY createdAt DESC, id DESC
+        """
+    )
     fun getPagingSource(conversationId: Long): PagingSource<Int, MessageEntity>
 
     @Query("SELECT * FROM remote_keys WHERE label = :label")
@@ -62,9 +68,6 @@ interface MessageDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(message: MessageEntity)
-
-    @Query("SELECT MIN(orderIndex) FROM messages WHERE conversationId = :conversationId")
-    suspend fun getMinOrderIndex(conversationId: Long): Int?
 
     @Query("UPDATE messages SET readAt = :readAt WHERE conversationId = :conversationId AND senderId != :readByUserId AND readAt IS NULL")
     suspend fun markOutgoingMessagesAsReadByPeer(
@@ -141,5 +144,4 @@ interface MessageDao {
         return searchMessagesRaw(roomRawQuery)
     }
 }
-
 

@@ -50,11 +50,8 @@ class MessageRemoteMediator(
                     MediatorResult.Error(Exception(error.toString()))
                 },
                 ifRight = { messageList ->
-                    // API returns DESC (newest first). We store with orderIndex where
-                    // lower index = newer message. With reversed LazyColumn,
-                    // ORDER BY orderIndex ASC puts newest (index 0) at bottom.
-                    val entities = messageList.messages.mapIndexed { index, message ->
-                        message.toEntity(orderIndex = index)
+                    val entities = messageList.messages.map { message ->
+                        message.toEntity()
                     }
 
                     val endReached = messageList.messages.isEmpty() || !messageList.hasMore
@@ -85,5 +82,4 @@ class MessageRemoteMediator(
         }
     }
 }
-
 
