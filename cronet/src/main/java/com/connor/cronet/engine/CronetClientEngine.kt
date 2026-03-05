@@ -5,6 +5,7 @@ import com.connor.cronet.engine.internal.fault.CronetFaultInjector
 import com.connor.cronet.engine.internal.fault.CronetInvariantRecorder
 import com.connor.cronet.engine.internal.lifecycle.ActiveRequestHandle
 import com.connor.cronet.engine.internal.lifecycle.EngineLifecycle
+import com.connor.cronet.engine.internal.request.CronetRequestLifecycleHandle
 import com.connor.cronet.engine.internal.request.CronetRequestExecutor
 import com.connor.cronet.engine.internal.request.DefaultCronetRequestExecutor
 import com.connor.cronet.engine.internal.telemetry.CronetTelemetry
@@ -21,6 +22,8 @@ import io.ktor.utils.io.InternalAPI
 import java.util.concurrent.CancellationException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Job
 import kotlin.coroutines.CoroutineContext
 
@@ -57,6 +60,8 @@ internal class CronetClientEngine(
     private val requestExecutor: CronetRequestExecutor = DefaultCronetRequestExecutor(
         cronetEngine = cronetEngine,
         callbackExecutor = callbackExecutor,
+        defaultResponseStreamProfile = config.defaultResponseStreamProfile,
+        sseResponseStreamProfile = config.sseResponseStreamProfile,
         telemetry = telemetry,
         faultInjector = faultInjector,
         invariantRecorder = invariantRecorder,
@@ -64,8 +69,9 @@ internal class CronetClientEngine(
 
     override suspend fun execute(data: HttpRequestData): HttpResponseData {
         val requestCallContext = callContext()
+        val requestHandle = EngineActiveRequestHandle(callContext = requestCallContext)
         val requestId = lifecycle.registerActiveRequest(
-            handle = CallContextRequestHandle(callContext = requestCallContext),
+            handle = requestHandle,
         )
         recordInvariant {
             invariantRecorder.onRequestRegistered(
@@ -74,19 +80,28 @@ internal class CronetClientEngine(
             )
         }
 
-        return try {
+        val lifecycleHandle = EngineRequestLifecycleHandle(
+            requestHandle = requestHandle,
+            onTerminal = {
+                lifecycle.unregisterActiveRequest(requestId)
+                recordInvariant {
+                    invariantRecorder.onRequestUnregistered(
+                        requestId = requestId,
+                        activeRequestCount = lifecycle.currentActiveRequestCount,
+                    )
+                }
+            },
+        )
+
+        return runCatching {
             requestExecutor.execute(
                 data = data,
                 callContext = requestCallContext,
+                lifecycleHandle = lifecycleHandle,
             )
-        } finally {
-            lifecycle.unregisterActiveRequest(requestId)
-            recordInvariant {
-                invariantRecorder.onRequestUnregistered(
-                    requestId = requestId,
-                    activeRequestCount = lifecycle.currentActiveRequestCount,
-                )
-            }
+        }.getOrElse { cause ->
+            lifecycleHandle.markTerminal()
+            throw cause
         }
     }
 
@@ -151,12 +166,30 @@ internal class CronetClientEngine(
         runCatching(record)
     }
 
-    private class CallContextRequestHandle(callContext: CoroutineContext) : ActiveRequestHandle {
+    private class EngineActiveRequestHandle(callContext: CoroutineContext) : ActiveRequestHandle {
         private val callJob = checkNotNull(callContext[Job]) {
             "Ktor call context must include a Job"
         }
+        private val cancelInvoked = AtomicBoolean(false)
+        private val cancellationCause = AtomicReference<Throwable?>(null)
+
+        @Volatile
+        private var transportCanceler: ((Throwable?) -> Unit)? = null
+
+        fun bindTransportCanceler(canceler: (Throwable?) -> Unit) {
+            transportCanceler = canceler
+            if (cancelInvoked.get()) {
+                canceler(cancellationCause.get())
+            }
+        }
 
         override fun cancel(cause: Throwable?) {
+            if (!cancelInvoked.compareAndSet(false, true)) {
+                return
+            }
+            cancellationCause.set(cause)
+            transportCanceler?.invoke(cause)
+
             val cancellation = if (cause is CancellationException) {
                 cause
             } else {
@@ -168,6 +201,24 @@ internal class CronetClientEngine(
             }
 
             callJob.cancel(cancellation)
+        }
+    }
+
+    private class EngineRequestLifecycleHandle(
+        private val requestHandle: EngineActiveRequestHandle,
+        private val onTerminal: () -> Unit,
+    ) : CronetRequestLifecycleHandle {
+        private val terminalMarked = AtomicBoolean(false)
+
+        override fun bindTransportCanceler(canceler: (Throwable?) -> Unit) {
+            requestHandle.bindTransportCanceler(canceler)
+        }
+
+        override fun markTerminal() {
+            if (!terminalMarked.compareAndSet(false, true)) {
+                return
+            }
+            onTerminal()
         }
     }
 }

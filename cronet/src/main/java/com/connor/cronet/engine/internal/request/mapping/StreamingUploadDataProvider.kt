@@ -168,12 +168,13 @@ internal class StreamingUploadDataProvider private constructor(
         val source = preparedRead.source
 
         runCatching {
-            val bytes = ByteArray(preparedRead.maxBytes)
-            val readCount = source.channel.readAvailable(
-                buffer = bytes,
-                offset = 0,
-                length = preparedRead.maxBytes,
-            )
+            val originalLimit = targetBuffer.limit()
+            targetBuffer.limit(targetBuffer.position() + preparedRead.maxBytes)
+            val readCount = try {
+                source.channel.readAvailable(targetBuffer)
+            } finally {
+                targetBuffer.limit(originalLimit)
+            }
 
             if (readCount < 0) {
                 if (preparedRead.isChunked) {
@@ -191,8 +192,6 @@ internal class StreamingUploadDataProvider private constructor(
             if (readCount == 0) {
                 throw IOException("Cronet upload read completed without producing bytes")
             }
-
-            targetBuffer.put(bytes, 0, readCount)
 
             val reachedFixedLengthEnd = synchronized(stateLock) {
                 if (activeSource !== source) {

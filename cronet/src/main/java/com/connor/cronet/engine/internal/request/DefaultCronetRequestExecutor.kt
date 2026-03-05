@@ -1,5 +1,6 @@
 package com.connor.cronet.engine.internal.request
 
+import com.connor.cronet.engine.CronetResponseStreamProfile
 import com.connor.cronet.engine.internal.fault.CronetFaultInjector
 import com.connor.cronet.engine.internal.fault.CronetInvariantRecorder
 import com.connor.cronet.engine.internal.fault.CronetRequestFaultContext
@@ -35,19 +36,25 @@ import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.InternalAPI
 import io.ktor.utils.io.writeFully
 import java.nio.ByteBuffer
+import java.util.ArrayDeque
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.concurrent.Executor
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
- import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.chromium.net.CallbackException
 import org.chromium.net.CronetEngine
 import org.chromium.net.CronetException
@@ -60,6 +67,8 @@ import org.chromium.net.UrlResponseInfo
 internal class DefaultCronetRequestExecutor(
     private val cronetEngine: CronetEngine,
     private val callbackExecutor: Executor,
+    defaultResponseStreamProfile: CronetResponseStreamProfile,
+    sseResponseStreamProfile: CronetResponseStreamProfile,
     private val telemetry: CronetTelemetry,
     private val faultInjector: CronetFaultInjector = NoopCronetFaultInjector,
     private val invariantRecorder: CronetInvariantRecorder = NoopCronetInvariantRecorder,
@@ -69,14 +78,18 @@ internal class DefaultCronetRequestExecutor(
         callbackExecutor = callbackExecutor,
     )
 
+    private val defaultStreamProfile: ResponseStreamProfile = ResponseStreamProfile.fromConfig(defaultResponseStreamProfile)
+    private val sseStreamProfile: ResponseStreamProfile = ResponseStreamProfile.fromConfig(sseResponseStreamProfile)
+
     override suspend fun execute(
         data: HttpRequestData,
         callContext: CoroutineContext,
+        lifecycleHandle: CronetRequestLifecycleHandle,
     ): HttpResponseData {
         val responseStreamProfile = if (data.getCapabilityOrNull(SSECapability) != null) {
-            SSE_STREAM_PROFILE
+            sseStreamProfile
         } else {
-            DEFAULT_STREAM_PROFILE
+            defaultStreamProfile
         }
         val requestStartNanos = System.nanoTime()
         val requestKey = REQUEST_KEY_SEQUENCE.incrementAndGet()
@@ -92,6 +105,7 @@ internal class DefaultCronetRequestExecutor(
             responseDeferred = responseDeferred,
             responseBodyChannel = responseBodyChannel,
             responseStreamProfile = responseStreamProfile,
+            lifecycleHandle = lifecycleHandle,
             telemetry = telemetry,
             faultInjector = faultInjector,
             invariantRecorder = invariantRecorder,
@@ -99,6 +113,8 @@ internal class DefaultCronetRequestExecutor(
         )
 
         fun failRequestBeforeCallbackExecution(cause: Throwable): Nothing {
+            callback.dispose(cause)
+            lifecycleHandle.markTerminal()
             responseBodyChannel.cancel(cause)
             emitRequestTelemetry(
                 telemetry = telemetry,
@@ -137,6 +153,7 @@ internal class DefaultCronetRequestExecutor(
             requestMethodExecutor = callbackExecutor,
         )
         callback.bindRequestCanceler(requestCancellation::cancel)
+        lifecycleHandle.bindTransportCanceler(requestCancellation::cancel)
 
         callContext[Job]?.invokeOnCompletion { cause ->
             if (cause != null) {
@@ -180,6 +197,7 @@ internal class DefaultCronetRequestExecutor(
         private val responseDeferred: CompletableDeferred<HttpResponseData>,
         private val responseBodyChannel: ByteChannel,
         private val responseStreamProfile: ResponseStreamProfile,
+        private val lifecycleHandle: CronetRequestLifecycleHandle,
         private val telemetry: CronetTelemetry,
         private val faultInjector: CronetFaultInjector,
         private val invariantRecorder: CronetInvariantRecorder,
@@ -187,9 +205,9 @@ internal class DefaultCronetRequestExecutor(
     ) : UrlRequest.Callback() {
         private val terminal = SingleTerminalLatch()
         private val responseStarted = AtomicBoolean(false)
-        private var readBuffer: ByteBuffer? = null
         @Volatile
         private var latestResponseInfo: UrlResponseInfo? = null
+
         /**
          * Keep bridge scopes independent from callContext Job.
          *
@@ -200,9 +218,22 @@ internal class DefaultCronetRequestExecutor(
         private val timeoutScope = CoroutineScope(
             callbackBridgeContext + SupervisorJob() + CoroutineName("cronet-timeout-controller"),
         )
-        private val bodyWriteScope = CoroutineScope(
-            callbackBridgeContext + SupervisorJob() + CoroutineName("cronet-body-write-bridge"),
+        private val terminalScope = CoroutineScope(
+            callbackBridgeContext + SupervisorJob() + CoroutineName("cronet-terminal-cleanup"),
         )
+        private val bodyWriteScopeJob = SupervisorJob()
+        private val bodyWriteScope = CoroutineScope(
+            callbackBridgeContext + bodyWriteScopeJob + CoroutineName("cronet-body-write-bridge"),
+        )
+
+        private val writeMutex = Mutex()
+        private val readCreditRing = ReadCreditRing(responseStreamProfile)
+        private val readSchedulingLock = Any()
+        private var awaitingReadCredit: Boolean = false
+        private var activeReadBuffer: ByteBuffer? = null
+        private val buffersReleased = AtomicBoolean(false)
+        private val successFinalized = AtomicBoolean(false)
+
         private val timeoutConfig = requestData.getCapabilityOrNull(HttpTimeoutCapability)
         private val requestTimeoutMillis: Long? = if (requestData.supportsRequestTimeout()) {
             timeoutConfig.requestTimeoutOrNull()
@@ -214,8 +245,16 @@ internal class DefaultCronetRequestExecutor(
         private var requestTimeoutJob: Job? = null
         private var connectTimeoutJob: Job? = null
         private var socketTimeoutJob: Job? = null
+        private val timeoutFailureCause = AtomicReference<Throwable?>(null)
+
         @Volatile
         private var requestCanceler: ((Throwable?) -> Unit)? = null
+
+        init {
+            bodyWriteScopeJob.invokeOnCompletion {
+                releaseReadBuffers()
+            }
+        }
 
         fun bindRequestCanceler(canceler: (Throwable?) -> Unit) {
             requestCanceler = canceler
@@ -232,6 +271,15 @@ internal class DefaultCronetRequestExecutor(
         fun onRequestStarted() {
             startRequestTimeout()
             startConnectTimeout()
+        }
+
+        fun dispose(cause: Throwable?) {
+            cancelAllTimeouts()
+            cancelBridgeScopes(cause)
+            terminalScope.cancel(
+                cause as? CancellationException ?: CancellationException("Cronet request terminal scope canceled"),
+            )
+            releaseReadBuffers()
         }
 
         override fun onRedirectReceived(request: UrlRequest, info: UrlResponseInfo, _newLocationUrl: String) {
@@ -298,12 +346,21 @@ internal class DefaultCronetRequestExecutor(
                 return
             }
 
-            val nextReadBuffer = responseStreamProfile.readBufferPool.acquire().also { readBuffer = it }
-            request.read(nextReadBuffer)
+            val nextReadBuffer = readCreditRing.acquireForRead()
+            if (nextReadBuffer == null) {
+                val cause = IllegalStateException(
+                    "Cronet read credit ring could not provide initial read buffer",
+                )
+                finishFailure(cause, info)
+                requestCancel(cause)
+                return
+            }
+            dispatchRead(request = request, info = info, buffer = nextReadBuffer)
         }
 
         override fun onReadCompleted(request: UrlRequest, info: UrlResponseInfo, byteBuffer: ByteBuffer) {
             if (terminal.isTerminal) return
+            clearActiveReadBuffer(byteBuffer)
 
             byteBuffer.flip()
             val chunkSizeBytes = byteBuffer.remaining().takeIf { it > 0 }
@@ -320,43 +377,38 @@ internal class DefaultCronetRequestExecutor(
 
             if (!byteBuffer.hasRemaining()) {
                 byteBuffer.clear()
+                readCreditRing.recycle(byteBuffer)
                 resetSocketTimeout()
-
-                if (!terminal.isTerminal) {
-                    request.read(byteBuffer)
-                }
+                scheduleReadOrAwaitCredit(request = request, info = info)
                 return
             }
 
-            val bytes = ByteArray(byteBuffer.remaining())
-            byteBuffer.get(bytes)
-            byteBuffer.clear()
             resetSocketTimeout()
 
             bodyWriteScope.launch {
-                runCatching { responseBodyChannel.writeFully(bytes) }
-                    .onFailure { cause ->
-                        finishFailure(cause, info)
-                        requestCancel(cause)
-                        return@launch
+                runCatching {
+                    writeMutex.withLock {
+                        responseBodyChannel.writeFully(byteBuffer)
                     }
+                }.onFailure { cause ->
+                    byteBuffer.clear()
+                    readCreditRing.recycle(byteBuffer)
+                    finishFailure(cause, info)
+                    requestCancel(cause)
+                    return@launch
+                }
+
+                byteBuffer.clear()
+                readCreditRing.recycle(byteBuffer)
 
                 if (terminal.isTerminal) {
                     return@launch
                 }
 
-                dispatchOnRequestMethodExecutor(
-                    requestMethodExecutor = requestMethodExecutor,
-                    onFailure = { cause ->
-                        finishFailure(cause, info)
-                        requestCancel(cause)
-                    },
-                ) {
-                    if (!terminal.isTerminal) {
-                        request.read(byteBuffer)
-                    }
-                }
+                scheduleReadIfAwaitingCredit(request = request, info = info)
             }
+
+            scheduleReadOrAwaitCredit(request = request, info = info)
         }
 
         override fun onSucceeded(request: UrlRequest, info: UrlResponseInfo) {
@@ -364,7 +416,10 @@ internal class DefaultCronetRequestExecutor(
         }
 
         override fun onFailed(request: UrlRequest, info: UrlResponseInfo?, error: CronetException) {
-            val mappedFailure = if (isCallCancelled()) {
+            val timeoutCause = timeoutFailureCause.getAndSet(null)
+            val mappedFailure = if (timeoutCause != null) {
+                timeoutCause
+            } else if (isCallCancelled()) {
                 callCancellationOrDefault(
                     message = "Cronet request failed after call cancellation",
                     fallbackCause = error,
@@ -376,8 +431,9 @@ internal class DefaultCronetRequestExecutor(
         }
 
         override fun onCanceled(request: UrlRequest, info: UrlResponseInfo?) {
+            val timeoutCause = timeoutFailureCause.getAndSet(null)
             finishFailure(
-                callCancellationOrDefault(
+                timeoutCause ?: callCancellationOrDefault(
                     message = "Cronet request was canceled",
                 ),
                 info,
@@ -406,20 +462,22 @@ internal class DefaultCronetRequestExecutor(
             )
 
             latestResponseInfo = responseInfo
+            timeoutFailureCause.set(null)
+            clearActiveReadBuffer(null)?.let(readCreditRing::recycle)
+            lifecycleHandle.markTerminal()
             cancelAllTimeouts()
-            cancelBridgeScopes()
-            if (!responseBodyChannel.isClosedForWrite) {
-                responseBodyChannel.close()
+
+            terminalScope.launch {
+                runCatching {
+                    writeMutex.withLock { Unit }
+                }.onFailure { cause ->
+                    finishFailure(cause, responseInfo)
+                    requestCancel(cause)
+                    return@launch
+                }
+
+                finalizeSuccess(responseInfo)
             }
-            releaseReadBuffer()
-            emitRequestTelemetry(
-                telemetry = telemetry,
-                requestData = requestData,
-                requestStartNanos = requestStartNanos,
-                completionReason = CronetRequestCompletionReason.Succeeded,
-                responseInfo = responseInfo,
-                cause = null,
-            )
         }
 
         private fun finishFailure(cause: Throwable, responseInfo: UrlResponseInfo? = null) {
@@ -456,12 +514,21 @@ internal class DefaultCronetRequestExecutor(
 
             val finalResponseInfo = responseInfo ?: latestResponseInfo
             latestResponseInfo = finalResponseInfo
+            timeoutFailureCause.set(null)
+            clearActiveReadBuffer(null)?.let(readCreditRing::recycle)
+            lifecycleHandle.markTerminal()
             cancelAllTimeouts()
             cancelBridgeScopes(cause)
+            terminalScope.cancel(
+                cause as? CancellationException ?: CancellationException(
+                    "Cronet request terminal scope canceled",
+                ).apply {
+                    initCause(cause)
+                },
+            )
             responseDeferred.completeExceptionally(cause)
 
             responseBodyChannel.cancel(cause)
-            releaseReadBuffer()
             emitRequestTelemetry(
                 telemetry = telemetry,
                 requestData = requestData,
@@ -472,10 +539,110 @@ internal class DefaultCronetRequestExecutor(
             )
         }
 
-        private fun releaseReadBuffer() {
-            val buffer = readBuffer ?: return
-            readBuffer = null
-            responseStreamProfile.readBufferPool.release(buffer)
+        private fun finalizeSuccess(responseInfo: UrlResponseInfo) {
+            if (!successFinalized.compareAndSet(false, true)) {
+                return
+            }
+
+            if (!responseBodyChannel.isClosedForWrite) {
+                responseBodyChannel.close()
+            }
+            cancelBridgeScopes()
+            terminalScope.cancel()
+            emitRequestTelemetry(
+                telemetry = telemetry,
+                requestData = requestData,
+                requestStartNanos = requestStartNanos,
+                completionReason = CronetRequestCompletionReason.Succeeded,
+                responseInfo = responseInfo,
+                cause = null,
+            )
+        }
+
+        private fun releaseReadBuffers() {
+            if (!buffersReleased.compareAndSet(false, true)) {
+                return
+            }
+            readCreditRing.releaseAll()
+        }
+
+        private fun scheduleReadOrAwaitCredit(request: UrlRequest, info: UrlResponseInfo) {
+            val nextBuffer = synchronized(readSchedulingLock) {
+                if (terminal.isTerminal) {
+                    null
+                } else {
+                    val acquired = readCreditRing.acquireForRead()
+                    if (acquired != null) {
+                        awaitingReadCredit = false
+                        acquired
+                    } else {
+                        awaitingReadCredit = true
+                        runCatching {
+                            invariantRecorder.onBodyQueueOverflow(
+                                requestKey = requestKey,
+                                queueCapacity = responseStreamProfile.maxInFlightBuffers,
+                            )
+                        }
+                        null
+                    }
+                }
+            } ?: return
+
+            dispatchRead(request = request, info = info, buffer = nextBuffer)
+        }
+
+        private fun scheduleReadIfAwaitingCredit(request: UrlRequest, info: UrlResponseInfo) {
+            val nextBuffer = synchronized(readSchedulingLock) {
+                if (!awaitingReadCredit || terminal.isTerminal) {
+                    null
+                } else {
+                    val acquired = readCreditRing.acquireForRead()
+                    if (acquired != null) {
+                        awaitingReadCredit = false
+                    }
+                    acquired
+                }
+            } ?: return
+
+            dispatchRead(request = request, info = info, buffer = nextBuffer)
+        }
+
+        private fun dispatchRead(
+            request: UrlRequest,
+            info: UrlResponseInfo,
+            buffer: ByteBuffer,
+        ) {
+            dispatchOnRequestMethodExecutor(
+                requestMethodExecutor = requestMethodExecutor,
+                onFailure = { cause ->
+                    readCreditRing.recycle(buffer)
+                    clearActiveReadBuffer(buffer)
+                    finishFailure(cause, info)
+                    requestCancel(cause)
+                },
+            ) {
+                synchronized(readSchedulingLock) {
+                    if (terminal.isTerminal) {
+                        readCreditRing.recycle(buffer)
+                        return@dispatchOnRequestMethodExecutor
+                    }
+                    activeReadBuffer = buffer
+                }
+                request.read(buffer)
+            }
+        }
+
+        private fun clearActiveReadBuffer(buffer: ByteBuffer?): ByteBuffer? {
+            return synchronized(readSchedulingLock) {
+                val current = activeReadBuffer
+                if (buffer == null || current === buffer) {
+                    activeReadBuffer = null
+                    awaitingReadCredit = false
+                    current
+                } else {
+                    null
+                }
+            }
         }
 
         private fun startRequestTimeout() {
@@ -485,7 +652,7 @@ internal class DefaultCronetRequestExecutor(
                 delay(timeoutMillis)
                 if (!terminal.isTerminal) {
                     val timeoutCause = HttpRequestTimeoutException(requestData)
-                    finishFailure(timeoutCause)
+                    timeoutFailureCause.compareAndSet(null, timeoutCause)
                     requestCancel(timeoutCause)
                 }
             }
@@ -498,7 +665,7 @@ internal class DefaultCronetRequestExecutor(
                 delay(timeoutMillis)
                 if (!terminal.isTerminal && !responseStarted.get()) {
                     val timeoutCause = ConnectTimeoutException(requestData)
-                    finishFailure(timeoutCause)
+                    timeoutFailureCause.compareAndSet(null, timeoutCause)
                     requestCancel(timeoutCause)
                 }
             }
@@ -516,7 +683,7 @@ internal class DefaultCronetRequestExecutor(
                 delay(timeoutMillis)
                 if (!terminal.isTerminal && responseStarted.get()) {
                     val timeoutCause = SocketTimeoutException(requestData)
-                    finishFailure(timeoutCause)
+                    timeoutFailureCause.compareAndSet(null, timeoutCause)
                     requestCancel(timeoutCause)
                 }
             }
@@ -615,32 +782,71 @@ internal class DefaultCronetRequestExecutor(
 
     private companion object {
         val REQUEST_KEY_SEQUENCE: AtomicLong = AtomicLong(0L)
-
-        const val DEFAULT_READ_BUFFER_CAPACITY_BYTES: Int = 16 * 1024
-        const val SSE_READ_BUFFER_CAPACITY_BYTES: Int = 4 * 1024
-
-        val DEFAULT_READ_BUFFER_POOL: DirectByteBufferPool = DirectByteBufferPool(
-            bufferSizeBytes = DEFAULT_READ_BUFFER_CAPACITY_BYTES,
-            maxPooledBuffers = 128,
-        )
-
-        val SSE_READ_BUFFER_POOL: DirectByteBufferPool = DirectByteBufferPool(
-            bufferSizeBytes = SSE_READ_BUFFER_CAPACITY_BYTES,
-            maxPooledBuffers = 256,
-        )
-
-        val DEFAULT_STREAM_PROFILE: ResponseStreamProfile = ResponseStreamProfile(
-            readBufferPool = DEFAULT_READ_BUFFER_POOL,
-        )
-
-        val SSE_STREAM_PROFILE: ResponseStreamProfile = ResponseStreamProfile(
-            readBufferPool = SSE_READ_BUFFER_POOL,
-        )
     }
 
     private data class ResponseStreamProfile(
         val readBufferPool: DirectByteBufferPool,
-    )
+        val maxInFlightBuffers: Int,
+    ) {
+        companion object {
+            fun fromConfig(config: CronetResponseStreamProfile): ResponseStreamProfile {
+                return ResponseStreamProfile(
+                    readBufferPool = DirectByteBufferPool(
+                        bufferSizeBytes = config.readBufferSizeBytes,
+                        maxPooledBuffers = config.maxPooledBuffers,
+                    ),
+                    maxInFlightBuffers = config.maxInFlightBuffers,
+                )
+            }
+        }
+    }
+
+    private class ReadCreditRing(
+        private val profile: ResponseStreamProfile,
+    ) {
+        private val lock = Any()
+        private val available = ArrayDeque<ByteBuffer>()
+        private val owned = Collections.newSetFromMap(IdentityHashMap<ByteBuffer, Boolean>())
+        private val availableSet = Collections.newSetFromMap(IdentityHashMap<ByteBuffer, Boolean>())
+
+        fun acquireForRead(): ByteBuffer? {
+            return synchronized(lock) {
+                if (available.isNotEmpty()) {
+                    val buffer = available.removeFirst()
+                    availableSet.remove(buffer)
+                    buffer.apply { clear() }
+                } else if (owned.size < profile.maxInFlightBuffers) {
+                    profile.readBufferPool.acquire().also { owned.add(it) }
+                } else {
+                    null
+                }
+            }
+        }
+
+        fun recycle(buffer: ByteBuffer) {
+            synchronized(lock) {
+                if (!owned.contains(buffer)) {
+                    return
+                }
+                if (!availableSet.add(buffer)) {
+                    return
+                }
+                buffer.clear()
+                available.addLast(buffer)
+            }
+        }
+
+        fun releaseAll() {
+            val snapshot = synchronized(lock) {
+                val buffers = owned.toList()
+                available.clear()
+                availableSet.clear()
+                owned.clear()
+                buffers
+            }
+            snapshot.forEach(profile.readBufferPool::release)
+        }
+    }
 
     private class RequestCancellationController(
         private val request: UrlRequest,
@@ -704,13 +910,10 @@ private fun HttpTimeoutConfig?.socketTimeoutOrNull(): Long? {
 }
 
 private fun Long?.toFiniteTimeoutOrNull(): Long? {
-    return when (this) {
-        null,
-        HttpTimeoutConfig.INFINITE_TIMEOUT_MS,
-        -> null
-
-        else -> this
-    }
+    if (this == null) return null
+    if (this <= 0L) return null
+    if (this == HttpTimeoutConfig.INFINITE_TIMEOUT_MS) return null
+    return this
 }
 
 private fun recordTerminalInvariant(

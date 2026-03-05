@@ -30,6 +30,24 @@ class CronetEngineConfig : HttpClientEngineConfig() {
     var callbackThreadCount: Int = 2
 
     /**
+     * Streaming profile for non-SSE responses.
+     */
+    var defaultResponseStreamProfile: CronetResponseStreamProfile = CronetResponseStreamProfile(
+        readBufferSizeBytes = 16 * 1024,
+        maxPooledBuffers = 128,
+        maxInFlightBuffers = 4,
+    )
+
+    /**
+     * Streaming profile for SSE responses.
+     */
+    var sseResponseStreamProfile: CronetResponseStreamProfile = CronetResponseStreamProfile(
+        readBufferSizeBytes = 4 * 1024,
+        maxPooledBuffers = 256,
+        maxInFlightBuffers = 8,
+    )
+
+    /**
      * Max wait time for active requests to drain after close() triggers cancellation.
      */
     var closeDrainTimeoutMillis: Long = DEFAULT_CLOSE_DRAIN_TIMEOUT_MILLIS
@@ -69,11 +87,31 @@ class CronetEngineConfig : HttpClientEngineConfig() {
         require(closeForceDrainTimeoutMillis >= 0L) {
             "CronetEngineConfig.closeForceDrainTimeoutMillis must be >= 0"
         }
+        defaultResponseStreamProfile.validate(name = "defaultResponseStreamProfile")
+        sseResponseStreamProfile.validate(name = "sseResponseStreamProfile")
     }
 
     private companion object {
         const val DEFAULT_CLOSE_DRAIN_TIMEOUT_MILLIS: Long = 5_000L
         const val DEFAULT_CLOSE_FORCE_DRAIN_TIMEOUT_MILLIS: Long = 1_000L
+    }
+}
+
+data class CronetResponseStreamProfile(
+    val readBufferSizeBytes: Int,
+    val maxPooledBuffers: Int,
+    val maxInFlightBuffers: Int,
+) {
+    internal fun validate(name: String) {
+        require(readBufferSizeBytes > 0) {
+            "CronetEngineConfig.$name.readBufferSizeBytes must be > 0"
+        }
+        require(maxPooledBuffers > 0) {
+            "CronetEngineConfig.$name.maxPooledBuffers must be > 0"
+        }
+        require(maxInFlightBuffers > 0) {
+            "CronetEngineConfig.$name.maxInFlightBuffers must be > 0"
+        }
     }
 }
 
