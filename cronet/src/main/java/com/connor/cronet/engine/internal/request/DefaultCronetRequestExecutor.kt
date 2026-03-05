@@ -231,7 +231,6 @@ internal class DefaultCronetRequestExecutor(
         private val readSchedulingLock = Any()
         private var awaitingReadCredit: Boolean = false
         private var activeReadBuffer: ByteBuffer? = null
-        private val buffersReleased = AtomicBoolean(false)
         private val successFinalized = AtomicBoolean(false)
 
         private val timeoutConfig = requestData.getCapabilityOrNull(HttpTimeoutCapability)
@@ -359,8 +358,12 @@ internal class DefaultCronetRequestExecutor(
         }
 
         override fun onReadCompleted(request: UrlRequest, info: UrlResponseInfo, byteBuffer: ByteBuffer) {
-            if (terminal.isTerminal) return
             clearActiveReadBuffer(byteBuffer)
+            if (terminal.isTerminal) {
+                // A late read callback can arrive around cancellation edges; release only after callback ownership returns.
+                readCreditRing.recycle(byteBuffer)
+                return
+            }
 
             byteBuffer.flip()
             val chunkSizeBytes = byteBuffer.remaining().takeIf { it > 0 }
@@ -412,25 +415,27 @@ internal class DefaultCronetRequestExecutor(
         }
 
         override fun onSucceeded(request: UrlRequest, info: UrlResponseInfo) {
+            markTransportTerminal()
             finishSuccess(info)
         }
 
         override fun onFailed(request: UrlRequest, info: UrlResponseInfo?, error: CronetException) {
+            markTransportTerminal()
             val timeoutCause = timeoutFailureCause.getAndSet(null)
-            val mappedFailure = if (timeoutCause != null) {
-                timeoutCause
-            } else if (isCallCancelled()) {
-                callCancellationOrDefault(
-                    message = "Cronet request failed after call cancellation",
-                    fallbackCause = error,
-                )
-            } else {
-                error
-            }
+            val mappedFailure = timeoutCause
+                ?: if (isCallCancelled()) {
+                    callCancellationOrDefault(
+                        message = "Cronet request failed after call cancellation",
+                        fallbackCause = error,
+                    )
+                } else {
+                    error
+                }
             finishFailure(mappedFailure, info)
         }
 
         override fun onCanceled(request: UrlRequest, info: UrlResponseInfo?) {
+            markTransportTerminal()
             val timeoutCause = timeoutFailureCause.getAndSet(null)
             finishFailure(
                 timeoutCause ?: callCancellationOrDefault(
@@ -463,7 +468,8 @@ internal class DefaultCronetRequestExecutor(
 
             latestResponseInfo = responseInfo
             timeoutFailureCause.set(null)
-            clearActiveReadBuffer(null)?.let(readCreditRing::recycle)
+            // Detach local pointer only; actual buffer recycle happens from read callback/write bridge ownership.
+            clearActiveReadBuffer(null)
             lifecycleHandle.markTerminal()
             cancelAllTimeouts()
 
@@ -515,7 +521,8 @@ internal class DefaultCronetRequestExecutor(
             val finalResponseInfo = responseInfo ?: latestResponseInfo
             latestResponseInfo = finalResponseInfo
             timeoutFailureCause.set(null)
-            clearActiveReadBuffer(null)?.let(readCreditRing::recycle)
+            // Detach local pointer only; actual buffer recycle happens from read callback/write bridge ownership.
+            clearActiveReadBuffer(null)
             lifecycleHandle.markTerminal()
             cancelAllTimeouts()
             cancelBridgeScopes(cause)
@@ -559,11 +566,12 @@ internal class DefaultCronetRequestExecutor(
             )
         }
 
+        private fun markTransportTerminal() {
+            releaseReadBuffers()
+        }
+
         private fun releaseReadBuffers() {
-            if (!buffersReleased.compareAndSet(false, true)) {
-                return
-            }
-            readCreditRing.releaseAll()
+            readCreditRing.closeAndReleaseAvailable()
         }
 
         private fun scheduleReadOrAwaitCredit(request: UrlRequest, info: UrlResponseInfo) {
@@ -810,7 +818,7 @@ internal class DefaultCronetRequestExecutor(
         }
         private val slotStates: AtomicIntegerArray = AtomicIntegerArray(capacity)
         private val acquireCursor: AtomicInteger = AtomicInteger(0)
-        private val released = AtomicBoolean(false)
+        private val closed = AtomicBoolean(false)
         private val bufferSlotIndex = IdentityHashMap<ByteBuffer, Int>(capacity)
 
         init {
@@ -820,7 +828,7 @@ internal class DefaultCronetRequestExecutor(
         }
 
         fun acquireForRead(): ByteBuffer? {
-            if (released.get()) {
+            if (closed.get()) {
                 return null
             }
 
@@ -837,25 +845,50 @@ internal class DefaultCronetRequestExecutor(
         }
 
         fun recycle(buffer: ByteBuffer) {
-            if (released.get()) {
-                return
-            }
-
             val slot = bufferSlotIndex[buffer] ?: return
-            if (slotStates.compareAndSet(slot, SLOT_IN_FLIGHT, SLOT_AVAILABLE)) {
-                buffer.clear()
+            while (true) {
+                when (slotStates.get(slot)) {
+                    SLOT_IN_FLIGHT -> {
+                        if (closed.get()) {
+                            if (slotStates.compareAndSet(slot, SLOT_IN_FLIGHT, SLOT_RELEASED)) {
+                                profile.readBufferPool.release(buffers[slot])
+                                return
+                            }
+                        } else if (slotStates.compareAndSet(slot, SLOT_IN_FLIGHT, SLOT_AVAILABLE)) {
+                            buffer.clear()
+                            return
+                        }
+                    }
+
+                    SLOT_AVAILABLE -> {
+                        if (!closed.get()) {
+                            return
+                        }
+                        if (slotStates.compareAndSet(slot, SLOT_AVAILABLE, SLOT_RELEASED)) {
+                            profile.readBufferPool.release(buffers[slot])
+                            return
+                        }
+                    }
+
+                    SLOT_RELEASED -> return
+                    else -> return
+                }
             }
         }
 
-        fun releaseAll() {
-            if (!released.compareAndSet(false, true)) {
-                return
-            }
+        fun closeAndReleaseAvailable() {
+            closed.set(true)
+            releaseAvailableSlots()
+        }
 
+        private fun releaseAvailableSlots() {
             for (slot in 0 until capacity) {
                 while (true) {
                     val state = slotStates.get(slot)
                     if (state == SLOT_RELEASED) {
+                        break
+                    }
+                    if (state != SLOT_AVAILABLE) {
                         break
                     }
                     if (slotStates.compareAndSet(slot, state, SLOT_RELEASED)) {
