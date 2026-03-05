@@ -178,6 +178,11 @@ internal class StreamingUploadDataProvider private constructor(
 
             if (readCount < 0) {
                 if (preparedRead.isChunked) {
+                    source.channel.closedCause?.let { upstreamFailure ->
+                        throw upstreamFailure.asUploadException(
+                            "Chunked upload source closed with failure before EOF",
+                        )
+                    }
                     releaseActiveSource(source, cause = null)
                     uploadDataSink.onReadSucceeded(true)
                     return
@@ -292,11 +297,11 @@ internal class StreamingUploadDataProvider private constructor(
                     val producer = producerScope.launch {
                         runCatching { content.writeTo(channel) }
                             .onSuccess { channel.close() }
-                            .onFailure { channel.close() }
+                            .onFailure { cause -> channel.cancel(cause) }
                     }
                     producer.invokeOnCompletion { cause ->
                         if (cause != null) {
-                            channel.close()
+                            channel.cancel(cause)
                         }
                     }
 
