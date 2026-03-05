@@ -2,6 +2,7 @@ package com.connor.kwitter
 
 import android.app.Application
 import com.connor.kwitter.core.crash.setupCrashReporting
+import com.connor.kwitter.core.di.NETWORK_ENGINE_CIO
 import com.connor.kwitter.core.di.authModule
 import com.connor.kwitter.core.di.mediaModule
 import com.connor.kwitter.core.di.messagingModule

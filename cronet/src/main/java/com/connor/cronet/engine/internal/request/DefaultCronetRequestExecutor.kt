@@ -44,6 +44,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+ import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.chromium.net.CallbackException
@@ -138,6 +140,7 @@ internal class DefaultCronetRequestExecutor(
 
         callContext[Job]?.invokeOnCompletion { cause ->
             if (cause != null) {
+                callback.onCallContextCancelled(cause)
                 requestCancellation.cancel(cause)
             }
         }
@@ -187,8 +190,19 @@ internal class DefaultCronetRequestExecutor(
         private var readBuffer: ByteBuffer? = null
         @Volatile
         private var latestResponseInfo: UrlResponseInfo? = null
-        private val timeoutScope = CoroutineScope(callContext + CoroutineName("cronet-timeout-controller"))
-        private val bodyWriteScope = CoroutineScope(callContext + CoroutineName("cronet-body-write-bridge"))
+        /**
+         * Keep bridge scopes independent from callContext Job.
+         *
+         * Ktor SSE acquires a session using HttpStatement.body { ... } and then runs response cleanup,
+         * which can complete callContext while the SSE stream still needs incremental reads.
+         */
+        private val callbackBridgeContext = callContext.minusKey(Job)
+        private val timeoutScope = CoroutineScope(
+            callbackBridgeContext + SupervisorJob() + CoroutineName("cronet-timeout-controller"),
+        )
+        private val bodyWriteScope = CoroutineScope(
+            callbackBridgeContext + SupervisorJob() + CoroutineName("cronet-body-write-bridge"),
+        )
         private val timeoutConfig = requestData.getCapabilityOrNull(HttpTimeoutCapability)
         private val requestTimeoutMillis: Long? = if (requestData.supportsRequestTimeout()) {
             timeoutConfig.requestTimeoutOrNull()
@@ -205,6 +219,10 @@ internal class DefaultCronetRequestExecutor(
 
         fun bindRequestCanceler(canceler: (Throwable?) -> Unit) {
             requestCanceler = canceler
+        }
+
+        fun onCallContextCancelled(cause: Throwable) {
+            cancelBridgeScopes(cause)
         }
 
         fun onBeforeRequestStart(): Throwable? {
@@ -389,6 +407,7 @@ internal class DefaultCronetRequestExecutor(
 
             latestResponseInfo = responseInfo
             cancelAllTimeouts()
+            cancelBridgeScopes()
             if (!responseBodyChannel.isClosedForWrite) {
                 responseBodyChannel.close()
             }
@@ -438,6 +457,7 @@ internal class DefaultCronetRequestExecutor(
             val finalResponseInfo = responseInfo ?: latestResponseInfo
             latestResponseInfo = finalResponseInfo
             cancelAllTimeouts()
+            cancelBridgeScopes(cause)
             responseDeferred.completeExceptionally(cause)
 
             responseBodyChannel.cancel(cause)
@@ -509,6 +529,18 @@ internal class DefaultCronetRequestExecutor(
             requestTimeoutJob = null
             connectTimeoutJob = null
             socketTimeoutJob = null
+        }
+
+        private fun cancelBridgeScopes(cause: Throwable? = null) {
+            val cancellationCause = cause as? CancellationException ?: CancellationException(
+                "Cronet request bridge scopes canceled",
+            ).apply {
+                if (cause != null) {
+                    initCause(cause)
+                }
+            }
+            timeoutScope.cancel(cancellationCause)
+            bodyWriteScope.cancel(cancellationCause)
         }
 
         private fun requestCancel(cause: Throwable?) {
