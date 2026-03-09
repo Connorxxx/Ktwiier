@@ -1,7 +1,8 @@
 package com.connor.kwitter.data.messaging.datasource
 
-import arrow.core.Either
-import arrow.core.raise.either
+import arrow.core.raise.context.Raise
+import arrow.core.raise.context.raise
+import arrow.core.raise.catch
 import com.connor.kwitter.domain.messaging.model.Conversation
 import com.connor.kwitter.domain.messaging.model.ConversationList
 import com.connor.kwitter.domain.messaging.model.ConversationUser
@@ -20,7 +21,6 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 
 class MessagingRemoteDataSource(
@@ -32,111 +32,100 @@ class MessagingRemoteDataSource(
         const val MESSAGES_PATH = "/v1/messages"
     }
 
+    context(_: Raise<MessagingError>)
     suspend fun getConversations(
         limit: Int,
         offset: Int
-    ): Either<MessagingError, ConversationList> = either {
-        try {
-            val response: HttpResponse = httpClient.get(endpoint(CONVERSATIONS_PATH)) {
-                parameter("limit", limit)
-                parameter("offset", offset)
-            }
-            handleResponse(response) {
-                it.body<ConversationListResponseDto>().toDomain()
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(MessagingError.NetworkError("Network request failed: ${e.message}"))
+    ): ConversationList = catch({
+        val response: HttpResponse = httpClient.get(endpoint(CONVERSATIONS_PATH)) {
+            parameter("limit", limit)
+            parameter("offset", offset)
         }
+        handleResponse(response) {
+            it.body<ConversationListResponseDto>().toDomain()
+        }
+    }) {
+        raise(MessagingError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<MessagingError>)
     suspend fun getMessages(
         conversationId: Long,
         limit: Int,
         offset: Int = 0,
         beforeId: Long? = null
-    ): Either<MessagingError, MessageList> = either {
-        try {
-            val response: HttpResponse = httpClient.get(
-                endpoint("$CONVERSATIONS_PATH/$conversationId/messages")
-            ) {
-                parameter("limit", limit)
-                if (beforeId != null) parameter("beforeId", beforeId) else parameter("offset", offset)
-            }
-            handleResponse(response) {
-                it.body<MessageListResponseDto>().toDomain()
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(MessagingError.NetworkError("Network request failed: ${e.message}"))
+    ): MessageList = catch({
+        val response: HttpResponse = httpClient.get(
+            endpoint("$CONVERSATIONS_PATH/$conversationId/messages")
+        ) {
+            parameter("limit", limit)
+            if (beforeId != null) parameter("beforeId", beforeId) else parameter("offset", offset)
         }
+        handleResponse(response) {
+            it.body<MessageListResponseDto>().toDomain()
+        }
+    }) {
+        raise(MessagingError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<MessagingError>)
     suspend fun sendMessage(
         recipientId: Long,
         content: String,
         imageUrl: String?,
         replyToMessageId: Long? = null
-    ): Either<MessagingError, Message> = either {
-        try {
-            val response: HttpResponse = httpClient.post(
-                endpoint("$CONVERSATIONS_PATH/messages")
-            ) {
-                contentType(ContentType.Application.Json)
-                setBody(SendMessageRequestDto(recipientId, content, imageUrl, replyToMessageId))
-            }
-            handleResponse(response) {
-                it.body<MessageDto>().toDomain()
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(MessagingError.NetworkError("Network request failed: ${e.message}"))
+    ): Message = catch({
+        val response: HttpResponse = httpClient.post(
+            endpoint("$CONVERSATIONS_PATH/messages")
+        ) {
+            contentType(ContentType.Application.Json)
+            setBody(SendMessageRequestDto(recipientId, content, imageUrl, replyToMessageId))
         }
+        handleResponse(response) {
+            it.body<MessageDto>().toDomain()
+        }
+    }) {
+        raise(MessagingError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<MessagingError>)
     suspend fun deleteMessage(
         messageId: Long
-    ): Either<MessagingError, Unit> = either {
-        try {
-            val response: HttpResponse = httpClient.delete(
-                endpoint("$MESSAGES_PATH/$messageId")
-            )
-            handleResponse(response) { }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(MessagingError.NetworkError("Network request failed: ${e.message}"))
-        }
+    ) = catch({
+        val response: HttpResponse = httpClient.delete(
+            endpoint("$MESSAGES_PATH/$messageId")
+        )
+        handleResponse(response) { }
+    }) {
+        raise(MessagingError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<MessagingError>)
     suspend fun recallMessage(
         messageId: Long
-    ): Either<MessagingError, Unit> = either {
-        try {
-            val response: HttpResponse = httpClient.put(
-                endpoint("$MESSAGES_PATH/$messageId/recall")
-            )
-            handleResponse(response) { }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(MessagingError.NetworkError("Network request failed: ${e.message}"))
-        }
+    ) = catch({
+        val response: HttpResponse = httpClient.put(
+            endpoint("$MESSAGES_PATH/$messageId/recall")
+        )
+        handleResponse(response) { }
+    }) {
+        raise(MessagingError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<MessagingError>)
     suspend fun markAsRead(
         conversationId: Long
-    ): Either<MessagingError, Long> = either {
-        try {
-            val response: HttpResponse = httpClient.put(
-                endpoint("$CONVERSATIONS_PATH/$conversationId/read")
-            )
-            handleResponse(response) { it.body<MarkReadResponseDto>().readAt }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(MessagingError.NetworkError("Network request failed: ${e.message}"))
-        }
+    ): Long = catch({
+        val response: HttpResponse = httpClient.put(
+            endpoint("$CONVERSATIONS_PATH/$conversationId/read")
+        )
+        handleResponse(response) { it.body<MarkReadResponseDto>().readAt }
+    }) {
+        raise(MessagingError.NetworkError("Network request failed: ${it.message}"))
     }
 
-    private suspend fun <T> arrow.core.raise.Raise<MessagingError>.handleResponse(
+    context(_: Raise<MessagingError>)
+    private suspend fun <T> handleResponse(
         response: HttpResponse,
         onSuccess: suspend (HttpResponse) -> T
     ): T {

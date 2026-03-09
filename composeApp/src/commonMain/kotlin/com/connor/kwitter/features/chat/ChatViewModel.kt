@@ -13,6 +13,7 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import arrow.core.raise.fold
 import com.connor.kwitter.core.result.Result
 import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.auth.repository.AuthRepository
@@ -130,7 +131,14 @@ class ChatViewModel(
                         messagingRepository.setActiveConversation(resolvedConversationId)
                         _conversationId.value = resolvedConversationId
                         // Mark as read if entering existing conversation
-                        resolvedConversationId?.let { messagingRepository.markAsRead(it) }
+                        resolvedConversationId?.let {
+                            fold(
+                                block = { messagingRepository.markAsRead(it) },
+                                catch = { throw it },
+                                recover = {},
+                                transform = {}
+                            )
+                        }
                         state.copy(
                             conversationId = resolvedConversationId,
                             otherUserId = action.otherUserId,
@@ -190,18 +198,21 @@ class ChatViewModel(
         typingJob?.cancel()
         currentState.conversationId?.let { messagingRepository.sendStopTyping(it) }
 
-        return messagingRepository.sendMessage(
-            recipientId = currentState.otherUserId,
-            content = content,
-            replyToMessageId = currentState.replyingToMessage?.id
-        ).fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                messagingRepository.sendMessage(
+                    recipientId = currentState.otherUserId,
+                    content = content,
+                    replyToMessageId = currentState.replyingToMessage?.id
+                )
+            },
+            recover = { error ->
                 sendingState.copy(
                     isSending = false,
                     error = formatError(error)
                 )
             },
-            ifRight = { message ->
+            transform = { message ->
                 // If this was the first message, update conversationId so paging starts
                 if (currentState.conversationId == null) {
                     _conversationId.value = message.conversationId
@@ -218,16 +229,18 @@ class ChatViewModel(
     }
 
     private suspend fun deleteMessage(currentState: ChatUiState, messageId: Long): ChatUiState {
-        return messagingRepository.deleteMessage(messageId).fold(
-            ifLeft = { error -> currentState.copy(error = formatError(error)) },
-            ifRight = { currentState }
+        return fold(
+            block = { messagingRepository.deleteMessage(messageId) },
+            recover = { error -> currentState.copy(error = formatError(error)) },
+            transform = { currentState }
         )
     }
 
     private suspend fun recallMessage(currentState: ChatUiState, messageId: Long): ChatUiState {
-        return messagingRepository.recallMessage(messageId).fold(
-            ifLeft = { error -> currentState.copy(error = formatError(error)) },
-            ifRight = { currentState }
+        return fold(
+            block = { messagingRepository.recallMessage(messageId) },
+            recover = { error -> currentState.copy(error = formatError(error)) },
+            transform = { currentState }
         )
     }
 

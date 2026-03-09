@@ -1,5 +1,6 @@
 package com.connor.kwitter.data.auth.datasource
 
+import arrow.core.raise.fold
 import com.connor.kwitter.domain.auth.model.RefreshRequest
 import com.connor.kwitter.domain.auth.model.TokenResponse
 import io.ktor.client.HttpClient
@@ -7,6 +8,7 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
@@ -25,6 +27,11 @@ sealed interface RefreshResult {
     data object StaleToken : RefreshResult
     data object InvalidSession : RefreshResult
     data object TransientError : RefreshResult
+}
+
+private sealed interface RefreshAttempt {
+    data class Response(val value: HttpResponse) : RefreshAttempt
+    data class Failure(val result: RefreshResult) : RefreshAttempt
 }
 
 class TokenRefresher(
@@ -49,28 +56,47 @@ class TokenRefresher(
         val refreshToken = tokenDataSource.getRefreshToken()
             ?: return RefreshResult.InvalidSession
 
-        val response = try {
-            refreshClient.post(baseUrl.trimEnd('/') + REFRESH_PATH) {
-                contentType(ContentType.Application.Json)
-                setBody(RefreshRequest(refreshToken))
-            }
-        } catch (_: Exception) {
-            return RefreshResult.TransientError
+        val response = fold(
+            block = {
+                refreshClient.post(baseUrl.trimEnd('/') + REFRESH_PATH) {
+                    contentType(ContentType.Application.Json)
+                    setBody(RefreshRequest(refreshToken))
+                }
+            },
+            catch = { RefreshAttempt.Failure(RefreshResult.TransientError) },
+            recover = { result: RefreshResult -> RefreshAttempt.Failure(result) },
+            transform = { httpResponse -> RefreshAttempt.Response(httpResponse) }
+        )
+
+        val httpResponse = when (response) {
+            is RefreshAttempt.Failure -> return response.result
+            is RefreshAttempt.Response -> response.value
         }
 
         return when {
-            response.status.isSuccess() -> {
-                val tokenResponse = response.body<TokenResponse>()
-                tokenDataSource.updateTokens(
-                    accessToken = tokenResponse.token,
-                    refreshToken = tokenResponse.refreshToken,
-                    expiresIn = tokenResponse.expiresIn
+            httpResponse.status.isSuccess() -> {
+                val tokenResponse = httpResponse.body<TokenResponse>()
+                fold(
+                    block = {
+                        tokenDataSource.updateTokens(
+                            accessToken = tokenResponse.token,
+                            refreshToken = tokenResponse.refreshToken,
+                            expiresIn = tokenResponse.expiresIn
+                        )
+                    },
+                    catch = { RefreshResult.TransientError },
+                    recover = { RefreshResult.TransientError },
+                    transform = { RefreshResult.Success(tokenResponse) }
                 )
-                RefreshResult.Success(tokenResponse)
             }
 
-            response.status.value == 409 -> {
-                val error = try { response.body<ErrorBody>() } catch (_: Exception) { null }
+            httpResponse.status.value == 409 -> {
+                val error = fold(
+                    block = { httpResponse.body<ErrorBody>() },
+                    catch = { null },
+                    recover = { _: Unit -> null },
+                    transform = { it }
+                )
                 if (error?.code == STALE_REFRESH_TOKEN) {
                     RefreshResult.StaleToken
                 } else {
@@ -78,8 +104,13 @@ class TokenRefresher(
                 }
             }
 
-            response.status.value == 401 -> {
-                tokenDataSource.clearTokens()
+            httpResponse.status.value == 401 -> {
+                fold(
+                    block = { tokenDataSource.clearTokens() },
+                    catch = {},
+                    recover = {},
+                    transform = {}
+                )
                 RefreshResult.InvalidSession
             }
 

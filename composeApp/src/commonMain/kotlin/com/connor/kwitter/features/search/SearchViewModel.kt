@@ -13,6 +13,7 @@ import androidx.paging.cachedIn
 import androidx.paging.map
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import arrow.core.raise.fold
 import com.connor.kwitter.core.result.Result
 import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.post.model.Post
@@ -213,14 +214,15 @@ class SearchViewModel(
             ))
         }
 
-        val result = if (action.isCurrentlyLiked) {
-            postRepository.unlikePost(action.postId)
-        } else {
-            postRepository.likePost(action.postId)
-        }
-
-        return result.fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                if (action.isCurrentlyLiked) {
+                    postRepository.unlikePost(action.postId)
+                } else {
+                    postRepository.likePost(action.postId)
+                }
+            },
+            recover = { error ->
                 _postMods.update { mods ->
                     val existing = mods[action.postId] ?: PostModification()
                     mods + (action.postId to existing.copy(
@@ -230,7 +232,7 @@ class SearchViewModel(
                 }
                 currentState.copy(error = formatPostError(error))
             },
-            ifRight = { updatedStats ->
+            transform = { updatedStats ->
                 _postMods.update { mods ->
                     val existing = mods[action.postId] ?: PostModification()
                     mods + (action.postId to existing.copy(
@@ -254,14 +256,15 @@ class SearchViewModel(
             mods + (action.postId to existing.copy(isBookmarkedByCurrentUser = newBookmarked))
         }
 
-        val result = if (action.isCurrentlyBookmarked) {
-            postRepository.unbookmarkPost(action.postId)
-        } else {
-            postRepository.bookmarkPost(action.postId)
-        }
-
-        return result.fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                if (action.isCurrentlyBookmarked) {
+                    postRepository.unbookmarkPost(action.postId)
+                } else {
+                    postRepository.bookmarkPost(action.postId)
+                }
+            },
+            recover = { error ->
                 _postMods.update { mods ->
                     val existing = mods[action.postId] ?: PostModification()
                     mods + (action.postId to existing.copy(
@@ -270,7 +273,7 @@ class SearchViewModel(
                 }
                 currentState.copy(error = formatPostError(error))
             },
-            ifRight = { currentState /* keep optimistic state */ }
+            transform = { currentState /* keep optimistic state */ }
         )
     }
 
@@ -282,18 +285,19 @@ class SearchViewModel(
 
         _userMods.update { it + (action.targetUserId to newFollowed) }
 
-        val result = if (action.isCurrentlyFollowing) {
-            userRepository.unfollowUser(action.targetUserId)
-        } else {
-            userRepository.followUser(action.targetUserId)
-        }
-
-        return result.fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                if (action.isCurrentlyFollowing) {
+                    userRepository.unfollowUser(action.targetUserId)
+                } else {
+                    userRepository.followUser(action.targetUserId)
+                }
+            },
+            recover = { error ->
                 _userMods.update { it + (action.targetUserId to action.isCurrentlyFollowing) }
                 currentState.copy(error = formatUserError(error))
             },
-            ifRight = { currentState /* keep optimistic state */ }
+            transform = { currentState /* keep optimistic state */ }
         )
     }
 

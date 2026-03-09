@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import arrow.core.raise.fold
 import com.connor.kwitter.domain.messaging.model.MessageSearchItem
 import com.connor.kwitter.domain.messaging.model.MessagingError
 import com.connor.kwitter.domain.messaging.repository.MessagingRepository
@@ -99,18 +100,21 @@ class MessageSearchViewModel(
     ): MessageSearchUiState {
         val searchingState = currentState.copy(isSearching = true, error = null)
 
-        return messagingRepository.searchMessages(
-            conversationId = currentState.conversationId,
-            query = query
-        ).fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                messagingRepository.searchMessages(
+                    conversationId = currentState.conversationId,
+                    query = query
+                )
+            },
+            recover = { error ->
                 searchingState.copy(
                     isSearching = false,
                     hasSearched = true,
                     error = formatError(error)
                 )
             },
-            ifRight = { results ->
+            transform = { results ->
                 searchingState.copy(
                     isSearching = false,
                     hasSearched = true,

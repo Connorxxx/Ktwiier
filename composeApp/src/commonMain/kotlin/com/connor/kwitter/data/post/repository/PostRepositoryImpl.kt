@@ -5,7 +5,7 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
-import arrow.core.Either
+import arrow.core.raise.context.Raise
 import com.connor.kwitter.data.post.datasource.PostRemoteDataSource
 import com.connor.kwitter.data.post.datasource.TimelineRemoteMediator
 import com.connor.kwitter.data.post.local.AppDatabase
@@ -49,55 +49,54 @@ class PostRepositoryImpl(
         ).flow.map { pagingData -> pagingData.map { it.toDomain() } }
     }
 
-    override suspend fun getTimeline(query: PostPageQuery): Either<PostError, PostList> {
-        return remoteDataSource.getTimeline(query)
-    }
+    context(_: Raise<PostError>)
+    override suspend fun getTimeline(query: PostPageQuery): PostList =
+        remoteDataSource.getTimeline(query)
 
-    override suspend fun getPost(postId: Long): Either<PostError, Post> {
-        return remoteDataSource.getPost(postId)
-    }
+    context(_: Raise<PostError>)
+    override suspend fun getPost(postId: Long): Post =
+        remoteDataSource.getPost(postId)
 
+    context(_: Raise<PostError>)
     override suspend fun getReplies(
         postId: Long,
         query: PostPageQuery
-    ): Either<PostError, PostList> {
-        return remoteDataSource.getReplies(postId, query)
-    }
+    ): PostList = remoteDataSource.getReplies(postId, query)
 
+    context(_: Raise<PostError>)
     override suspend fun getUserPosts(
         userId: Long,
         query: PostPageQuery
-    ): Either<PostError, PostList> {
-        return remoteDataSource.getUserPosts(userId, query)
-    }
+    ): PostList = remoteDataSource.getUserPosts(userId, query)
 
-    override suspend fun createPost(request: CreatePostRequest): Either<PostError, Post> {
-        return remoteDataSource.createPost(request).onRight { post ->
-            timelineRefreshTrigger.update { it + 1 }
-            _postMutations.emit(
-                PostMutationEvent.PostCreated(
-                    postId = post.id,
-                    parentId = post.parentId
-                )
+    context(_: Raise<PostError>)
+    override suspend fun createPost(request: CreatePostRequest): Post {
+        val post = remoteDataSource.createPost(request)
+        timelineRefreshTrigger.update { it + 1 }
+        _postMutations.emit(
+            PostMutationEvent.PostCreated(
+                postId = post.id,
+                parentId = post.parentId
             )
-        }
+        )
+        return post
     }
 
-    override suspend fun likePost(postId: Long): Either<PostError, PostStats> {
-        return remoteDataSource.likePost(postId)
-    }
+    context(_: Raise<PostError>)
+    override suspend fun likePost(postId: Long): PostStats =
+        remoteDataSource.likePost(postId)
 
-    override suspend fun unlikePost(postId: Long): Either<PostError, PostStats> {
-        return remoteDataSource.unlikePost(postId)
-    }
+    context(_: Raise<PostError>)
+    override suspend fun unlikePost(postId: Long): PostStats =
+        remoteDataSource.unlikePost(postId)
 
-    override suspend fun bookmarkPost(postId: Long): Either<PostError, Unit> {
-        return remoteDataSource.bookmarkPost(postId)
-    }
+    context(_: Raise<PostError>)
+    override suspend fun bookmarkPost(postId: Long) =
+        remoteDataSource.bookmarkPost(postId)
 
-    override suspend fun unbookmarkPost(postId: Long): Either<PostError, Unit> {
-        return remoteDataSource.unbookmarkPost(postId)
-    }
+    context(_: Raise<PostError>)
+    override suspend fun unbookmarkPost(postId: Long) =
+        remoteDataSource.unbookmarkPost(postId)
 
     override suspend fun updateLocalLikeState(postId: Long, isLiked: Boolean, likeCount: Int) {
         postDao.updateLikeState(postId, isLiked, likeCount)

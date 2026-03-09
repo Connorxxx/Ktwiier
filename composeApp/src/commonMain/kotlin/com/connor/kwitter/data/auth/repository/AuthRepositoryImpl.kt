@@ -1,9 +1,8 @@
 package com.connor.kwitter.data.auth.repository
 
-import arrow.core.Either
-import arrow.core.raise.either
+import arrow.core.raise.context.Raise
+import arrow.core.raise.fold
 import com.connor.kwitter.data.auth.datasource.AuthRemoteDataSource
-import com.connor.kwitter.data.auth.datasource.RefreshResult
 import com.connor.kwitter.data.auth.datasource.TokenDataSource
 import com.connor.kwitter.data.auth.datasource.TokenRefresher
 import com.connor.kwitter.data.notification.NotificationService
@@ -67,7 +66,12 @@ class AuthRepositoryImpl(
         repositoryScope.launch {
             notificationService.authEvents.collect { event ->
                 when (event) {
-                    is AuthEvent.ForceLogout -> tokenDataSource.clearTokens()
+                    is AuthEvent.ForceLogout -> fold(
+                        block = { tokenDataSource.clearTokens() },
+                        catch = { throw it },
+                        recover = {},
+                        transform = {}
+                    )
                 }
             }
         }
@@ -97,37 +101,38 @@ class AuthRepositoryImpl(
         tokenRefresher.refresh()
     }
 
+    context(_: Raise<AuthError>)
     override suspend fun register(
         email: String,
         name: String,
         password: String
-    ): Either<AuthError, Unit> = either {
-        val response = remoteDataSource.register(email, name, password).bind()
+    ) {
+        val response = remoteDataSource.register(email, name, password)
         tokenDataSource.saveTokens(
             accessToken = response.token,
             refreshToken = response.refreshToken,
             userId = response.id,
             expiresIn = response.expiresIn
-        ).bind()
+        )
     }
 
+    context(_: Raise<AuthError>)
     override suspend fun login(
         email: String,
         password: String
-    ): Either<AuthError, Unit> = either {
-        val response = remoteDataSource.login(email, password).bind()
+    ) {
+        val response = remoteDataSource.login(email, password)
         tokenDataSource.saveTokens(
             accessToken = response.token,
             refreshToken = response.refreshToken,
             userId = response.id,
             expiresIn = response.expiresIn
-        ).bind()
+        )
     }
 
-    override suspend fun logout(): Either<AuthError, Unit> {
+    context(_: Raise<AuthError>)
+    override suspend fun logout() {
         notificationService.disconnect()
-        return tokenDataSource.clearTokens()
+        tokenDataSource.clearTokens()
     }
 }
-
-

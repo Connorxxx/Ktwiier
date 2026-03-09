@@ -10,8 +10,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
-import arrow.core.Either
-import arrow.core.raise.either
+import arrow.core.raise.context.Raise
+import arrow.core.raise.fold
 import com.connor.kwitter.core.result.Result
 import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.notification.repository.NotificationRepository
@@ -23,7 +23,6 @@ import com.connor.kwitter.domain.post.model.PostMutationEvent
 import com.connor.kwitter.domain.post.repository.PostRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
-
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
@@ -150,10 +149,9 @@ class PostDetailViewModel(
         previousState: PostDetailUiState
     ): PostDetailUiState {
         val loadingState = previousState.copy(isLoading = true, error = null)
-        val postResult = postRepository.getPost(postId)
-
-        val resolvedState = postResult.fold(
-            ifLeft = { error ->
+        val resolvedState = fold(
+            block = { postRepository.getPost(postId) },
+            recover = { error ->
                 loadingState.copy(
                     isLoading = false,
                     post = null,
@@ -161,9 +159,10 @@ class PostDetailViewModel(
                     error = formatError(error)
                 )
             },
-            ifRight = { post ->
-                loadReplyThread(postId).fold(
-                    ifLeft = { error ->
+            transform = { post ->
+                fold(
+                    block = { loadReplyThread(postId) },
+                    recover = { error ->
                         loadingState.copy(
                             isLoading = false,
                             post = post,
@@ -171,7 +170,7 @@ class PostDetailViewModel(
                             error = formatError(error)
                         )
                     },
-                    ifRight = { replies ->
+                    transform = { replies ->
                         loadingState.copy(
                             isLoading = false,
                             post = post,
@@ -191,24 +190,27 @@ class PostDetailViewModel(
         state.threadReplies.forEach { add(it.post.id) }
     }
 
-    private suspend fun loadReplyThread(rootPostId: Long): Either<PostError, List<ThreadReplyItem>> = either {
+    context(_: Raise<PostError>)
+    private suspend fun loadReplyThread(
+        rootPostId: Long
+    ): List<ThreadReplyItem> =
         loadThreadBranch(
             parentId = rootPostId,
             depth = 0,
             visited = mutableSetOf()
-        ).bind()
-    }
+        )
 
+    context(_: Raise<PostError>)
     private suspend fun loadThreadBranch(
         parentId: Long,
         depth: Int,
         visited: MutableSet<Long>
-    ): Either<PostError, List<ThreadReplyItem>> = either {
+    ): List<ThreadReplyItem> {
         if (!visited.add(parentId)) {
-            return@either emptyList()
+            return emptyList()
         }
 
-        val directReplies = fetchAllReplies(parentId).bind()
+        val directReplies = fetchAllReplies(parentId)
         val flattenedReplies = mutableListOf<ThreadReplyItem>()
 
         for (reply in directReplies) {
@@ -223,14 +225,15 @@ class PostDetailViewModel(
                     parentId = reply.id,
                     depth = depth + 1,
                     visited = visited
-                ).bind()
+                )
             )
         }
 
-        flattenedReplies
+        return flattenedReplies
     }
 
-    private suspend fun fetchAllReplies(parentId: Long): Either<PostError, List<Post>> = either {
+    context(_: Raise<PostError>)
+    private suspend fun fetchAllReplies(parentId: Long): List<Post> {
         val allReplies = mutableListOf<Post>()
         var offset = 0
         var hasMore = true
@@ -242,14 +245,14 @@ class PostDetailViewModel(
                     limit = THREAD_PAGE_SIZE,
                     offset = offset
                 )
-            ).bind()
+            )
 
             allReplies.addAll(page.posts)
             offset += page.posts.size
             hasMore = page.hasMore && page.posts.isNotEmpty()
         }
 
-        allReplies
+        return allReplies
     }
 
     private fun formatError(error: PostError): String = when (error) {
@@ -277,14 +280,15 @@ class PostDetailViewModel(
             )
         }
 
-        val result = if (isCurrentlyLiked) {
-            postRepository.unlikePost(postId)
-        } else {
-            postRepository.likePost(postId)
-        }
-
-        return result.fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                if (isCurrentlyLiked) {
+                    postRepository.unlikePost(postId)
+                } else {
+                    postRepository.likePost(postId)
+                }
+            },
+            recover = { error ->
                 updatePostInState(optimisticState, postId) {
                     copy(
                         isLikedByCurrentUser = isCurrentlyLiked,
@@ -294,7 +298,7 @@ class PostDetailViewModel(
                     )
                 }.copy(error = formatError(error))
             },
-            ifRight = { updatedStats ->
+            transform = { updatedStats ->
                 updatePostInState(optimisticState, postId) {
                     copy(stats = updatedStats)
                 }
@@ -313,19 +317,20 @@ class PostDetailViewModel(
             copy(isBookmarkedByCurrentUser = !isCurrentlyBookmarked)
         }
 
-        val result = if (isCurrentlyBookmarked) {
-            postRepository.unbookmarkPost(postId)
-        } else {
-            postRepository.bookmarkPost(postId)
-        }
-
-        return result.fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                if (isCurrentlyBookmarked) {
+                    postRepository.unbookmarkPost(postId)
+                } else {
+                    postRepository.bookmarkPost(postId)
+                }
+            },
+            recover = { error ->
                 updatePostInState(optimisticState, postId) {
                     copy(isBookmarkedByCurrentUser = isCurrentlyBookmarked)
                 }.copy(error = formatError(error))
             },
-            ifRight = { optimisticState }
+            transform = { optimisticState }
         )
     }
 
@@ -351,4 +356,3 @@ class PostDetailViewModel(
         return state.copy(post = updatedPost, threadReplies = updatedReplies)
     }
 }
-

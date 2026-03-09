@@ -5,8 +5,9 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import arrow.core.Either
-import arrow.core.raise.either
+import arrow.core.raise.context.Raise
+import arrow.core.raise.context.raise
+import arrow.core.raise.catch
 import com.connor.kwitter.domain.auth.model.AuthError
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -60,53 +61,50 @@ class TokenDataSource(
     suspend fun getObtainedAt(): Long? =
         dataStore.data.first()[OBTAINED_AT_KEY]
 
+    context(_: Raise<AuthError>)
     suspend fun saveTokens(
         accessToken: String,
         refreshToken: String,
         userId: Long,
         expiresIn: Long
-    ): Either<AuthError, Unit> = either {
-        try {
-            dataStore.edit { preferences ->
-                preferences[ACCESS_TOKEN_KEY] = accessToken
-                preferences[REFRESH_TOKEN_KEY] = refreshToken
-                preferences[USER_ID_KEY] = userId
-                preferences[EXPIRES_IN_KEY] = expiresIn
-                preferences[OBTAINED_AT_KEY] = Clock.System.now().toEpochMilliseconds()
-            }
-        } catch (e: Exception) {
-            raise(AuthError.StorageError("Failed to save tokens: ${e.message}"))
+    ) = catch({
+        dataStore.edit { preferences ->
+            preferences[ACCESS_TOKEN_KEY] = accessToken
+            preferences[REFRESH_TOKEN_KEY] = refreshToken
+            preferences[USER_ID_KEY] = userId
+            preferences[EXPIRES_IN_KEY] = expiresIn
+            preferences[OBTAINED_AT_KEY] = Clock.System.now().toEpochMilliseconds()
         }
+    }) {
+        raise(AuthError.StorageError("Failed to save tokens: ${it.message}"))
     }
 
+    context(_: Raise<AuthError>)
     suspend fun updateTokens(
         accessToken: String,
         refreshToken: String,
         expiresIn: Long
-    ): Either<AuthError, Unit> = either {
-        try {
-            dataStore.edit { preferences ->
-                preferences[ACCESS_TOKEN_KEY] = accessToken
-                preferences[REFRESH_TOKEN_KEY] = refreshToken
-                preferences[EXPIRES_IN_KEY] = expiresIn
-                preferences[OBTAINED_AT_KEY] = Clock.System.now().toEpochMilliseconds()
-            }
-        } catch (e: Exception) {
-            raise(AuthError.StorageError("Failed to update tokens: ${e.message}"))
+    ) = catch({
+        dataStore.edit { preferences ->
+            preferences[ACCESS_TOKEN_KEY] = accessToken
+            preferences[REFRESH_TOKEN_KEY] = refreshToken
+            preferences[EXPIRES_IN_KEY] = expiresIn
+            preferences[OBTAINED_AT_KEY] = Clock.System.now().toEpochMilliseconds()
         }
+    }) {
+        raise(AuthError.StorageError("Failed to update tokens: ${it.message}"))
     }
 
-    suspend fun clearTokens(): Either<AuthError, Unit> = either {
-        try {
-            dataStore.edit { preferences ->
-                preferences.remove(ACCESS_TOKEN_KEY)
-                preferences.remove(REFRESH_TOKEN_KEY)
-                preferences.remove(USER_ID_KEY)
-                preferences.remove(EXPIRES_IN_KEY)
-                preferences.remove(OBTAINED_AT_KEY)
-            }
-        } catch (e: Exception) {
-            raise(AuthError.StorageError("Failed to clear tokens: ${e.message}"))
+    context(_: Raise<AuthError>)
+    suspend fun clearTokens() = catch({
+        dataStore.edit { preferences ->
+            preferences.remove(ACCESS_TOKEN_KEY)
+            preferences.remove(REFRESH_TOKEN_KEY)
+            preferences.remove(USER_ID_KEY)
+            preferences.remove(EXPIRES_IN_KEY)
+            preferences.remove(OBTAINED_AT_KEY)
         }
+    }) {
+        raise(AuthError.StorageError("Failed to clear tokens: ${it.message}"))
     }
 }

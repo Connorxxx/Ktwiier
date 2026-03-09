@@ -11,10 +11,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import arrow.core.raise.fold
 import com.connor.kwitter.core.media.SelectedMedia
 import com.connor.kwitter.core.media.readBytes
 import com.connor.kwitter.core.result.Result
-import com.connor.kwitter.core.result.asResult
+import com.connor.kwitter.core.result.resultFlow
 import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.domain.media.model.MediaError
@@ -27,7 +28,6 @@ import com.connor.kwitter.domain.post.repository.PostRepository
 import com.connor.kwitter.domain.user.repository.UserRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -102,13 +102,10 @@ class CreatePostViewModel(
                 return@LaunchedEffect
             }
 
-            userRepository.getUserProfile(userId).fold(
-                ifLeft = {
-                    state = state.copy(currentUserAvatarUrl = null)
-                },
-                ifRight = { profile ->
-                    state = state.copy(currentUserAvatarUrl = profile.avatarUrl)
-                }
+            state = fold(
+                block = { userRepository.getUserProfile(userId) },
+                recover = { state.copy(currentUserAvatarUrl = null) },
+                transform = { profile -> state.copy(currentUserAvatarUrl = profile.avatarUrl) }
             )
         }
 
@@ -137,22 +134,26 @@ class CreatePostViewModel(
                             newMedia.forEach { media ->
                                 launch {
                                     val bytes = media.readBytes()
-                                    val result = mediaRepository.uploadMedia(
-                                        bytes = bytes,
-                                        fileName = media.name,
-                                        mimeType = media.mimeType
-                                    )
-                                    uploadMutex.withLock {
-                                        result.fold(
-                                            ifLeft = { error ->
+                                    fold(
+                                        block = {
+                                            mediaRepository.uploadMedia(
+                                                bytes = bytes,
+                                                fileName = media.name,
+                                                mimeType = media.mimeType
+                                            )
+                                        },
+                                        recover = { error ->
+                                            uploadMutex.withLock {
                                                 val newSelected = state.selectedMedia - media
                                                 state = state.copy(
                                                     error = formatMediaError(error),
                                                     selectedMedia = newSelected,
                                                     isUploading = newSelected.size > state.uploadedMedia.size
                                                 )
-                                            },
-                                            ifRight = { response ->
+                                            }
+                                        },
+                                        transform = { response ->
+                                            uploadMutex.withLock {
                                                 val postMedia = PostMedia(
                                                     url = response.url,
                                                     type = if (response.type == "VIDEO") PostMediaType.VIDEO else PostMediaType.IMAGE
@@ -163,8 +164,8 @@ class CreatePostViewModel(
                                                     isUploading = state.selectedMedia.size > newUploaded.size
                                                 )
                                             }
-                                        )
-                                    }
+                                        }
+                                    )
                                 }
                             }
                             state
@@ -187,8 +188,9 @@ class CreatePostViewModel(
                         }
                     }
                     is CreatePostAction.SubmitClicked -> {
-                        flow {
-                            emit(
+                        resultFlow(
+                            mapError = ::formatError
+                        ) {
                                 postRepository.createPost(
                                     CreatePostRequest(
                                         content = state.content,
@@ -196,8 +198,7 @@ class CreatePostViewModel(
                                         parentId = state.parentId
                                     )
                                 )
-                            )
-                        }.asResult(::formatError).collect { result ->
+                        }.collect { result ->
                             state = when (result) {
                                 Result.Loading -> state.copy(isLoading = true, error = null)
                                 is Result.Success -> state.copy(

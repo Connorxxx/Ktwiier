@@ -1,7 +1,8 @@
 package com.connor.kwitter.data.user.datasource
 
-import arrow.core.Either
-import arrow.core.raise.either
+import arrow.core.raise.context.Raise
+import arrow.core.raise.context.raise
+import arrow.core.raise.catch
 import com.connor.kwitter.domain.post.model.PostList
 import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.user.model.UpdateProfileRequest
@@ -26,7 +27,6 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 
 class UserRemoteDataSource(
@@ -37,165 +37,146 @@ class UserRemoteDataSource(
         const val USERS_PATH = "/v1/users"
     }
 
+    context(_: Raise<UserError>)
     suspend fun getUserProfile(
         userId: Long
-    ): Either<UserError, UserProfile> = either {
-        try {
-            val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId"))
-            handleResponse(response) {
-                it.body<UserProfileResponseDto>().toDomain()
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(UserError.NetworkError("Network request failed: ${e.message}"))
+    ): UserProfile = catch({
+        val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId"))
+        handleResponse(response) {
+            it.body<UserProfileResponseDto>().toDomain()
         }
+    }) {
+        raise(UserError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<UserError>)
     suspend fun updateCurrentUserProfile(
         request: UpdateProfileRequest
-    ): Either<UserError, UserProfile> = either {
-        try {
-            val response: HttpResponse = httpClient.patch(endpoint("$USERS_PATH/me")) {
-                contentType(ContentType.Application.Json)
-                setBody(request)
-            }
-            val updatedUser = handleResponse(response) { it.body<UserDto>() }
-            getUserProfile(updatedUser.id).bind()
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(UserError.NetworkError("Network request failed: ${e.message}"))
+    ): UserProfile = catch({
+        val response: HttpResponse = httpClient.patch(endpoint("$USERS_PATH/me")) {
+            contentType(ContentType.Application.Json)
+            setBody(request)
         }
+        val updatedUser = handleResponse(response) { it.body<UserDto>() }
+        getUserProfile(updatedUser.id)
+    }) {
+        raise(UserError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<UserError>)
     suspend fun uploadAvatar(
         bytes: ByteArray,
         fileName: String,
         mimeType: String
-    ): Either<UserError, String> = either {
-        try {
-            val response: HttpResponse = httpClient.submitFormWithBinaryData(
-                url = endpoint("$USERS_PATH/me/avatar"),
-                formData = formData {
-                    append("avatar", bytes, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
-                        append(HttpHeaders.ContentType, mimeType)
-                    })
-                }
-            )
-            handleResponse(response) { it.body<AvatarUploadResponseDto>().avatarUrl }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(UserError.NetworkError("Avatar upload failed: ${e.message}"))
-        }
+    ): String = catch({
+        val response: HttpResponse = httpClient.submitFormWithBinaryData(
+            url = endpoint("$USERS_PATH/me/avatar"),
+            formData = formData {
+                append("avatar", bytes, Headers.build {
+                    append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                    append(HttpHeaders.ContentType, mimeType)
+                })
+            }
+        )
+        handleResponse(response) { it.body<AvatarUploadResponseDto>().avatarUrl }
+    }) {
+        raise(UserError.NetworkError("Avatar upload failed: ${it.message}"))
     }
 
+    context(_: Raise<UserError>)
     suspend fun followUser(
         userId: Long
-    ): Either<UserError, Unit> = either {
-        try {
-            val response: HttpResponse = httpClient.post(endpoint("$USERS_PATH/$userId/follow"))
-            handleResponse(response) { }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(UserError.NetworkError("Network request failed: ${e.message}"))
-        }
+    ) = catch({
+        val response: HttpResponse = httpClient.post(endpoint("$USERS_PATH/$userId/follow"))
+        handleResponse(response) { }
+    }) {
+        raise(UserError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<UserError>)
     suspend fun unfollowUser(
         userId: Long
-    ): Either<UserError, Unit> = either {
-        try {
-            val response: HttpResponse = httpClient.delete(endpoint("$USERS_PATH/$userId/follow"))
-            handleResponse(response) { }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(UserError.NetworkError("Network request failed: ${e.message}"))
-        }
+    ) = catch({
+        val response: HttpResponse = httpClient.delete(endpoint("$USERS_PATH/$userId/follow"))
+        handleResponse(response) { }
+    }) {
+        raise(UserError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<UserError>)
     suspend fun getUserPosts(
         userId: Long,
         query: PostPageQuery
-    ): Either<UserError, PostList> = either {
-        try {
-            val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/posts")) {
-                parameter("limit", query.limit)
-                parameter("offset", query.offset)
-            }
-            handleResponse(response) { it.body() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(UserError.NetworkError("Network request failed: ${e.message}"))
+    ): PostList = catch({
+        val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/posts")) {
+            parameter("limit", query.limit)
+            parameter("offset", query.offset)
         }
+        handleResponse(response) { it.body() }
+    }) {
+        raise(UserError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<UserError>)
     suspend fun getUserReplies(
         userId: Long,
         query: PostPageQuery
-    ): Either<UserError, PostList> = either {
-        try {
-            val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/replies")) {
-                parameter("limit", query.limit)
-                parameter("offset", query.offset)
-            }
-            handleResponse(response) { it.body() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(UserError.NetworkError("Network request failed: ${e.message}"))
+    ): PostList = catch({
+        val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/replies")) {
+            parameter("limit", query.limit)
+            parameter("offset", query.offset)
         }
+        handleResponse(response) { it.body() }
+    }) {
+        raise(UserError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<UserError>)
     suspend fun getUserLikes(
         userId: Long,
         query: PostPageQuery
-    ): Either<UserError, PostList> = either {
-        try {
-            val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/likes")) {
-                parameter("limit", query.limit)
-                parameter("offset", query.offset)
-            }
-            handleResponse(response) { it.body() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(UserError.NetworkError("Network request failed: ${e.message}"))
+    ): PostList = catch({
+        val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/likes")) {
+            parameter("limit", query.limit)
+            parameter("offset", query.offset)
         }
+        handleResponse(response) { it.body() }
+    }) {
+        raise(UserError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<UserError>)
     suspend fun getUserFollowing(
         userId: Long,
         limit: Int,
         offset: Int
-    ): Either<UserError, UserList> = either {
-        try {
-            val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/following")) {
-                parameter("limit", limit)
-                parameter("offset", offset)
-            }
-            handleResponse(response) { it.body<UserListResponseDto>().toDomain() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(UserError.NetworkError("Network request failed: ${e.message}"))
+    ): UserList = catch({
+        val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/following")) {
+            parameter("limit", limit)
+            parameter("offset", offset)
         }
+        handleResponse(response) { it.body<UserListResponseDto>().toDomain() }
+    }) {
+        raise(UserError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<UserError>)
     suspend fun getUserFollowers(
         userId: Long,
         limit: Int,
         offset: Int
-    ): Either<UserError, UserList> = either {
-        try {
-            val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/followers")) {
-                parameter("limit", limit)
-                parameter("offset", offset)
-            }
-            handleResponse(response) { it.body<UserListResponseDto>().toDomain() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(UserError.NetworkError("Network request failed: ${e.message}"))
+    ): UserList = catch({
+        val response: HttpResponse = httpClient.get(endpoint("$USERS_PATH/$userId/followers")) {
+            parameter("limit", limit)
+            parameter("offset", offset)
         }
+        handleResponse(response) { it.body<UserListResponseDto>().toDomain() }
+    }) {
+        raise(UserError.NetworkError("Network request failed: ${it.message}"))
     }
 
-    private suspend fun <T> arrow.core.raise.Raise<UserError>.handleResponse(
+    context(_: Raise<UserError>)
+    private suspend fun <T> handleResponse(
         response: HttpResponse,
         onSuccess: suspend (HttpResponse) -> T
     ): T {
@@ -204,21 +185,25 @@ class UserRemoteDataSource(
             response.status.value == 401 -> raise(
                 UserError.Unauthorized("Authentication required")
             )
+
             response.status.value == 404 -> raise(
                 UserError.NotFound("User not found")
             )
+
             response.status.value in 400..499 -> raise(
                 UserError.ClientError(
                     code = response.status.value,
                     message = "Request failed: ${response.status.description}"
                 )
             )
+
             response.status.value in 500..599 -> raise(
                 UserError.ServerError(
                     code = response.status.value,
                     message = "Server error: ${response.status.description}"
                 )
             )
+
             else -> raise(
                 UserError.Unknown("Unexpected status: ${response.status.value}")
             )

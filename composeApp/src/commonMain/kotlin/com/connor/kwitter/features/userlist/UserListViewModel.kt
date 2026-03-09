@@ -13,6 +13,7 @@ import androidx.paging.cachedIn
 import androidx.paging.map
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import arrow.core.raise.fold
 import com.connor.kwitter.core.result.Result
 import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.user.model.UserError
@@ -135,18 +136,19 @@ class UserListViewModel(
 
         _userMods.update { it + (action.targetUserId to newFollowed) }
 
-        val result = if (action.isCurrentlyFollowing) {
-            userRepository.unfollowUser(action.targetUserId)
-        } else {
-            userRepository.followUser(action.targetUserId)
-        }
-
-        return result.fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                if (action.isCurrentlyFollowing) {
+                    userRepository.unfollowUser(action.targetUserId)
+                } else {
+                    userRepository.followUser(action.targetUserId)
+                }
+            },
+            recover = { error ->
                 _userMods.update { it + (action.targetUserId to action.isCurrentlyFollowing) }
                 currentState.copy(error = formatError(error))
             },
-            ifRight = { currentState }
+            transform = { currentState }
         )
     }
 

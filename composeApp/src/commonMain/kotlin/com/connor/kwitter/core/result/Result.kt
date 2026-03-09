@@ -1,10 +1,11 @@
 package com.connor.kwitter.core.result
 
-import arrow.core.Either
+import arrow.core.raise.Raise
+import arrow.core.raise.Effect
+import arrow.core.raise.effect
+import arrow.core.raise.fold
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.flow
 
 sealed interface Result<out T, out E> {
     data object Loading : Result<Nothing, Nothing>
@@ -12,39 +13,42 @@ sealed interface Result<out T, out E> {
     data class Error<E>(val error: E) : Result<Nothing, E>
 }
 
-fun <T> Flow<T>.asThrowableResult(): Flow<Result<T, Throwable>> =
-    map<T, Result<T, Throwable>> { Result.Success(it) }
-        .onStart { emit(Result.Loading) }
-        .catch { throwable -> emit(Result.Error(throwable)) }
-
-fun <E, T> Flow<Either<E, T>>.asResult(): Flow<Result<T, E>> =
-    map<Either<E, T>, Result<T, E>> { either ->
-        either.fold(
-            ifLeft = { error -> Result.Error(error) },
-            ifRight = { value -> Result.Success(value) }
-        )
-    }.onStart { emit(Result.Loading) }
-
-fun <E, T> Flow<Either<E, T>>.asResult(
-    mapThrowable: (Throwable) -> E
-): Flow<Result<T, E>> =
-    asResult().catch { throwable -> emit(Result.Error(mapThrowable(throwable))) }
-
-fun <E, UIE, T> Flow<Either<E, T>>.asResult(
+internal fun <E, UIE, T> resultFlow(
     mapError: (E) -> UIE,
-    mapThrowable: ((Throwable) -> UIE)? = null
+    block: suspend Raise<E>.() -> T
 ): Flow<Result<T, UIE>> {
-    val mappedFlow = map { either ->
-        either.fold(
-            ifLeft = { error -> Either.Left(mapError(error)) },
-            ifRight = { value -> Either.Right(value) }
+    return flow {
+        emit(Result.Loading)
+        emit(
+            runRaise(block).fold(
+                recover = { error -> Result.Error(mapError(error)) },
+                transform = { value -> Result.Success(value) }
+            )
         )
     }
-    return if (mapThrowable == null) {
-        mappedFlow.asResult()
-    } else {
-        mappedFlow.asResult(mapThrowable)
+}
+
+internal fun <E, UIE, T> resultFlow(
+    mapError: (E) -> UIE,
+    mapThrowable: (Throwable) -> UIE,
+    block:  suspend Raise<E>.() -> T
+): Flow<Result<T, UIE>> {
+    return flow {
+        emit(Result.Loading)
+        emit(
+            runRaise(block).fold(
+                catch = { throwable -> Result.Error(mapThrowable(throwable)) },
+                recover = { error -> Result.Error(mapError(error)) },
+                transform = { value -> Result.Success(value) }
+            )
+        )
     }
+}
+
+private fun <E, T> runRaise(
+    block: suspend Raise<E>.() -> T
+): Effect<E, T> {
+    return effect(block)
 }
 
 @Suppress("UNCHECKED_CAST")

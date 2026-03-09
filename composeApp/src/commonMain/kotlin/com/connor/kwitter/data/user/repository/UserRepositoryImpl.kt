@@ -3,7 +3,7 @@ package com.connor.kwitter.data.user.repository
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
-import arrow.core.Either
+import arrow.core.raise.context.Raise
 import com.connor.kwitter.core.paging.OffsetPagingSource
 import com.connor.kwitter.data.user.datasource.UserRemoteDataSource
 import com.connor.kwitter.domain.post.model.Post
@@ -23,74 +23,77 @@ class UserRepositoryImpl(
         const val PAGE_SIZE = 20
     }
 
-    override suspend fun getUserProfile(userId: Long): Either<UserError, UserProfile> {
-        return remoteDataSource.getUserProfile(userId)
-    }
+    context(_: Raise<UserError>)
+    override suspend fun getUserProfile(userId: Long): UserProfile =
+        remoteDataSource.getUserProfile(userId)
 
+    context(_: Raise<UserError>)
     override suspend fun updateCurrentUserProfile(
         request: UpdateProfileRequest
-    ): Either<UserError, UserProfile> {
-        return remoteDataSource.updateCurrentUserProfile(request)
-    }
+    ): UserProfile = remoteDataSource.updateCurrentUserProfile(request)
 
+    context(_: Raise<UserError>)
     override suspend fun uploadAvatar(
         bytes: ByteArray,
         fileName: String,
         mimeType: String
-    ): Either<UserError, String> {
-        return remoteDataSource.uploadAvatar(bytes, fileName, mimeType)
-    }
+    ): String = remoteDataSource.uploadAvatar(bytes, fileName, mimeType)
 
-    override suspend fun followUser(userId: Long): Either<UserError, Unit> {
-        return remoteDataSource.followUser(userId)
-    }
+    context(_: Raise<UserError>)
+    override suspend fun followUser(userId: Long) =
+        remoteDataSource.followUser(userId)
 
-    override suspend fun unfollowUser(userId: Long): Either<UserError, Unit> {
-        return remoteDataSource.unfollowUser(userId)
-    }
+    context(_: Raise<UserError>)
+    override suspend fun unfollowUser(userId: Long) =
+        remoteDataSource.unfollowUser(userId)
 
     override fun userPostsPaging(userId: Long): Flow<PagingData<Post>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
     ) {
-        OffsetPagingSource { limit, offset ->
-            remoteDataSource.getUserPosts(userId, PostPageQuery(limit, offset))
-                .map { it.posts to it.hasMore }
+        OffsetPagingSource<UserError, Post> { limit, offset ->
+            remoteDataSource.getUserPosts(userId, PostPageQuery(limit, offset)).let {
+                it.posts to it.hasMore
+            }
         }
     }.flow
 
     override fun userRepliesPaging(userId: Long): Flow<PagingData<Post>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
     ) {
-        OffsetPagingSource { limit, offset ->
-            remoteDataSource.getUserReplies(userId, PostPageQuery(limit, offset))
-                .map { it.posts to it.hasMore }
+        OffsetPagingSource<UserError, Post> { limit, offset ->
+            remoteDataSource.getUserReplies(userId, PostPageQuery(limit, offset)).let {
+                it.posts to it.hasMore
+            }
         }
     }.flow
 
     override fun userLikesPaging(userId: Long): Flow<PagingData<Post>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
     ) {
-        OffsetPagingSource { limit, offset ->
-            remoteDataSource.getUserLikes(userId, PostPageQuery(limit, offset))
-                .map { it.posts to it.hasMore }
+        OffsetPagingSource<UserError, Post> { limit, offset ->
+            remoteDataSource.getUserLikes(userId, PostPageQuery(limit, offset)).let {
+                it.posts to it.hasMore
+            }
         }
     }.flow
 
     override fun userFollowingPaging(userId: Long): Flow<PagingData<UserListItem>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
     ) {
-        OffsetPagingSource { limit, offset ->
-            remoteDataSource.getUserFollowing(userId, limit, offset)
-                .map { it.users to it.hasMore }
+        OffsetPagingSource<UserError, UserListItem> { limit, offset ->
+            remoteDataSource.getUserFollowing(userId, limit, offset).let {
+                it.users to it.hasMore
+            }
         }
     }.flow
 
     override fun userFollowersPaging(userId: Long): Flow<PagingData<UserListItem>> = Pager(
         config = PagingConfig(pageSize = PAGE_SIZE, enablePlaceholders = false)
     ) {
-        OffsetPagingSource { limit, offset ->
-            remoteDataSource.getUserFollowers(userId, limit, offset)
-                .map { it.users to it.hasMore }
+        OffsetPagingSource<UserError, UserListItem> { limit, offset ->
+            remoteDataSource.getUserFollowers(userId, limit, offset).let {
+                it.users to it.hasMore
+            }
         }
     }.flow
 }

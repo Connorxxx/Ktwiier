@@ -13,6 +13,7 @@ import androidx.paging.cachedIn
 import androidx.paging.map
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import arrow.core.raise.fold
 import com.connor.kwitter.core.result.Result
 import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.post.model.Post
@@ -185,15 +186,15 @@ class UserProfileViewModel(
             currentUserId = currentUserId
         )
 
-        val profileResult = userRepository.getUserProfile(userId)
-        return profileResult.fold(
-            ifLeft = { error ->
+        return fold(
+            block = { userRepository.getUserProfile(userId) },
+            recover = { error ->
                 loadingState.copy(
                     isLoadingProfile = false,
                     error = formatError(error)
                 )
             },
-            ifRight = { profile ->
+            transform = { profile ->
                 loadingState.copy(
                     isLoadingProfile = false,
                     profile = profile,
@@ -224,21 +225,22 @@ class UserProfileViewModel(
             isFollowLoading = true
         )
 
-        val result = if (isCurrentlyFollowing) {
-            userRepository.unfollowUser(profile.id)
-        } else {
-            userRepository.followUser(profile.id)
-        }
-
-        return result.fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                if (isCurrentlyFollowing) {
+                    userRepository.unfollowUser(profile.id)
+                } else {
+                    userRepository.followUser(profile.id)
+                }
+            },
+            recover = { error ->
                 optimisticState.copy(
                     profile = profile,
                     isFollowLoading = false,
                     error = formatError(error)
                 )
             },
-            ifRight = {
+            transform = {
                 optimisticState.copy(isFollowLoading = false)
             }
         )
@@ -263,14 +265,15 @@ class UserProfileViewModel(
             ))
         }
 
-        val result = if (action.isCurrentlyLiked) {
-            postRepository.unlikePost(action.postId)
-        } else {
-            postRepository.likePost(action.postId)
-        }
-
-        return result.fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                if (action.isCurrentlyLiked) {
+                    postRepository.unlikePost(action.postId)
+                } else {
+                    postRepository.likePost(action.postId)
+                }
+            },
+            recover = { error ->
                 _postMods.update { mods ->
                     val existing = mods[action.postId] ?: PostModification()
                     mods + (action.postId to existing.copy(
@@ -280,7 +283,7 @@ class UserProfileViewModel(
                 }
                 currentState.copy(error = formatPostError(error))
             },
-            ifRight = { updatedStats ->
+            transform = { updatedStats ->
                 _postMods.update { mods ->
                     val existing = mods[action.postId] ?: PostModification()
                     mods + (action.postId to existing.copy(
@@ -304,14 +307,15 @@ class UserProfileViewModel(
             mods + (action.postId to existing.copy(isBookmarkedByCurrentUser = newBookmarked))
         }
 
-        val result = if (action.isCurrentlyBookmarked) {
-            postRepository.unbookmarkPost(action.postId)
-        } else {
-            postRepository.bookmarkPost(action.postId)
-        }
-
-        return result.fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                if (action.isCurrentlyBookmarked) {
+                    postRepository.unbookmarkPost(action.postId)
+                } else {
+                    postRepository.bookmarkPost(action.postId)
+                }
+            },
+            recover = { error ->
                 _postMods.update { mods ->
                     val existing = mods[action.postId] ?: PostModification()
                     mods + (action.postId to existing.copy(
@@ -320,7 +324,7 @@ class UserProfileViewModel(
                 }
                 currentState.copy(error = formatPostError(error))
             },
-            ifRight = { currentState }
+            transform = { currentState }
         )
     }
 

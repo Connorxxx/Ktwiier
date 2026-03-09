@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import arrow.core.raise.fold
 import com.connor.kwitter.core.media.SelectedMedia
 import com.connor.kwitter.core.media.readBytes
 import com.connor.kwitter.core.result.Result
@@ -102,20 +103,23 @@ class EditProfileViewModel(
                             isUploadingAvatar = true
                         )
                         launch {
-                            userRepository.uploadAvatar(
-                                bytes = action.croppedBytes,
-                                fileName = "avatar.jpg",
-                                mimeType = "image/jpeg"
-                            ).fold(
-                                ifLeft = { error ->
-                                    state = state.copy(
+                            state = fold(
+                                block = {
+                                    userRepository.uploadAvatar(
+                                        bytes = action.croppedBytes,
+                                        fileName = "avatar.jpg",
+                                        mimeType = "image/jpeg"
+                                    )
+                                },
+                                recover = { error ->
+                                    state.copy(
                                         isUploadingAvatar = false,
                                         croppedAvatarBytes = null,
                                         error = formatError(error)
                                     )
                                 },
-                                ifRight = { avatarUrl ->
-                                    state = state.copy(
+                                transform = { avatarUrl ->
+                                    state.copy(
                                         isUploadingAvatar = false,
                                         avatarUrl = avatarUrl
                                     )
@@ -142,14 +146,15 @@ class EditProfileViewModel(
     ): EditProfileUiState {
         val loadingState = currentState.copy(isLoading = true, error = null)
 
-        return userRepository.getUserProfile(userId).fold(
-            ifLeft = { error ->
+        return fold(
+            block = { userRepository.getUserProfile(userId) },
+            recover = { error ->
                 loadingState.copy(
                     isLoading = false,
                     error = formatError(error)
                 )
             },
-            ifRight = { profile ->
+            transform = { profile ->
                 loadingState.copy(
                     isLoading = false,
                     displayName = profile.displayName,
@@ -177,20 +182,23 @@ class EditProfileViewModel(
 
         val savingState = currentState.copy(isSaving = true, error = null)
 
-        return userRepository.updateCurrentUserProfile(
-            UpdateProfileRequest(
-                username = username,
-                displayName = displayName,
-                bio = bio
-            )
-        ).fold(
-            ifLeft = { error ->
+        return fold(
+            block = {
+                userRepository.updateCurrentUserProfile(
+                    UpdateProfileRequest(
+                        username = username,
+                        displayName = displayName,
+                        bio = bio
+                    )
+                )
+            },
+            recover = { error ->
                 savingState.copy(
                     isSaving = false,
                     error = formatError(error)
                 )
             },
-            ifRight = {
+            transform = {
                 savingState.copy(isSaving = false, isSuccess = true)
             }
         )

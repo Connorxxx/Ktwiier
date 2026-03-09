@@ -11,7 +11,7 @@ import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import com.connor.kwitter.core.result.Result
-import com.connor.kwitter.core.result.asResult
+import com.connor.kwitter.core.result.resultFlow
 import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.repository.AuthRepository
@@ -19,7 +19,6 @@ import com.connor.kwitter.features.auth.AuthUiError
 import com.connor.kwitter.features.auth.toAuthUiError
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 data class LoginUiState(
@@ -73,14 +72,14 @@ class LoginViewModel(
                     is LoginAction.EmailChanged -> state.copy(email = action.email)
                     is LoginAction.PasswordChanged -> state.copy(password = action.password)
                     is LoginAction.LoginClicked -> {
-                        flow {
-                            emit(
+                        resultFlow(
+                            mapError = ::formatError
+                        ) {
                                 authRepository.login(
                                     email = state.email,
                                     password = state.password
                                 )
-                            )
-                        }.asResult(::formatError).collect { result ->
+                        }.collect { result ->
                             state = when (result) {
                                 Result.Loading -> state.copy(isLoading = true, error = null)
                                 is Result.Success -> state.copy(

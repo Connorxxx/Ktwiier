@@ -11,7 +11,7 @@ import androidx.lifecycle.viewModelScope
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import com.connor.kwitter.core.result.Result
-import com.connor.kwitter.core.result.asResult
+import com.connor.kwitter.core.result.resultFlow
 import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.repository.AuthRepository
@@ -19,7 +19,6 @@ import com.connor.kwitter.features.auth.AuthUiError
 import com.connor.kwitter.features.auth.toAuthUiError
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 sealed interface SettingsInfoMessage {
@@ -91,9 +90,11 @@ class SettingsViewModel(
                         if (state.isLoggingOut) {
                             state
                         } else {
-                            flow {
-                                emit(authRepository.logout())
-                            }.asResult(::formatAuthError).collect { result ->
+                            resultFlow(
+                                mapError = ::formatAuthError
+                            ) {
+                                authRepository.logout()
+                            }.collect { result ->
                                 state = when (result) {
                                     Result.Loading -> state.copy(
                                         isLoggingOut = true,

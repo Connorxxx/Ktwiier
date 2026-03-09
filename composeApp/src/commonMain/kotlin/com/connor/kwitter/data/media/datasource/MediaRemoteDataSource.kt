@@ -1,7 +1,8 @@
 package com.connor.kwitter.data.media.datasource
 
-import arrow.core.Either
-import arrow.core.raise.either
+import arrow.core.raise.context.Raise
+import arrow.core.raise.context.raise
+import arrow.core.raise.catch
 import com.connor.kwitter.domain.media.model.MediaError
 import com.connor.kwitter.domain.media.model.MediaUploadResult
 import io.ktor.client.HttpClient
@@ -12,7 +13,6 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
-import kotlinx.coroutines.CancellationException
 
 class MediaRemoteDataSource(
     private val httpClient: HttpClient,
@@ -22,29 +22,28 @@ class MediaRemoteDataSource(
         const val MEDIA_UPLOAD_PATH = "/v1/media/upload"
     }
 
+    context(_: Raise<MediaError>)
     suspend fun uploadMedia(
         bytes: ByteArray,
         fileName: String,
         mimeType: String
-    ): Either<MediaError, MediaUploadResult> = either {
-        try {
-            val response: HttpResponse = httpClient.submitFormWithBinaryData(
-                url = endpoint(MEDIA_UPLOAD_PATH),
-                formData = formData {
-                    append("file", bytes, Headers.build {
-                        append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
-                        append(HttpHeaders.ContentType, mimeType)
-                    })
-                }
-            )
-            handleResponse(response) { it.body() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(MediaError.NetworkError("Media upload failed: ${e.message}"))
-        }
+    ): MediaUploadResult = catch({
+        val response: HttpResponse = httpClient.submitFormWithBinaryData(
+            url = endpoint(MEDIA_UPLOAD_PATH),
+            formData = formData {
+                append("file", bytes, Headers.build {
+                    append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                    append(HttpHeaders.ContentType, mimeType)
+                })
+            }
+        )
+        handleResponse(response) { it.body() }
+    }) {
+        raise(MediaError.NetworkError("Media upload failed: ${it.message}"))
     }
 
-    private suspend fun <T> arrow.core.raise.Raise<MediaError>.handleResponse(
+    context(_: Raise<MediaError>)
+    private suspend fun <T> handleResponse(
         response: HttpResponse,
         onSuccess: suspend (HttpResponse) -> T
     ): T {

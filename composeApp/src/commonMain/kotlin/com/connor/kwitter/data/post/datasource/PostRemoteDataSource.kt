@@ -1,7 +1,8 @@
 package com.connor.kwitter.data.post.datasource
 
-import arrow.core.Either
-import arrow.core.raise.either
+import arrow.core.raise.context.Raise
+import arrow.core.raise.context.raise
+import arrow.core.raise.catch
 import com.connor.kwitter.domain.post.model.CreatePostRequest
 import com.connor.kwitter.domain.post.model.LikeResponse
 import com.connor.kwitter.domain.post.model.Post
@@ -20,7 +21,6 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import kotlinx.coroutines.CancellationException
 
 class PostRemoteDataSource(
     private val httpClient: HttpClient,
@@ -31,119 +31,102 @@ class PostRemoteDataSource(
         const val POSTS_PATH = "/v1/posts"
     }
 
+    context(_: Raise<PostError>)
     suspend fun getTimeline(
         query: PostPageQuery
-    ): Either<PostError, PostList> = either {
-        try {
-            val response: HttpResponse = httpClient.get(endpoint(TIMELINE_PATH)) {
-                parameter("limit", query.limit)
-                if (query.beforeId != null) parameter("beforeId", query.beforeId) else parameter("offset", query.offset)
-            }
-            handleResponse(response) { it.body() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(PostError.NetworkError("Network request failed: ${e.message}"))
+    ): PostList = catch({
+        val response: HttpResponse = httpClient.get(endpoint(TIMELINE_PATH)) {
+            parameter("limit", query.limit)
+            if (query.beforeId != null) parameter("beforeId", query.beforeId) else parameter("offset", query.offset)
         }
+        handleResponse(response) { it.body() }
+    }) {
+        raise(PostError.NetworkError("Network request failed: ${it.message}"))
     }
 
-    suspend fun getPost(postId: Long): Either<PostError, Post> = either {
-        try {
-            val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId"))
-            handleResponse(response) { it.body() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(PostError.NetworkError("Network request failed: ${e.message}"))
-        }
+    context(_: Raise<PostError>)
+    suspend fun getPost(postId: Long): Post = catch({
+        val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId"))
+        handleResponse(response) { it.body() }
+    }) {
+        raise(PostError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<PostError>)
     suspend fun getReplies(
         postId: Long,
         query: PostPageQuery
-    ): Either<PostError, PostList> = either {
-        try {
-            val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId/replies")) {
-                parameter("limit", query.limit)
-                if (query.beforeId != null) parameter("afterId", query.beforeId) else parameter("offset", query.offset)
-            }
-            handleResponse(response) { it.body() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(PostError.NetworkError("Network request failed: ${e.message}"))
+    ): PostList = catch({
+        val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/$postId/replies")) {
+            parameter("limit", query.limit)
+            if (query.beforeId != null) parameter("afterId", query.beforeId) else parameter("offset", query.offset)
         }
+        handleResponse(response) { it.body() }
+    }) {
+        raise(PostError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<PostError>)
     suspend fun getUserPosts(
         userId: Long,
         query: PostPageQuery
-    ): Either<PostError, PostList> = either {
-        try {
-            val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/users/$userId")) {
-                parameter("limit", query.limit)
-                if (query.beforeId != null) parameter("beforeId", query.beforeId) else parameter("offset", query.offset)
-            }
-            handleResponse(response) { it.body() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(PostError.NetworkError("Network request failed: ${e.message}"))
+    ): PostList = catch({
+        val response: HttpResponse = httpClient.get(endpoint("$POSTS_PATH/users/$userId")) {
+            parameter("limit", query.limit)
+            if (query.beforeId != null) parameter("beforeId", query.beforeId) else parameter("offset", query.offset)
         }
+        handleResponse(response) { it.body() }
+    }) {
+        raise(PostError.NetworkError("Network request failed: ${it.message}"))
     }
 
+    context(_: Raise<PostError>)
     suspend fun createPost(
         request: CreatePostRequest
-    ): Either<PostError, Post> = either {
-        try {
-            val response: HttpResponse = httpClient.post(endpoint(POSTS_PATH)) {
-                contentType(ContentType.Application.Json)
-                setBody(request)
-            }
-            handleResponse(response) { it.body() }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(PostError.NetworkError("Network request failed: ${e.message}"))
+    ): Post = catch({
+        val response: HttpResponse = httpClient.post(endpoint(POSTS_PATH)) {
+            contentType(ContentType.Application.Json)
+            setBody(request)
         }
+        handleResponse(response) { it.body() }
+    }) {
+        raise(PostError.NetworkError("Network request failed: ${it.message}"))
     }
 
-    suspend fun likePost(postId: Long): Either<PostError, PostStats> = either {
-        try {
-            val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/like"))
-            handleResponse<LikeResponse>(response) { it.body() }.stats
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(PostError.NetworkError("Network request failed: ${e.message}"))
-        }
+    context(_: Raise<PostError>)
+    suspend fun likePost(postId: Long): PostStats = catch({
+        val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/like"))
+        handleResponse<LikeResponse>(response) { it.body() }.stats
+    }) {
+        raise(PostError.NetworkError("Network request failed: ${it.message}"))
     }
 
-    suspend fun unlikePost(postId: Long): Either<PostError, PostStats> = either {
-        try {
-            val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/like"))
-            handleResponse<LikeResponse>(response) { it.body() }.stats
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(PostError.NetworkError("Network request failed: ${e.message}"))
-        }
+    context(_: Raise<PostError>)
+    suspend fun unlikePost(postId: Long): PostStats = catch({
+        val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/like"))
+        handleResponse<LikeResponse>(response) { it.body() }.stats
+    }) {
+        raise(PostError.NetworkError("Network request failed: ${it.message}"))
     }
 
-    suspend fun bookmarkPost(postId: Long): Either<PostError, Unit> = either {
-        try {
-            val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/bookmark"))
-            handleResponse(response) { }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(PostError.NetworkError("Network request failed: ${e.message}"))
-        }
+    context(_: Raise<PostError>)
+    suspend fun bookmarkPost(postId: Long) = catch({
+        val response: HttpResponse = httpClient.post(endpoint("$POSTS_PATH/$postId/bookmark"))
+        handleResponse(response) { }
+    }) {
+        raise(PostError.NetworkError("Network request failed: ${it.message}"))
     }
 
-    suspend fun unbookmarkPost(postId: Long): Either<PostError, Unit> = either {
-        try {
-            val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/bookmark"))
-            handleResponse(response) { }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            raise(PostError.NetworkError("Network request failed: ${e.message}"))
-        }
+    context(_: Raise<PostError>)
+    suspend fun unbookmarkPost(postId: Long) = catch({
+        val response: HttpResponse = httpClient.delete(endpoint("$POSTS_PATH/$postId/bookmark"))
+        handleResponse(response) { }
+    }) {
+        raise(PostError.NetworkError("Network request failed: ${it.message}"))
     }
 
-    private suspend fun <T> arrow.core.raise.Raise<PostError>.handleResponse(
+    context(_: Raise<PostError>)
+    private suspend fun <T> handleResponse(
         response: HttpResponse,
         onSuccess: suspend (HttpResponse) -> T
     ): T {

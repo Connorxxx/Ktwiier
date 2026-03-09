@@ -2,10 +2,12 @@ package com.connor.kwitter.core.paging
 
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
-import arrow.core.Either
+import arrow.core.raise.context.Raise
+import arrow.core.raise.fold
 
-internal class OffsetPagingSource<V : Any>(
-    private val loader: suspend (limit: Int, offset: Int) -> Either<Any?, Pair<List<V>, Boolean>>
+internal class OffsetPagingSource<E, V : Any>(
+    private val loader: context(Raise<E>) suspend (limit: Int, offset: Int) -> Pair<List<V>, Boolean>,
+    private val mapError: (E) -> Throwable = { Exception(it.toString()) }
 ) : PagingSource<Int, V>() {
 
     override fun getRefreshKey(state: PagingState<Int, V>): Int? =
@@ -18,9 +20,11 @@ internal class OffsetPagingSource<V : Any>(
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, V> {
         val offset = params.key ?: 0
-        return loader(params.loadSize, offset).fold(
-            ifLeft = { LoadResult.Error(Exception(it.toString())) },
-            ifRight = { (items, hasMore) ->
+        return fold(
+            block = { loader(params.loadSize, offset) },
+            catch = { LoadResult.Error(it) },
+            recover = { error -> LoadResult.Error(mapError(error)) },
+            transform = { (items, hasMore) ->
                 LoadResult.Page(
                     data = items,
                     prevKey = if (offset == 0) null else offset - params.loadSize,

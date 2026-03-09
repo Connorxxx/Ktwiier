@@ -5,9 +5,10 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
-import arrow.core.Either
-import arrow.core.left
-import arrow.core.right
+import arrow.core.raise.context.Raise
+import arrow.core.raise.context.raise
+import arrow.core.raise.catch
+import arrow.core.raise.fold
 import com.connor.kwitter.data.messaging.datasource.ConversationRemoteMediator
 import com.connor.kwitter.data.messaging.datasource.MessageRemoteMediator
 import com.connor.kwitter.data.messaging.datasource.MessagingRemoteDataSource
@@ -95,14 +96,16 @@ class MessagingRepositoryImpl(
 
         var offset = 0
         while (true) {
-            val result = remoteDataSource.getConversations(
-                limit = CONVERSATION_RESOLVE_PAGE_SIZE,
-                offset = offset
-            )
-            val conversationList = result.fold(
-                ifLeft = { return null },
-                ifRight = { it }
-            )
+            val conversationList = fold(
+                block = {
+                    remoteDataSource.getConversations(
+                        limit = CONVERSATION_RESOLVE_PAGE_SIZE,
+                        offset = offset
+                    )
+                },
+                recover = { null },
+                transform = { it }
+            ) ?: return null
 
             conversationList.conversations
                 .firstOrNull { it.otherUser.id == otherUserId }
@@ -117,77 +120,55 @@ class MessagingRepositoryImpl(
         }
     }
 
+    context(_: Raise<MessagingError>)
     override suspend fun sendMessage(
         recipientId: Long,
         content: String,
         imageUrl: String?,
         replyToMessageId: Long?
-    ): Either<MessagingError, Message> {
-        val result = remoteDataSource.sendMessage(recipientId, content, imageUrl, replyToMessageId)
-        result.fold(
-            ifLeft = {},
-            ifRight = { message ->
-                enqueueSyncEvent(MessagingSyncEvent.LocalMessageSent(message))
-            }
+    ): Message {
+        val message = remoteDataSource.sendMessage(
+            recipientId = recipientId,
+            content = content,
+            imageUrl = imageUrl,
+            replyToMessageId = replyToMessageId
         )
-        return result
+        enqueueSyncEvent(MessagingSyncEvent.LocalMessageSent(message))
+        return message
     }
 
+    context(_: Raise<MessagingError>)
     override suspend fun deleteMessage(
         messageId: Long
-    ): Either<MessagingError, Unit> {
-        val result = remoteDataSource.deleteMessage(messageId)
-        result.fold(
-            ifLeft = {},
-            ifRight = {
-                val now = Clock.System.now().toEpochMilliseconds()
-                enqueueSyncEvent(
-                    MessagingSyncEvent.LocalMessageDeleted(
-                        messageId = messageId,
-                        deletedAt = now
-                    )
-                )
-            }
+    ) {
+        remoteDataSource.deleteMessage(messageId)
+        val now = Clock.System.now().toEpochMilliseconds()
+        enqueueSyncEvent(
+            MessagingSyncEvent.LocalMessageDeleted(
+                messageId = messageId,
+                deletedAt = now
+            )
         )
-        return result
     }
 
+    context(_: Raise<MessagingError>)
     override suspend fun recallMessage(
         messageId: Long
-    ): Either<MessagingError, Unit> {
-        val result = remoteDataSource.recallMessage(messageId)
-        result.fold(
-            ifLeft = {},
-            ifRight = {
-                val now = Clock.System.now().toEpochMilliseconds()
-                enqueueSyncEvent(
-                    MessagingSyncEvent.LocalMessageRecalled(
-                        messageId = messageId,
-                        recalledAt = now
-                    )
-                )
-            }
+    ) {
+        remoteDataSource.recallMessage(messageId)
+        val now = Clock.System.now().toEpochMilliseconds()
+        enqueueSyncEvent(
+            MessagingSyncEvent.LocalMessageRecalled(
+                messageId = messageId,
+                recalledAt = now
+            )
         )
-        return result
     }
 
+    context(_: Raise<MessagingError>)
     override suspend fun markAsRead(
         conversationId: Long
-    ): Either<MessagingError, Unit> {
-        val result = remoteDataSource.markAsRead(conversationId)
-        return result.fold(
-            ifLeft = { error -> error.left() },
-            ifRight = { readAt ->
-                enqueueSyncEvent(
-                    MessagingSyncEvent.LocalConversationReadConfirmed(
-                        conversationId = conversationId,
-                        readAt = readAt
-                    )
-                )
-                Unit.right()
-            }
-        )
-    }
+    ) = confirmConversationRead(conversationId)
 
     override fun setActiveConversation(conversationId: Long?) {
         dispatchSyncEvent(MessagingSyncEvent.ActiveConversationChanged(conversationId))
@@ -207,10 +188,11 @@ class MessagingRepositoryImpl(
         repositoryScope.launch { notificationService.sendTyping(conversationId, isTyping = false) }
     }
 
+    context(_: Raise<MessagingError>)
     override suspend fun searchMessages(
         conversationId: Long,
         query: String
-    ): Either<MessagingError, List<MessageSearchItem>> = Either.catch {
+    ): List<MessageSearchItem> = catch({
         if (query.length >= FTS5_TRIGRAM_MIN_LENGTH) {
             val escaped = query.replace("\"", "\"\"")
             messageDao.searchMessages(
@@ -227,8 +209,8 @@ class MessagingRepositoryImpl(
                 }
             }
         }
-    }.mapLeft { throwable ->
-        MessagingError.Unknown(throwable.message ?: "Search failed")
+    }) {
+        raise(MessagingError.Unknown(it.message ?: "Search failed"))
     }
 
     private fun highlightSubstring(content: String, query: String): String {
@@ -350,19 +332,26 @@ class MessagingRepositoryImpl(
 
     private fun requestMarkConversationAsRead(conversationId: Long) {
         repositoryScope.launch {
-            val result = remoteDataSource.markAsRead(conversationId)
-            result.fold(
-                ifLeft = {},
-                ifRight = { readAt ->
-                    enqueueSyncEvent(
-                        MessagingSyncEvent.LocalConversationReadConfirmed(
-                            conversationId = conversationId,
-                            readAt = readAt
-                        )
-                    )
-                }
+            fold(
+                block = { confirmConversationRead(conversationId) },
+                catch = { throw it },
+                recover = {},
+                transform = {}
             )
         }
+    }
+
+    context(_: Raise<MessagingError>)
+    private suspend fun confirmConversationRead(
+        conversationId: Long
+    ) {
+        val readAt = remoteDataSource.markAsRead(conversationId)
+        enqueueSyncEvent(
+            MessagingSyncEvent.LocalConversationReadConfirmed(
+                conversationId = conversationId,
+                readAt = readAt
+            )
+        )
     }
 
     private suspend fun enqueueSyncEvent(event: MessagingSyncEvent) {
@@ -377,5 +366,3 @@ class MessagingRepositoryImpl(
         }
     }
 }
-
-

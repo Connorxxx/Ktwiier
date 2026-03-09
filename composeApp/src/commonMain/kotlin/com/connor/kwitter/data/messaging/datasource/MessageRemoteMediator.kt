@@ -4,10 +4,10 @@ import androidx.paging.ExperimentalPagingApi
 import androidx.paging.LoadType
 import androidx.paging.PagingState
 import androidx.paging.RemoteMediator
+import arrow.core.raise.fold
 import com.connor.kwitter.data.messaging.local.MessageDao
 import com.connor.kwitter.data.messaging.local.MessageEntity
 import com.connor.kwitter.data.messaging.local.toEntity
-import kotlinx.coroutines.CancellationException
 
 private const val PAGE_SIZE = 50
 
@@ -38,48 +38,43 @@ class MessageRemoteMediator(
             }
         }
 
-        return try {
-            val result = remoteDataSource.getMessages(
-                conversationId = conversationId,
-                limit = PAGE_SIZE,
-                beforeId = cursor
-            )
-
-            result.fold(
-                ifLeft = { error ->
-                    MediatorResult.Error(Exception(error.toString()))
-                },
-                ifRight = { messageList ->
-                    val entities = messageList.messages.map { message ->
-                        message.toEntity()
-                    }
-
-                    val endReached = messageList.messages.isEmpty() || !messageList.hasMore
-                    val nextCursor = if (endReached) null else messageList.nextCursor
-
-                    when (loadType) {
-                        LoadType.REFRESH -> messageDao.replaceMessages(
-                            conversationId = conversationId,
-                            label = label,
-                            messages = entities,
-                            nextCursor = nextCursor
-                        )
-                        LoadType.APPEND -> messageDao.appendMessages(
-                            label = label,
-                            messages = entities,
-                            nextCursor = nextCursor
-                        )
-                        LoadType.PREPEND -> Unit
-                    }
-
-                    MediatorResult.Success(endOfPaginationReached = endReached)
+        return fold(
+            block = {
+                remoteDataSource.getMessages(
+                    conversationId = conversationId,
+                    limit = PAGE_SIZE,
+                    beforeId = cursor
+                )
+            },
+            catch = { MediatorResult.Error(it) },
+            recover = { error ->
+                MediatorResult.Error(Exception(error.toString()))
+            },
+            transform = { messageList ->
+                val entities = messageList.messages.map { message ->
+                    message.toEntity()
                 }
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            MediatorResult.Error(e)
-        }
+
+                val endReached = messageList.messages.isEmpty() || !messageList.hasMore
+                val nextCursor = if (endReached) null else messageList.nextCursor
+
+                when (loadType) {
+                    LoadType.REFRESH -> messageDao.replaceMessages(
+                        conversationId = conversationId,
+                        label = label,
+                        messages = entities,
+                        nextCursor = nextCursor
+                    )
+                    LoadType.APPEND -> messageDao.appendMessages(
+                        label = label,
+                        messages = entities,
+                        nextCursor = nextCursor
+                    )
+                    LoadType.PREPEND -> Unit
+                }
+
+                MediatorResult.Success(endOfPaginationReached = endReached)
+            }
+        )
     }
 }
-

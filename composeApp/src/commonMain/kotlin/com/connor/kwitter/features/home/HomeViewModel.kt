@@ -14,6 +14,7 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
+import arrow.core.raise.fold
 import com.connor.kwitter.core.result.Result
 import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.auth.repository.AuthRepository
@@ -101,13 +102,10 @@ class HomeViewModel(
                 return@LaunchedEffect
             }
 
-            userRepository.getUserProfile(userId).fold(
-                ifLeft = {
-                    state = state.copy(currentUserAvatarUrl = null)
-                },
-                ifRight = { profile ->
-                    state = state.copy(currentUserAvatarUrl = profile.avatarUrl)
-                }
+            state = fold(
+                block = { userRepository.getUserProfile(userId) },
+                recover = { state.copy(currentUserAvatarUrl = null) },
+                transform = { profile -> state.copy(currentUserAvatarUrl = profile.avatarUrl) }
             )
         }
 
@@ -141,13 +139,15 @@ class HomeViewModel(
                         }
                         postRepository.updateLocalLikeState(action.postId, newLiked, newCount)
 
-                        val result = if (action.isCurrentlyLiked) {
-                            postRepository.unlikePost(action.postId)
-                        } else {
-                            postRepository.likePost(action.postId)
-                        }
-                        result.fold(
-                            ifLeft = { error ->
+                        fold(
+                            block = {
+                                if (action.isCurrentlyLiked) {
+                                    postRepository.unlikePost(action.postId)
+                                } else {
+                                    postRepository.likePost(action.postId)
+                                }
+                            },
+                            recover = { error ->
                                 postRepository.updateLocalLikeState(
                                     action.postId,
                                     action.isCurrentlyLiked,
@@ -155,7 +155,7 @@ class HomeViewModel(
                                 )
                                 state.copy(error = formatError(error))
                             },
-                            ifRight = { updatedStats ->
+                            transform = { updatedStats ->
                                 postRepository.updateLocalLikeState(
                                     action.postId,
                                     newLiked,
@@ -169,20 +169,22 @@ class HomeViewModel(
                         val newBookmarked = !action.isCurrentlyBookmarked
                         postRepository.updateLocalBookmarkState(action.postId, newBookmarked)
 
-                        val result = if (action.isCurrentlyBookmarked) {
-                            postRepository.unbookmarkPost(action.postId)
-                        } else {
-                            postRepository.bookmarkPost(action.postId)
-                        }
-                        result.fold(
-                            ifLeft = { error ->
+                        fold(
+                            block = {
+                                if (action.isCurrentlyBookmarked) {
+                                    postRepository.unbookmarkPost(action.postId)
+                                } else {
+                                    postRepository.bookmarkPost(action.postId)
+                                }
+                            },
+                            recover = { error ->
                                 postRepository.updateLocalBookmarkState(
                                     action.postId,
                                     action.isCurrentlyBookmarked
                                 )
                                 state.copy(error = formatError(error))
                             },
-                            ifRight = { state }
+                            transform = { state }
                         )
                     }
                 }
@@ -204,5 +206,3 @@ class HomeViewModel(
         is PostError.Unknown -> "Unknown error: ${error.message}"
     }
 }
-
-
