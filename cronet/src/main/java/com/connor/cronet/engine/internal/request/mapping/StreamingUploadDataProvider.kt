@@ -279,6 +279,24 @@ internal class StreamingUploadDataProvider private constructor(
                         onClose = { cause -> channel.cancel(cause) },
                     )
                 },
+                rewindMode = RewindMode.Unsupported(
+                    "ReadChannelContent is not guaranteed replayable by default",
+                ),
+            )
+        }
+
+        fun fromReplayableReadChannelContent(
+            content: OutgoingContent.ReadChannelContent,
+        ): StreamingUploadDataProvider {
+            return StreamingUploadDataProvider(
+                uploadLength = content.contentLength,
+                sourceFactory = UploadSourceFactory {
+                    val channel = content.readFrom()
+                    UploadSource(
+                        channel = channel,
+                        onClose = { cause -> channel.cancel(cause) },
+                    )
+                },
                 rewindMode = RewindMode.ReopenSource,
             )
         }
@@ -314,7 +332,9 @@ internal class StreamingUploadDataProvider private constructor(
                         },
                     )
                 },
-                rewindMode = RewindMode.ReopenSource,
+                rewindMode = RewindMode.Unsupported(
+                    "WriteChannelContent is not guaranteed replayable",
+                ),
             )
         }
 

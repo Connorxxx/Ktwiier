@@ -5,6 +5,7 @@ import com.connor.cronet.engine.internal.fault.CronetFaultInjector
 import com.connor.cronet.engine.internal.fault.CronetInvariantRecorder
 import com.connor.cronet.engine.internal.lifecycle.ActiveRequestHandle
 import com.connor.cronet.engine.internal.lifecycle.EngineLifecycle
+import com.connor.cronet.engine.internal.lifecycle.EngineState
 import com.connor.cronet.engine.internal.request.CronetRequestLifecycleHandle
 import com.connor.cronet.engine.internal.request.CronetRequestExecutor
 import com.connor.cronet.engine.internal.request.DefaultCronetRequestExecutor
@@ -14,7 +15,6 @@ import io.ktor.client.engine.ClientEngineClosedException
 import io.ktor.client.engine.HttpClientEngineBase
 import io.ktor.client.engine.HttpClientEngineCapability
 import io.ktor.client.engine.callContext
-import io.ktor.client.plugins.HttpTimeoutCapability
 import io.ktor.client.plugins.sse.SSECapability
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
@@ -37,7 +37,6 @@ internal class CronetClientEngine(
      * Keep capabilities conservative until each capability is fully implemented and verified.
      */
     override val supportedCapabilities: Set<HttpClientEngineCapability<*>> = setOf(
-        HttpTimeoutCapability,
         SSECapability,
     )
 
@@ -82,7 +81,7 @@ internal class CronetClientEngine(
 
         val lifecycleHandle = EngineRequestLifecycleHandle(
             requestHandle = requestHandle,
-            onTerminal = {
+            onTransportTerminal = {
                 lifecycle.unregisterActiveRequest(requestId)
                 recordInvariant {
                     invariantRecorder.onRequestUnregistered(
@@ -100,7 +99,7 @@ internal class CronetClientEngine(
                 lifecycleHandle = lifecycleHandle,
             )
         }.getOrElse { cause ->
-            lifecycleHandle.markTerminal()
+            lifecycleHandle.markTransportTerminal()
             throw cause
         }
     }
@@ -139,6 +138,8 @@ internal class CronetClientEngine(
                             "[active_requests=${lifecycle.currentActiveRequestCount}]",
                     ),
                 )
+                lifecycle.markCloseFailed(activeRequests = lifecycle.currentActiveRequestCount)
+                return
             }
 
             runCatching { requestExecutor.close() }
@@ -148,7 +149,9 @@ internal class CronetClientEngine(
             runCatching { callbackExecutor.shutdown() }
                 .onFailure(::reportEngineShutdownFailure)
         } finally {
-            lifecycle.markClosed()
+            if (lifecycle.currentState is EngineState.Closing) {
+                lifecycle.markClosed()
+            }
         }
     }
 
@@ -206,19 +209,26 @@ internal class CronetClientEngine(
 
     private class EngineRequestLifecycleHandle(
         private val requestHandle: EngineActiveRequestHandle,
-        private val onTerminal: () -> Unit,
+        private val onTransportTerminal: () -> Unit,
     ) : CronetRequestLifecycleHandle {
-        private val terminalMarked = AtomicBoolean(false)
+        private val transportTerminalMarked = AtomicBoolean(false)
+        private val deliveryCompleteMarked = AtomicBoolean(false)
 
         override fun bindTransportCanceler(canceler: (Throwable?) -> Unit) {
             requestHandle.bindTransportCanceler(canceler)
         }
 
-        override fun markTerminal() {
-            if (!terminalMarked.compareAndSet(false, true)) {
+        override fun markTransportTerminal() {
+            if (!transportTerminalMarked.compareAndSet(false, true)) {
                 return
             }
-            onTerminal()
+            onTransportTerminal()
+        }
+
+        override fun markDeliveryComplete() {
+            if (!deliveryCompleteMarked.compareAndSet(false, true)) {
+                return
+            }
         }
     }
 }

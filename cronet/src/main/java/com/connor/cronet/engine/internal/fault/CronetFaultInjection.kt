@@ -11,8 +11,10 @@ internal interface CronetFaultInjector {
 
 internal enum class CronetRequestPhase {
     BeforeStart,
+    StartDroppedPreCanceled,
     ResponseStarted,
     ReadCompleted,
+    BodyChunkDrained,
     TerminalSucceeded,
     TerminalFailed,
     TerminalCanceled,

@@ -3,6 +3,7 @@ package com.connor.kwitter.core.di
 import android.content.Context
 import android.util.Log
 import com.connor.cronet.engine.Cronet
+import com.connor.cronet.engine.CronetHttpCache
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import org.koin.mp.KoinPlatform
@@ -25,6 +26,8 @@ internal actual fun createPlatformHttpClient(
             engine {
                 context(appContext)
                 enableQuic = false
+                storagePath = appContext.cacheDir.absolutePath
+                httpCache = CronetHttpCache.Disk(1024 * 1024 * 600)
             }
             configure()
         }.also {

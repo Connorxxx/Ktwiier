@@ -13,6 +13,7 @@ internal sealed interface EngineState {
     data object Running : EngineState
     data object Closing : EngineState
     data object Closed : EngineState
+    data class CloseFailed(val activeRequests: Int) : EngineState
 }
 
 internal fun interface ActiveRequestHandle {
@@ -64,6 +65,7 @@ internal class EngineLifecycle {
                 }
 
                 EngineState.Closing, EngineState.Closed -> return false
+                is EngineState.CloseFailed -> return false
             }
         }
     }
@@ -71,7 +73,7 @@ internal class EngineLifecycle {
     fun cancelAllActiveRequests(cause: Throwable? = null) {
         val cancellationCause = cause ?: ClientEngineClosedException()
 
-        activeRequests.forEach { _, handle ->
+        activeRequests.forEach { (_, handle) ->
             runCatching { handle.cancel(cancellationCause) }
         }
     }
@@ -99,6 +101,10 @@ internal class EngineLifecycle {
         state.set(EngineState.Closed)
     }
 
+    fun markCloseFailed(activeRequests: Int) {
+        state.set(EngineState.CloseFailed(activeRequests))
+    }
+
     val currentState: EngineState
         get() = state.get()
 
@@ -116,6 +122,7 @@ internal class EngineLifecycle {
 
                 EngineState.Running -> return
                 EngineState.Closing, EngineState.Closed -> throw ClientEngineClosedException()
+                is EngineState.CloseFailed -> throw ClientEngineClosedException()
             }
         }
     }
@@ -125,6 +132,7 @@ internal class EngineLifecycle {
             EngineState.Created, EngineState.Running -> true
 
             EngineState.Closing, EngineState.Closed -> false
+            is EngineState.CloseFailed -> false
         }
     }
 

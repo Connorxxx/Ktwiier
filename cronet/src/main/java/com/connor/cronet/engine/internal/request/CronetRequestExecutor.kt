@@ -17,5 +17,15 @@ internal interface CronetRequestExecutor : AutoCloseable {
 internal interface CronetRequestLifecycleHandle {
     fun bindTransportCanceler(canceler: (Throwable?) -> Unit)
 
-    fun markTerminal()
+    /**
+     * Cronet terminal callback received (onSucceeded/onFailed/onCanceled).
+     * Unregisters the request from engine lifecycle tracking.
+     */
+    fun markTransportTerminal()
+
+    /**
+     * Body fully drained and response delivered to caller.
+     * Used for telemetry/cleanup of the delivery phase.
+     */
+    fun markDeliveryComplete()
 }
