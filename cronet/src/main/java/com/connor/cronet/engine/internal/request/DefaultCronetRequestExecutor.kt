@@ -23,6 +23,7 @@ import io.ktor.client.request.HttpResponseData
 import io.ktor.client.request.ResponseAdapterAttributeKey
 import io.ktor.util.date.GMTDate
 import io.ktor.utils.io.ByteChannel
+import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.InternalAPI
 import java.nio.ByteBuffer
 import java.util.IdentityHashMap
@@ -137,6 +138,9 @@ internal class DefaultCronetRequestExecutor(
                 data = data,
                 callContext = callContext,
                 callback = callback,
+                onRewindRejected = {
+                    runCatching { invariantRecorder.onRewindRequestedForOneShotUpload(requestKey) }
+                },
             )
         } catch (cause: Throwable) {
             failRequestBeforeCallbackExecution(cause)
@@ -179,10 +183,27 @@ internal class DefaultCronetRequestExecutor(
                 buffer.clear()
                 callback.readCreditRing.recycle(buffer)
             },
+            onCommandFailed = { _, cause ->
+                responseDeferred.completeExceptionally(cause)
+                responseBodyChannel.cancel(cause)
+                callback.dispose(cause)
+                lifecycleHandle.markTransportTerminal()
+            },
         )
 
         callback.bindLane(lane)
-        lifecycleHandle.bindTransportCanceler { cause -> lane.submit(TransportCommand.Cancel(cause)) }
+        lifecycleHandle.bindTransportCanceler { cause ->
+            if (isSSE) {
+                runCatching { invariantRecorder.onSseTransportCanceledByRequestCleanup(requestKey) }
+            }
+            lane.submit(TransportCommand.Cancel(cause))
+        }
+
+        if (isSSE) {
+            bodyWriter.bindOnChannelWriteFailed { cause ->
+                lane.submit(TransportCommand.Cancel(cause))
+            }
+        }
 
         // R4: For RequestCall, bind callContext cancellation. For StreamSession, skip -- SSE transport
         // lifetime is independent of the call context.
@@ -366,7 +387,7 @@ internal class DefaultCronetRequestExecutor(
             }
 
             // Send chunk to body writer. onDrained fires after writeFully completes.
-            bodyWriter.send(
+            val accepted = bodyWriter.send(
                 BodyEvent.Chunk(
                     buffer = byteBuffer,
                     onDrained = {
@@ -379,6 +400,11 @@ internal class DefaultCronetRequestExecutor(
                     },
                 ),
             )
+            if (!accepted) {
+                byteBuffer.clear()
+                readCreditRing.recycle(byteBuffer)
+                return
+            }
 
             // Try to acquire next buffer for pipelining.
             scheduleReadOrAwaitCredit()
@@ -484,12 +510,9 @@ internal class DefaultCronetRequestExecutor(
             clearActiveReadBuffer(null)
             lifecycleHandle.markTransportTerminal()
 
-            bodyWriter.cancelWriter(cause)
-            bodyWriteScope.cancel(
-                cause as? CancellationException ?: CancellationException(
-                    "Cronet request bridge scopes canceled",
-                ).apply { initCause(cause) },
-            )
+            if (!bodyWriter.send(BodyEvent.TransportFailed(cause))) {
+                bodyWriter.cancelWriter(cause)
+            }
 
             responseDeferred.completeExceptionally(cause)
             responseBodyChannel.cancel(cause)
@@ -587,16 +610,27 @@ internal class DefaultCronetRequestExecutor(
             val headers = info.toKtorHeaders()
             val version = info.toKtorProtocolVersion()
 
+            // For SSE, wrap the response channel so that session close (input.cancel())
+            // deterministically cancels the Cronet transport -- even during idle periods.
+            val adapterInput: ByteReadChannel = if (requestData.getCapabilityOrNull(SSECapability) != null) {
+                SseTransportBoundChannel(
+                    delegate = responseBodyChannel,
+                    onCancel = { cause -> lane?.submit(TransportCommand.Cancel(cause)) },
+                )
+            } else {
+                responseBodyChannel
+            }
+
             val responseBody = requestData.attributes.getOrNull(ResponseAdapterAttributeKey)
                 ?.adapt(
                     data = requestData,
                     status = status,
                     headers = headers,
-                    responseBody = responseBodyChannel,
+                    responseBody = adapterInput,
                     outgoingContent = requestData.body,
                     callContext = callContext,
                 )
-                ?: responseBodyChannel
+                ?: adapterInput
 
             return HttpResponseData(
                 statusCode = status,

@@ -23,6 +23,7 @@ internal class StreamingUploadDataProvider private constructor(
     private val uploadLength: Long?,
     private val sourceFactory: UploadSourceFactory,
     private val rewindMode: RewindMode,
+    private val onRewindRejected: (() -> Unit)? = null,
 ) : UploadDataProvider() {
     private val stateLock = Any()
     private val controlScope = CoroutineScope(
@@ -64,6 +65,7 @@ internal class StreamingUploadDataProvider private constructor(
     override fun rewind(uploadDataSink: UploadDataSink) {
         when (val mode = rewindMode) {
             is RewindMode.Unsupported -> {
+                onRewindRejected?.invoke()
                 uploadDataSink.onRewindError(IOException(mode.reason))
             }
 
@@ -269,6 +271,7 @@ internal class StreamingUploadDataProvider private constructor(
 
         fun fromReadChannelContent(
             content: OutgoingContent.ReadChannelContent,
+            onRewindRejected: (() -> Unit)? = null,
         ): StreamingUploadDataProvider {
             return StreamingUploadDataProvider(
                 uploadLength = content.contentLength,
@@ -282,6 +285,7 @@ internal class StreamingUploadDataProvider private constructor(
                 rewindMode = RewindMode.Unsupported(
                     "ReadChannelContent is not guaranteed replayable by default",
                 ),
+                onRewindRejected = onRewindRejected,
             )
         }
 
@@ -304,6 +308,7 @@ internal class StreamingUploadDataProvider private constructor(
         fun fromWriteChannelContent(
             content: OutgoingContent.WriteChannelContent,
             callContext: CoroutineContext,
+            onRewindRejected: (() -> Unit)? = null,
         ): StreamingUploadDataProvider {
             return StreamingUploadDataProvider(
                 uploadLength = content.contentLength,
@@ -335,6 +340,7 @@ internal class StreamingUploadDataProvider private constructor(
                 rewindMode = RewindMode.Unsupported(
                     "WriteChannelContent is not guaranteed replayable",
                 ),
+                onRewindRejected = onRewindRejected,
             )
         }
 

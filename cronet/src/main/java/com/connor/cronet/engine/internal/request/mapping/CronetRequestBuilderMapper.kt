@@ -26,6 +26,7 @@ internal class CronetRequestBuilderMapper(
         data: HttpRequestData,
         callContext: CoroutineContext,
         callback: UrlRequest.Callback,
+        onRewindRejected: (() -> Unit)? = null,
     ): PreparedCronetRequest {
         val requestBody = data.classifyRequestBody()
         val requestBuilder = cronetEngine.newUrlRequestBuilder(
@@ -79,7 +80,10 @@ internal class CronetRequestBuilderMapper(
                     "Cronet upload requires Content-Type header when request body is present"
                 }
                 requestBuilder.setUploadDataProvider(
-                    StreamingUploadDataProvider.fromReadChannelContent(requestBody.content),
+                    StreamingUploadDataProvider.fromReadChannelContent(
+                        content = requestBody.content,
+                        onRewindRejected = onRewindRejected,
+                    ),
                     callbackExecutor,
                 )
             }
@@ -99,6 +103,7 @@ internal class CronetRequestBuilderMapper(
                     StreamingUploadDataProvider.fromWriteChannelContent(
                         content = requestBody.content,
                         callContext = callContext,
+                        onRewindRejected = onRewindRejected,
                     ),
                     callbackExecutor,
                 )

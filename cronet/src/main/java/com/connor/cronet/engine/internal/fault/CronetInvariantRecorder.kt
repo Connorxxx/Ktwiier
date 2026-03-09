@@ -21,8 +21,6 @@ internal interface CronetInvariantRecorder {
 
     fun onStartAfterCancel(requestKey: Long) = Unit
 
-    fun onSuccessWithPendingWrites(requestKey: Long, pendingCount: Int) = Unit
-
     fun onUnregisterBeforeTransportTerminal(requestKey: Long) = Unit
 
     fun onSseTransportCanceledByRequestCleanup(requestKey: Long) = Unit
@@ -41,7 +39,6 @@ internal data class CronetInvariantSnapshot(
     val closeDrainTimeoutCount: Long,
     val maxObservedActiveRequestCount: Int,
     val startAfterCancelCount: Long,
-    val successWithPendingWritesCount: Long,
     val unregisterBeforeTransportTerminalCount: Long,
     val sseTransportCanceledByRequestCleanupCount: Long,
     val rewindRequestedForOneShotUploadCount: Long,
@@ -56,7 +53,6 @@ internal class AtomicCronetInvariantRecorder : CronetInvariantRecorder {
     private val closeDrainTimeoutCount = AtomicLong(0L)
     private val maxObservedActiveRequestCount = AtomicInteger(0)
     private val startAfterCancelCount = AtomicLong(0L)
-    private val successWithPendingWritesCount = AtomicLong(0L)
     private val unregisterBeforeTransportTerminalCount = AtomicLong(0L)
     private val sseTransportCanceledByRequestCleanupCount = AtomicLong(0L)
     private val rewindRequestedForOneShotUploadCount = AtomicLong(0L)
@@ -96,10 +92,6 @@ internal class AtomicCronetInvariantRecorder : CronetInvariantRecorder {
         startAfterCancelCount.incrementAndGet()
     }
 
-    override fun onSuccessWithPendingWrites(requestKey: Long, pendingCount: Int) {
-        successWithPendingWritesCount.incrementAndGet()
-    }
-
     override fun onUnregisterBeforeTransportTerminal(requestKey: Long) {
         unregisterBeforeTransportTerminalCount.incrementAndGet()
     }
@@ -122,7 +114,6 @@ internal class AtomicCronetInvariantRecorder : CronetInvariantRecorder {
             closeDrainTimeoutCount = closeDrainTimeoutCount.get(),
             maxObservedActiveRequestCount = maxObservedActiveRequestCount.get(),
             startAfterCancelCount = startAfterCancelCount.get(),
-            successWithPendingWritesCount = successWithPendingWritesCount.get(),
             unregisterBeforeTransportTerminalCount = unregisterBeforeTransportTerminalCount.get(),
             sseTransportCanceledByRequestCleanupCount = sseTransportCanceledByRequestCleanupCount.get(),
             rewindRequestedForOneShotUploadCount = rewindRequestedForOneShotUploadCount.get(),

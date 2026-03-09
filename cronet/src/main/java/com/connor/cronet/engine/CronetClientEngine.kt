@@ -99,6 +99,9 @@ internal class CronetClientEngine(
                 lifecycleHandle = lifecycleHandle,
             )
         }.getOrElse { cause ->
+            recordInvariant {
+                invariantRecorder.onUnregisterBeforeTransportTerminal(requestId)
+            }
             lifecycleHandle.markTransportTerminal()
             throw cause
         }

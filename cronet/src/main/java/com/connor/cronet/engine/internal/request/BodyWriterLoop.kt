@@ -30,6 +30,13 @@ internal class BodyWriterLoop(
     private val mailbox = Channel<BodyEvent>(Channel.UNLIMITED)
     private val writerJob: Job = scope.launch { writeLoop() }
 
+    @Volatile
+    private var onChannelWriteFailed: ((Throwable) -> Unit)? = null
+
+    fun bindOnChannelWriteFailed(handler: (Throwable) -> Unit) {
+        onChannelWriteFailed = handler
+    }
+
     private suspend fun writeLoop() {
         for (event in mailbox) {
             when (event) {
@@ -38,8 +45,8 @@ internal class BodyWriterLoop(
                         channel.writeFully(event.buffer)
                     } catch (cause: Throwable) {
                         event.onDrained()
-                        // Channel write failed -- drain remaining events and cancel.
-                        drainMailboxOnFailure(cause)
+                        onChannelWriteFailed?.invoke(cause)
+                        drainPendingChunks()
                         channel.cancel(cause)
                         return
                     }
@@ -53,6 +60,7 @@ internal class BodyWriterLoop(
                 }
 
                 is BodyEvent.TransportFailed -> {
+                    drainPendingChunks()
                     channel.cancel(event.cause)
                     return
                 }
@@ -63,8 +71,8 @@ internal class BodyWriterLoop(
         channel.close()
     }
 
-    fun send(event: BodyEvent) {
-        mailbox.trySend(event)
+    fun send(event: BodyEvent): Boolean {
+        return mailbox.trySend(event).isSuccess
     }
 
     suspend fun awaitDrain() {
@@ -76,15 +84,16 @@ internal class BodyWriterLoop(
             ?: CancellationException("BodyWriterLoop canceled").apply {
                 if (cause != null) initCause(cause)
             }
-        writerJob.cancel(cancellation)
         mailbox.close()
+        drainPendingChunks()
+        writerJob.cancel(cancellation)
     }
 
     /**
      * Drain remaining Chunk events so their onDrained callbacks fire,
      * preventing buffer leaks.
      */
-    private fun drainMailboxOnFailure(cause: Throwable) {
+    private fun drainPendingChunks() {
         while (true) {
             val remaining = mailbox.tryReceive().getOrNull() ?: break
             if (remaining is BodyEvent.Chunk) {

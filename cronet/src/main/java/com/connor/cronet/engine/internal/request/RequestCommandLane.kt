@@ -34,6 +34,7 @@ internal class RequestCommandLane(
     private val invariantRecorder: CronetInvariantRecorder,
     private val onPreCanceled: () -> Unit,
     private val onBufferRecycled: (ByteBuffer) -> Unit,
+    private val onCommandFailed: (TransportCommand, Throwable) -> Unit,
 ) {
     private val commandQueue = ConcurrentLinkedQueue<TransportCommand>()
     private val draining = AtomicBoolean(false)
@@ -73,6 +74,17 @@ internal class RequestCommandLane(
     }
 
     private fun executeCommand(command: TransportCommand) {
+        try {
+            executeCommandUnsafe(command)
+        } catch (cause: Throwable) {
+            if (command is TransportCommand.Read) {
+                onBufferRecycled(command.buffer)
+            }
+            onCommandFailed(command, cause)
+        }
+    }
+
+    private fun executeCommandUnsafe(command: TransportCommand) {
         when (command) {
             is TransportCommand.Start -> {
                 when (state.get()) {
@@ -119,14 +131,18 @@ internal class RequestCommandLane(
 
     /**
      * Called when the executor rejects the drain task.
-     * Recycles any pending Read buffers to prevent leaks.
+     * Recycles any pending Read buffers and signals failure to prevent leaks and hangs.
      */
     private fun drainOnRejection() {
+        val rejectionCause = java.util.concurrent.RejectedExecutionException(
+            "Cronet callback executor rejected drain task",
+        )
         while (true) {
             val command = commandQueue.poll() ?: break
             if (command is TransportCommand.Read) {
                 onBufferRecycled(command.buffer)
             }
         }
+        onCommandFailed(TransportCommand.Cancel(rejectionCause), rejectionCause)
     }
 }
