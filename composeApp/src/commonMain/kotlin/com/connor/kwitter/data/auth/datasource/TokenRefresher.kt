@@ -1,6 +1,8 @@
 package com.connor.kwitter.data.auth.datasource
 
+import arrow.core.raise.catch
 import arrow.core.raise.fold
+import com.connor.kwitter.domain.auth.model.AuthError
 import com.connor.kwitter.domain.auth.model.RefreshRequest
 import com.connor.kwitter.domain.auth.model.TokenResponse
 import io.ktor.client.HttpClient
@@ -76,7 +78,7 @@ class TokenRefresher(
         return when {
             httpResponse.status.isSuccess() -> {
                 val tokenResponse = httpResponse.body<TokenResponse>()
-                fold(
+                fold<AuthError, Unit, RefreshResult>(
                     block = {
                         tokenDataSource.updateTokens(
                             accessToken = tokenResponse.token,
@@ -91,12 +93,7 @@ class TokenRefresher(
             }
 
             httpResponse.status.value == 409 -> {
-                val error = fold(
-                    block = { httpResponse.body<ErrorBody>() },
-                    catch = { null },
-                    recover = { _: Unit -> null },
-                    transform = { it }
-                )
+                val error = catch({ httpResponse.body<ErrorBody>() }) { null }
                 if (error?.code == STALE_REFRESH_TOKEN) {
                     RefreshResult.StaleToken
                 } else {
@@ -107,7 +104,6 @@ class TokenRefresher(
             httpResponse.status.value == 401 -> {
                 fold(
                     block = { tokenDataSource.clearTokens() },
-                    catch = {},
                     recover = {},
                     transform = {}
                 )

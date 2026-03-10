@@ -134,7 +134,6 @@ class ChatViewModel(
                         resolvedConversationId?.let {
                             fold(
                                 block = { messagingRepository.markAsRead(it) },
-                                catch = { throw it },
                                 recover = {},
                                 transform = {}
                             )

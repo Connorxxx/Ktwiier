@@ -8,6 +8,8 @@ import arrow.core.raise.fold
 import com.connor.kwitter.data.messaging.local.MessageDao
 import com.connor.kwitter.data.messaging.local.MessageEntity
 import com.connor.kwitter.data.messaging.local.toEntity
+import com.connor.kwitter.domain.messaging.model.MessageList
+import com.connor.kwitter.domain.messaging.model.MessagingError
 
 private const val PAGE_SIZE = 50
 
@@ -38,7 +40,7 @@ class MessageRemoteMediator(
             }
         }
 
-        return fold(
+        return fold<MessagingError, MessageList, MediatorResult>(
             block = {
                 remoteDataSource.getMessages(
                     conversationId = conversationId,
@@ -46,10 +48,8 @@ class MessageRemoteMediator(
                     beforeId = cursor
                 )
             },
-            catch = { MediatorResult.Error(it) },
-            recover = { error ->
-                MediatorResult.Error(Exception(error.toString()))
-            },
+            catch = { throwable -> MediatorResult.Error(throwable) },
+            recover = { error -> MediatorResult.Error(Exception(error.toString())) },
             transform = { messageList ->
                 val entities = messageList.messages.map { message ->
                     message.toEntity()

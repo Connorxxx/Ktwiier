@@ -8,6 +8,8 @@ import arrow.core.raise.fold
 import com.connor.kwitter.data.post.local.AppDatabase
 import com.connor.kwitter.data.post.local.PostEntity
 import com.connor.kwitter.data.post.local.toEntity
+import com.connor.kwitter.domain.post.model.PostError
+import com.connor.kwitter.domain.post.model.PostList
 import com.connor.kwitter.domain.post.model.PostPageQuery
 
 private const val TIMELINE_LABEL = "timeline"
@@ -37,16 +39,14 @@ class TimelineRemoteMediator(
             }
         }
 
-        return fold(
+        return fold<PostError, PostList, MediatorResult>(
             block = {
                 remoteDataSource.getTimeline(
                     query = PostPageQuery(limit = PAGE_SIZE, beforeId = cursor)
                 )
             },
-            catch = { MediatorResult.Error(it) },
-            recover = { error ->
-                MediatorResult.Error(Exception(error.toString()))
-            },
+            catch = { throwable -> MediatorResult.Error(throwable) },
+            recover = { error -> MediatorResult.Error(Exception(error.toString())) },
             transform = { postList ->
                 val entities = postList.posts.mapIndexed { index, post ->
                     post.toEntity(timelineIndex = index)

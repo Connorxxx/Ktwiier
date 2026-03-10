@@ -17,6 +17,7 @@ import com.connor.kwitter.data.messaging.local.MessageDao
 import com.connor.kwitter.data.messaging.local.toDomain
 import com.connor.kwitter.data.notification.NotificationService
 import com.connor.kwitter.domain.messaging.model.Conversation
+import com.connor.kwitter.domain.messaging.model.ConversationList
 import com.connor.kwitter.domain.messaging.model.Message
 import com.connor.kwitter.domain.messaging.model.MessageSearchItem
 import com.connor.kwitter.domain.messaging.model.MessagingError
@@ -96,7 +97,7 @@ class MessagingRepositoryImpl(
 
         var offset = 0
         while (true) {
-            val conversationList = fold(
+            val conversationList = fold<MessagingError, ConversationList, ConversationList?>(
                 block = {
                     remoteDataSource.getConversations(
                         limit = CONVERSATION_RESOLVE_PAGE_SIZE,
@@ -334,7 +335,6 @@ class MessagingRepositoryImpl(
         repositoryScope.launch {
             fold(
                 block = { confirmConversationRead(conversationId) },
-                catch = { throw it },
                 recover = {},
                 transform = {}
             )
