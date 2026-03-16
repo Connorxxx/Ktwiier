@@ -349,10 +349,20 @@ class PostDetailViewModel(
         } else {
             state.post
         }
-        val updatedReplies = state.threadReplies.map { reply ->
-            if (reply.post.id == postId) reply.copy(post = reply.post.transform())
-            else reply
+        val replyIndex = state.threadReplies.indexOfFirst { it.post.id == postId }
+        val updatedReplies = if (replyIndex >= 0) {
+            state.threadReplies.toMutableList().apply {
+                val currentReply = this[replyIndex]
+                this[replyIndex] = currentReply.copy(post = currentReply.post.transform())
+            }
+        } else {
+            state.threadReplies
         }
+
+        if (updatedPost === state.post && updatedReplies === state.threadReplies) {
+            return state
+        }
+
         return state.copy(post = updatedPost, threadReplies = updatedReplies)
     }
 }

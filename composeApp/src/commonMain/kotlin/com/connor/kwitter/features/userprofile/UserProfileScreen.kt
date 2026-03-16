@@ -47,8 +47,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
-import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.result.errorOrNull
@@ -111,15 +111,12 @@ fun UserProfileScreen(
         )
     )
 
-    val postsPagingItems = postsPaging.collectAsLazyPagingItems()
-    val repliesPagingItems = repliesPaging.collectAsLazyPagingItems()
-    val likesPagingItems = likesPaging.collectAsLazyPagingItems()
-
-    val activeItems = when (state.selectedTab) {
-        ProfileTab.POSTS -> postsPagingItems
-        ProfileTab.REPLIES -> repliesPagingItems
-        ProfileTab.LIKES -> likesPagingItems
+    val activePagingFlow = when (state.selectedTab) {
+        ProfileTab.POSTS -> postsPaging
+        ProfileTab.REPLIES -> repliesPaging
+        ProfileTab.LIKES -> likesPaging
     }
+    val activeItems = activePagingFlow.collectAsLazyPagingItems()
 
     Scaffold(
         topBar = {
@@ -232,7 +229,8 @@ fun UserProfileScreen(
                     } else {
                         items(
                             count = activeItems.itemCount,
-                            key = activeItems.itemKey { it.id }
+                            key = activeItems.itemKey { it.id },
+                            contentType = activeItems.itemContentType { "profile_post" }
                         ) { index ->
                             activeItems[index]?.let { post ->
                                 PostItem(

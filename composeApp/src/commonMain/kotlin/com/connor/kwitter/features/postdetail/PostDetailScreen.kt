@@ -75,6 +75,12 @@ import kwitter.composeapp.generated.resources.post_detail_show_replies
 import kwitter.composeapp.generated.resources.post_detail_start_first_reply
 import org.jetbrains.compose.resources.stringResource
 
+private data class ThreadReplyStructure(
+    val replyIds: Set<Long>,
+    val replyIdsWithChildren: Set<Long>,
+    val repliesById: Map<Long, ThreadReplyItem>
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PostDetailScreen(
@@ -161,16 +167,20 @@ fun PostDetailScreen(
                 var expandedReplyIds by remember(state.post.id) {
                     mutableStateOf(emptySet<Long>())
                 }
-                LaunchedEffect(state.threadReplies) {
-                    val currentReplyIds = state.threadReplies.map { it.post.id }.toSet()
-                    expandedReplyIds = expandedReplyIds.intersect(currentReplyIds)
+                val threadReplyStructure = remember(state.threadReplies) {
+                    buildThreadReplyStructure(state.threadReplies)
                 }
-                val replyIdsWithChildren = remember(state.threadReplies) {
-                    state.threadReplies.mapNotNull { it.post.parentId }.toSet()
+                LaunchedEffect(threadReplyStructure.replyIds) {
+                    expandedReplyIds = expandedReplyIds.intersect(threadReplyStructure.replyIds)
                 }
-                val visibleReplies = remember(state.threadReplies, expandedReplyIds) {
+                val visibleReplies = remember(
+                    state.threadReplies,
+                    threadReplyStructure.repliesById,
+                    expandedReplyIds
+                ) {
                     visibleThreadReplies(
                         replies = state.threadReplies,
+                        repliesById = threadReplyStructure.repliesById,
                         expandedReplyIds = expandedReplyIds
                     )
                 }
@@ -253,7 +263,7 @@ fun PostDetailScreen(
                         }
                     } else {
                         items(visibleReplies, key = { reply -> reply.post.id }) { reply ->
-                            val hasNestedReplies = reply.post.id in replyIdsWithChildren
+                            val hasNestedReplies = reply.post.id in threadReplyStructure.replyIdsWithChildren
                             ReplyItem(
                                 threadReply = reply,
                                 hasNestedReplies = hasNestedReplies,
@@ -676,11 +686,11 @@ private fun ReplyIcon(
 
 private fun visibleThreadReplies(
     replies: List<ThreadReplyItem>,
+    repliesById: Map<Long, ThreadReplyItem>,
     expandedReplyIds: Set<Long>
 ): List<ThreadReplyItem> {
     if (replies.isEmpty()) return emptyList()
 
-    val repliesById = replies.associateBy { it.post.id }
     return replies.filter { reply ->
         if (reply.depth == 0) return@filter true
         isReplyVisible(
@@ -689,6 +699,32 @@ private fun visibleThreadReplies(
             expandedReplyIds = expandedReplyIds
         )
     }
+}
+
+private fun buildThreadReplyStructure(replies: List<ThreadReplyItem>): ThreadReplyStructure {
+    if (replies.isEmpty()) {
+        return ThreadReplyStructure(
+            replyIds = emptySet(),
+            replyIdsWithChildren = emptySet(),
+            repliesById = emptyMap()
+        )
+    }
+
+    val replyIds = LinkedHashSet<Long>(replies.size)
+    val replyIdsWithChildren = LinkedHashSet<Long>()
+    val repliesById = LinkedHashMap<Long, ThreadReplyItem>(replies.size)
+
+    replies.forEach { reply ->
+        replyIds += reply.post.id
+        reply.post.parentId?.let(replyIdsWithChildren::add)
+        repliesById[reply.post.id] = reply
+    }
+
+    return ThreadReplyStructure(
+        replyIds = replyIds,
+        replyIdsWithChildren = replyIdsWithChildren,
+        repliesById = repliesById
+    )
 }
 
 private fun isReplyVisible(
@@ -839,4 +875,3 @@ private fun PostDetailScreenLoadingPreview() {
         )
     }
 }
-

@@ -59,6 +59,7 @@ import kotlinx.coroutines.launch
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.result.errorOrNull
@@ -211,7 +212,8 @@ fun HomeScreen(
                             ) {
                                 items(
                                     count = lazyPagingItems.itemCount,
-                                    key = lazyPagingItems.itemKey { it.id }
+                                    key = lazyPagingItems.itemKey { it.id },
+                                    contentType = lazyPagingItems.itemContentType { "home_post" }
                                 ) { index ->
                                     val post = lazyPagingItems[index] ?: return@items
                                     PostItem(
@@ -627,4 +629,3 @@ private fun HomeScreenEmptyPreview() {
         )
     }
 }
-

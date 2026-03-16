@@ -153,7 +153,8 @@ fun MessageSearchScreen(
                     ) {
                         items(
                             items = state.results,
-                            key = { it.message.id }
+                            key = { it.message.id },
+                            contentType = { "message_search_result" }
                         ) { item ->
                             MessageSearchResultItem(
                                 item = item,

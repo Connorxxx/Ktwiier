@@ -62,6 +62,7 @@ import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.result.errorOrNull
@@ -412,7 +413,8 @@ private fun PostPagingContent(
     ) {
         items(
             count = lazyPagingItems.itemCount,
-            key = lazyPagingItems.itemKey { it.id }
+            key = lazyPagingItems.itemKey { it.id },
+            contentType = lazyPagingItems.itemContentType { "search_post" }
         ) { index ->
             val post = lazyPagingItems[index] ?: return@items
             PostItem(
@@ -515,7 +517,8 @@ private fun UserPagingContent(
     ) {
         items(
             count = lazyPagingItems.itemCount,
-            key = lazyPagingItems.itemKey { it.id }
+            key = lazyPagingItems.itemKey { it.id },
+            contentType = lazyPagingItems.itemContentType { "search_user" }
         ) { index ->
             val user = lazyPagingItems[index] ?: return@items
             SearchUserRow(

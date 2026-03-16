@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.result.errorOrNull
@@ -164,7 +165,8 @@ fun UserListScreen(
                 ) {
                     items(
                         count = pagingItems.itemCount,
-                        key = pagingItems.itemKey { it.id }
+                        key = pagingItems.itemKey { it.id },
+                        contentType = pagingItems.itemContentType { "user_list_user" }
                     ) { index ->
                         pagingItems[index]?.let { user ->
                             UserListItemRow(

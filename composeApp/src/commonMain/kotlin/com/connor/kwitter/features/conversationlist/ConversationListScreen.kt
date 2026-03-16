@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.ui.ErrorScreen
@@ -184,7 +185,8 @@ fun ConversationListScreen(
                     ) {
                         items(
                             count = lazyPagingItems.itemCount,
-                            key = lazyPagingItems.itemKey { it.id }
+                            key = lazyPagingItems.itemKey { it.id },
+                            contentType = lazyPagingItems.itemContentType { "conversation" }
                         ) { index ->
                             val conversation = lazyPagingItems[index] ?: return@items
                             val isOnline = onlineMap[conversation.otherUser.id] ?: false

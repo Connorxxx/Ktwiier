@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.connor.kwitter.core.result.errorOrNull
@@ -141,7 +142,15 @@ fun ChatScreen(
     }
     val loadedMessages = lazyPagingItems.itemSnapshotList.items
     val loadedMessageMap = remember(loadedMessages) {
-        loadedMessages.associateBy { it.id }
+        if (loadedMessages.none { it.replyToMessageId != null }) {
+            emptyMap<Long, Message>()
+        } else {
+            buildMap<Long, Message>(loadedMessages.size) {
+                loadedMessages.forEach { message ->
+                    put(message.id, message)
+                }
+            }
+        }
     }
 
     DisposableEffect(Unit) {
@@ -293,7 +302,14 @@ fun ChatScreen(
 
                         items(
                             count = lazyPagingItems.itemCount,
-                            key = lazyPagingItems.itemKey { it.id }
+                            key = lazyPagingItems.itemKey { it.id },
+                            contentType = lazyPagingItems.itemContentType { message ->
+                                if (message.senderId == state.currentUserId) {
+                                    "outgoing_message"
+                                } else {
+                                    "incoming_message"
+                                }
+                            }
                         ) { index ->
                             val message = lazyPagingItems[index] ?: return@items
                             val isSentByMe = message.senderId == state.currentUserId
