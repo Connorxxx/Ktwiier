@@ -29,6 +29,9 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentHashMapOf
+import kotlinx.collections.immutable.plus
 
 enum class UserListType { FOLLOWING, FOLLOWERS }
 
@@ -74,7 +77,7 @@ class UserListViewModel(
 
     private val _events = Channel<UserListAction>(Channel.UNLIMITED)
     private val _query = MutableStateFlow<UserListQuery?>(null)
-    private val _userMods = MutableStateFlow<Map<Long, Boolean?>>(emptyMap())
+    private val _userMods = MutableStateFlow<PersistentMap<Long, Boolean?>>(persistentHashMapOf())
 
     val uiState: StateFlow<UserListUiState> = viewModelScope.launchMolecule(
         mode = RecompositionMode.Immediate
@@ -110,7 +113,7 @@ class UserListViewModel(
             _events.receiveAsFlow().collect { action ->
                 state = when (action) {
                     is UserListAction.Load -> {
-                        _userMods.value = emptyMap()
+                        _userMods.value = persistentHashMapOf()
                         _query.value = UserListQuery(action.userId, action.listType)
                         state.copy(
                             listType = action.listType,

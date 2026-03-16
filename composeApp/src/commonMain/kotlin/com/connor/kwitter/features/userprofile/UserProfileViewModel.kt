@@ -33,6 +33,9 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentHashMapOf
+import kotlinx.collections.immutable.plus
 
 enum class ProfileTab { POSTS, REPLIES, LIKES }
 
@@ -98,7 +101,7 @@ class UserProfileViewModel(
     private val _events = Channel<UserProfileAction>(Channel.UNLIMITED)
     private val _userId = MutableStateFlow<Long?>(null)
     private val _refreshTrigger = MutableStateFlow(0)
-    private val _postMods = MutableStateFlow<Map<Long, PostModification>>(emptyMap())
+    private val _postMods = MutableStateFlow<PersistentMap<Long, PostModification>>(persistentHashMapOf())
 
     val uiState: StateFlow<UserProfileUiState> = viewModelScope.launchMolecule(
         mode = RecompositionMode.Immediate
@@ -156,7 +159,7 @@ class UserProfileViewModel(
                     is UserProfileAction.Refresh -> {
                         val userId = state.profile?.id
                         if (userId != null) {
-                            _postMods.value = emptyMap()
+                            _postMods.value = persistentHashMapOf()
                             _refreshTrigger.value++
                             loadProfile(userId, state)
                         } else state
@@ -178,7 +181,7 @@ class UserProfileViewModel(
         previousState: UserProfileUiState
     ): UserProfileUiState {
         _userId.value = userId
-        _postMods.value = emptyMap()
+        _postMods.value = persistentHashMapOf()
         val currentUserId = authRepository.currentUserId.first()
         val loadingState = previousState.copy(
             isLoadingProfile = true,
@@ -328,7 +331,7 @@ class UserProfileViewModel(
         )
     }
 
-    private fun Post.applyMods(mods: Map<Long, PostModification>): Post {
+    private fun Post.applyMods(mods: PersistentMap<Long, PostModification>): Post {
         val mod = mods[id] ?: return this
         return copy(
             isLikedByCurrentUser = mod.isLikedByCurrentUser ?: isLikedByCurrentUser,

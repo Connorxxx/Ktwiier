@@ -863,7 +863,7 @@ fun MainScreen(
 
         val sceneState = rememberSceneState(
             entries = entries,
-            sceneStrategy = SinglePaneSceneStrategy(),
+            sceneStrategies = listOf(SinglePaneSceneStrategy()),
             onBack = mainState.onBack
         )
         val currentScene = sceneState.currentScene

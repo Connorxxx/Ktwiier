@@ -93,6 +93,7 @@ kotlin {
 
             // Coroutines
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.collections.immutable)
 
             // Kotlinx Extensions
             implementation(libs.kotlinx.datetime)

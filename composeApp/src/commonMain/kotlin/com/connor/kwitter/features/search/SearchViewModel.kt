@@ -36,6 +36,10 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.mutate
+import kotlinx.collections.immutable.persistentHashMapOf
+import kotlinx.collections.immutable.plus
 
 enum class SearchTab { POSTS, REPLIES, USERS }
 
@@ -101,8 +105,8 @@ class SearchViewModel(
 
     private val _events = Channel<SearchAction>(Channel.UNLIMITED)
     private val _searchQuery = MutableStateFlow(SearchQuery())
-    private val _postMods = MutableStateFlow<Map<Long, PostModification>>(emptyMap())
-    private val _userMods = MutableStateFlow<Map<Long, Boolean?>>(emptyMap())
+    private val _postMods = MutableStateFlow<PersistentMap<Long, PostModification>>(persistentHashMapOf())
+    private val _userMods = MutableStateFlow<PersistentMap<Long, Boolean?>>(persistentHashMapOf())
 
     val uiState: StateFlow<SearchUiState> = viewModelScope.launchMolecule(
         mode = RecompositionMode.Immediate
@@ -180,8 +184,8 @@ class SearchViewModel(
     private fun handleSearch(currentState: SearchUiState): SearchUiState {
         val trimmed = currentState.query.trim()
         if (trimmed.isBlank()) return currentState
-        _postMods.value = emptyMap()
-        _userMods.value = emptyMap()
+        _postMods.value = persistentHashMapOf()
+        _userMods.value = persistentHashMapOf()
         _searchQuery.value = SearchQuery(trimmed, currentState.sortOrder)
         return currentState.copy(selectedTab = SearchTab.POSTS, hasSearched = true, error = null)
     }
@@ -208,6 +212,7 @@ class SearchViewModel(
 
         _postMods.update { mods ->
             val existing = mods[action.postId] ?: PostModification()
+            mods.mutate {  }
             mods + (action.postId to existing.copy(
                 isLikedByCurrentUser = newLiked,
                 likeCount = newCount
@@ -301,7 +306,7 @@ class SearchViewModel(
         )
     }
 
-    private fun Post.applyMods(mods: Map<Long, PostModification>): Post {
+    private fun Post.applyMods(mods: PersistentMap<Long, PostModification>): Post {
         val mod = mods[id] ?: return this
         return copy(
             isLikedByCurrentUser = mod.isLikedByCurrentUser ?: isLikedByCurrentUser,
