@@ -14,8 +14,6 @@ import androidx.paging.map
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import arrow.core.raise.fold
-import com.connor.kwitter.core.result.Result
-import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostMedia
@@ -37,21 +35,30 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.collections.immutable.PersistentMap
-import kotlinx.collections.immutable.mutate
 import kotlinx.collections.immutable.persistentHashMapOf
 import kotlinx.collections.immutable.plus
 
 enum class SearchTab { POSTS, REPLIES, USERS }
 
+sealed interface SearchSessionState {
+    data class Empty(val submittedQuery: String? = null) : SearchSessionState
+    data class Content(
+        val submittedQuery: String,
+        val bannerMessage: String? = null
+    ) : SearchSessionState
+}
+
 data class SearchUiState(
     val query: String = "",
     val selectedTab: SearchTab = SearchTab.POSTS,
     val sortOrder: String = "relevance",
-    val hasSearched: Boolean = false,
-    val error: String? = null
+    val sessionState: SearchSessionState = SearchSessionState.Empty()
 ) {
-    val operationResult: Result<Unit, String>
-        get() = uiResultOf(isLoading = false, error = error)
+    val hasSubmittedSearch: Boolean
+        get() = sessionState is SearchSessionState.Content
+
+    val bannerMessage: String?
+        get() = (sessionState as? SearchSessionState.Content)?.bannerMessage
 }
 
 sealed interface SearchIntent
@@ -173,7 +180,7 @@ class SearchViewModel(
                     is SearchAction.ToggleLike -> handleToggleLike(action, state)
                     is SearchAction.ToggleBookmark -> handleToggleBookmark(action, state)
                     is SearchAction.ToggleFollow -> handleToggleFollow(action, state)
-                    is SearchAction.ErrorDismissed -> state.copy(error = null)
+                    is SearchAction.ErrorDismissed -> state.clearBanner()
                 }
             }
         }
@@ -187,7 +194,10 @@ class SearchViewModel(
         _postMods.value = persistentHashMapOf()
         _userMods.value = persistentHashMapOf()
         _searchQuery.value = SearchQuery(trimmed, currentState.sortOrder)
-        return currentState.copy(selectedTab = SearchTab.POSTS, hasSearched = true, error = null)
+        return currentState.copy(
+            selectedTab = SearchTab.POSTS,
+            sessionState = SearchSessionState.Content(submittedQuery = trimmed)
+        )
     }
 
     private fun handleSetSortOrder(sort: String, currentState: SearchUiState): SearchUiState {
@@ -212,7 +222,6 @@ class SearchViewModel(
 
         _postMods.update { mods ->
             val existing = mods[action.postId] ?: PostModification()
-            mods.mutate {  }
             mods + (action.postId to existing.copy(
                 isLikedByCurrentUser = newLiked,
                 likeCount = newCount
@@ -235,7 +244,7 @@ class SearchViewModel(
                         likeCount = action.currentLikeCount
                     ))
                 }
-                currentState.copy(error = formatPostError(error))
+                currentState.withBanner(formatPostError(error))
             },
             transform = { updatedStats ->
                 _postMods.update { mods ->
@@ -276,7 +285,7 @@ class SearchViewModel(
                         isBookmarkedByCurrentUser = action.isCurrentlyBookmarked
                     ))
                 }
-                currentState.copy(error = formatPostError(error))
+                currentState.withBanner(formatPostError(error))
             },
             transform = { currentState /* keep optimistic state */ }
         )
@@ -300,9 +309,24 @@ class SearchViewModel(
             },
             recover = { error ->
                 _userMods.update { it + (action.targetUserId to action.isCurrentlyFollowing) }
-                currentState.copy(error = formatUserError(error))
+                currentState.withBanner(formatUserError(error))
             },
             transform = { currentState /* keep optimistic state */ }
+        )
+    }
+
+    private fun SearchUiState.withBanner(message: String): SearchUiState {
+        val currentSession = sessionState as? SearchSessionState.Content ?: return this
+        return copy(
+            sessionState = currentSession.copy(bannerMessage = message)
+        )
+    }
+
+    private fun SearchUiState.clearBanner(): SearchUiState {
+        val currentSession = sessionState as? SearchSessionState.Content ?: return this
+        if (currentSession.bannerMessage == null) return this
+        return copy(
+            sessionState = currentSession.copy(bannerMessage = null)
         )
     }
 

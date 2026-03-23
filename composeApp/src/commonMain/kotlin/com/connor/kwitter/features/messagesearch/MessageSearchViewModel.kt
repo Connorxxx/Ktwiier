@@ -18,14 +18,25 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 
+sealed interface MessageSearchScreenState {
+    data class Empty(val submittedQuery: String? = null) : MessageSearchScreenState
+    data class Loading(val submittedQuery: String) : MessageSearchScreenState
+    data class Content(
+        val items: List<MessageSearchItem>,
+        val submittedQuery: String
+    ) : MessageSearchScreenState
+    data class Error(
+        val message: String,
+        val submittedQuery: String,
+        val canRetry: Boolean = true
+    ) : MessageSearchScreenState
+}
+
 data class MessageSearchUiState(
     val conversationId: Long = 0L,
     val otherUserDisplayName: String = "",
     val query: String = "",
-    val results: List<MessageSearchItem> = emptyList(),
-    val isSearching: Boolean = false,
-    val hasSearched: Boolean = false,
-    val error: String? = null
+    val screenState: MessageSearchScreenState = MessageSearchScreenState.Empty()
 )
 
 sealed interface MessageSearchIntent
@@ -70,7 +81,9 @@ class MessageSearchViewModel(
                 state = when (action) {
                     is MessageSearchAction.Load -> state.copy(
                         conversationId = action.conversationId,
-                        otherUserDisplayName = action.otherUserDisplayName
+                        otherUserDisplayName = action.otherUserDisplayName,
+                        query = "",
+                        screenState = MessageSearchScreenState.Empty()
                     )
 
                     is MessageSearchAction.UpdateQuery -> state.copy(
@@ -80,13 +93,23 @@ class MessageSearchViewModel(
                     is MessageSearchAction.SubmitSearch -> {
                         val query = state.query.trim()
                         if (query.isEmpty()) {
-                            state.copy(hasSearched = false)
+                            state.copy(screenState = MessageSearchScreenState.Empty())
                         } else {
+                            state = state.copy(
+                                screenState = MessageSearchScreenState.Loading(submittedQuery = query)
+                            )
                             performSearch(state, query)
                         }
                     }
 
-                    is MessageSearchAction.ErrorDismissed -> state.copy(error = null)
+                    is MessageSearchAction.ErrorDismissed -> {
+                        val currentScreen = state.screenState
+                        if (currentScreen is MessageSearchScreenState.Error) {
+                            state.copy(screenState = MessageSearchScreenState.Empty())
+                        } else {
+                            state
+                        }
+                    }
                 }
             }
         }
@@ -98,8 +121,6 @@ class MessageSearchViewModel(
         currentState: MessageSearchUiState,
         query: String
     ): MessageSearchUiState {
-        val searchingState = currentState.copy(isSearching = true, error = null)
-
         return fold(
             block = {
                 messagingRepository.searchMessages(
@@ -108,17 +129,23 @@ class MessageSearchViewModel(
                 )
             },
             recover = { error ->
-                searchingState.copy(
-                    isSearching = false,
-                    hasSearched = true,
-                    error = formatError(error)
+                currentState.copy(
+                    screenState = MessageSearchScreenState.Error(
+                        message = formatError(error),
+                        submittedQuery = query
+                    )
                 )
             },
             transform = { results ->
-                searchingState.copy(
-                    isSearching = false,
-                    hasSearched = true,
-                    results = results
+                currentState.copy(
+                    screenState = if (results.isEmpty()) {
+                        MessageSearchScreenState.Empty(submittedQuery = query)
+                    } else {
+                        MessageSearchScreenState.Content(
+                            items = results,
+                            submittedQuery = query
+                        )
+                    }
                 )
             }
         )
@@ -133,5 +160,3 @@ class MessageSearchViewModel(
         is MessagingError.Unknown -> "Unknown error: ${error.message}"
     }
 }
-
-

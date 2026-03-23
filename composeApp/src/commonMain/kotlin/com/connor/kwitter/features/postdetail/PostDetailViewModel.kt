@@ -12,14 +12,12 @@ import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import arrow.core.raise.context.Raise
 import arrow.core.raise.fold
-import com.connor.kwitter.core.result.Result
-import com.connor.kwitter.core.result.uiResultOf
 import com.connor.kwitter.domain.notification.repository.NotificationRepository
-import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostError
 import com.connor.kwitter.domain.post.model.PostMedia
 import com.connor.kwitter.domain.post.model.PostMutationEvent
+import com.connor.kwitter.domain.post.model.PostPageQuery
 import com.connor.kwitter.domain.post.repository.PostRepository
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.StateFlow
@@ -31,21 +29,40 @@ data class ThreadReplyItem(
     val depth: Int
 )
 
+sealed interface PostDetailScreenState {
+    data object Loading : PostDetailScreenState
+    data class Error(
+        val message: String,
+        val canRetry: Boolean = true
+    ) : PostDetailScreenState
+    data class Content(
+        val post: Post,
+        val threadReplies: List<ThreadReplyItem> = emptyList(),
+        val bannerMessage: String? = null
+    ) : PostDetailScreenState
+}
+
 data class PostDetailUiState(
-    val post: Post? = null,
-    val threadReplies: List<ThreadReplyItem> = emptyList(),
-    val isLoading: Boolean = false,
-    val error: String? = null
+    val screenState: PostDetailScreenState = PostDetailScreenState.Loading
 ) {
-    val operationResult: Result<Unit, String>
-        get() = uiResultOf(isLoading = isLoading, error = error)
+    val content: PostDetailScreenState.Content?
+        get() = screenState as? PostDetailScreenState.Content
+
+    val post: Post?
+        get() = content?.post
+
+    val threadReplies: List<ThreadReplyItem>
+        get() = content?.threadReplies.orEmpty()
+
+    val bannerMessage: String?
+        get() = content?.bannerMessage
 }
 
 sealed interface PostDetailIntent
 
 sealed interface PostDetailAction : PostDetailIntent {
     data class Load(val postId: Long) : PostDetailAction
-    data class Refresh(val postId: Long) : PostDetailAction
+    data object Refresh : PostDetailAction
     data object ErrorDismissed : PostDetailAction
     data class ToggleLike(val postId: Long) : PostDetailAction
     data class ToggleBookmark(val postId: Long) : PostDetailAction
@@ -87,7 +104,7 @@ class PostDetailViewModel(
                             parentId == postId || parentId in currentThreadPostIds
 
                         if (affectsCurrentThread) {
-                            _events.trySend(PostDetailAction.Refresh(postId))
+                            _events.trySend(PostDetailAction.Refresh)
                         }
                     }
                 }
@@ -102,10 +119,8 @@ class PostDetailViewModel(
     }
 
     fun onEvent(event: PostDetailAction) {
-        when (event) {
-            is PostDetailAction.Load -> currentPostId = event.postId
-            is PostDetailAction.Refresh -> currentPostId = event.postId
-            else -> Unit
+        if (event is PostDetailAction.Load) {
+            currentPostId = event.postId
         }
         _events.trySend(event)
     }
@@ -114,7 +129,6 @@ class PostDetailViewModel(
     private fun PostDetailPresenter(): PostDetailUiState {
         var state by remember { mutableStateOf(PostDetailUiState()) }
 
-        // Collect = auto subscribe, cancel = auto unsubscribe
         LaunchedEffect(currentPostId) {
             val postId = currentPostId ?: return@LaunchedEffect
             notificationRepository.observePostLikeEvents(postId).collect { event ->
@@ -132,9 +146,25 @@ class PostDetailViewModel(
         LaunchedEffect(Unit) {
             _events.receiveAsFlow().collect { action ->
                 state = when (action) {
-                    is PostDetailAction.Load -> loadPostDetail(action.postId, state)
-                    is PostDetailAction.Refresh -> loadPostDetail(action.postId, state)
-                    is PostDetailAction.ErrorDismissed -> state.copy(error = null)
+                    is PostDetailAction.Load -> {
+                        if (state.post?.id != action.postId) {
+                            state = PostDetailUiState(
+                                screenState = PostDetailScreenState.Loading
+                            )
+                        }
+                        loadPostDetail(action.postId, state)
+                    }
+                    PostDetailAction.Refresh -> {
+                        currentPostId?.let { postId ->
+                            if (state.content == null) {
+                                state = PostDetailUiState(
+                                    screenState = PostDetailScreenState.Loading
+                                )
+                            }
+                            loadPostDetail(postId, state)
+                        } ?: state
+                    }
+                    PostDetailAction.ErrorDismissed -> state.clearBanner()
                     is PostDetailAction.ToggleLike -> handleToggleLike(action.postId, state)
                     is PostDetailAction.ToggleBookmark -> handleToggleBookmark(action.postId, state)
                 }
@@ -148,46 +178,53 @@ class PostDetailViewModel(
         postId: Long,
         previousState: PostDetailUiState
     ): PostDetailUiState {
-        val loadingState = previousState.copy(isLoading = true, error = null)
+        val previousContent = previousState.content
+        val fallbackReplies = previousContent
+            ?.takeIf { it.post.id == postId }
+            ?.threadReplies
+            .orEmpty()
+
         val resolvedState = fold(
             block = { postRepository.getPost(postId) },
             recover = { error ->
-                loadingState.copy(
-                    isLoading = false,
-                    post = null,
-                    threadReplies = emptyList(),
-                    error = formatError(error)
+                previousState.toLoadFailure(
+                    postId = postId,
+                    message = formatError(error)
                 )
             },
             transform = { post ->
                 fold(
                     block = { loadReplyThread(postId) },
                     recover = { error ->
-                        loadingState.copy(
-                            isLoading = false,
-                            post = post,
-                            threadReplies = emptyList(),
-                            error = formatError(error)
+                        previousState.copy(
+                            screenState = PostDetailScreenState.Content(
+                                post = post,
+                                threadReplies = fallbackReplies,
+                                bannerMessage = formatError(error)
+                            )
                         )
                     },
                     transform = { replies ->
-                        loadingState.copy(
-                            isLoading = false,
-                            post = post,
-                            threadReplies = replies
+                        previousState.copy(
+                            screenState = PostDetailScreenState.Content(
+                                post = post,
+                                threadReplies = replies
+                            )
                         )
                     }
                 )
             }
         )
 
-        currentThreadPostIds = buildThreadPostIds(resolvedState)
+        currentThreadPostIds = buildThreadPostIds(resolvedState.content)
         return resolvedState
     }
 
-    private fun buildThreadPostIds(state: PostDetailUiState): Set<Long> = buildSet {
-        state.post?.id?.let(::add)
-        state.threadReplies.forEach { add(it.post.id) }
+    private fun buildThreadPostIds(
+        content: PostDetailScreenState.Content?
+    ): Set<Long> = buildSet {
+        content?.post?.id?.let(::add)
+        content?.threadReplies?.forEach { add(it.post.id) }
     }
 
     context(_: Raise<PostError>)
@@ -296,7 +333,7 @@ class PostDetailViewModel(
                             likeCount = if (isCurrentlyLiked) stats.likeCount + 1 else stats.likeCount - 1
                         )
                     )
-                }.copy(error = formatError(error))
+                }.withBanner(formatError(error))
             },
             transform = { updatedStats ->
                 updatePostInState(optimisticState, postId) {
@@ -328,15 +365,16 @@ class PostDetailViewModel(
             recover = { error ->
                 updatePostInState(optimisticState, postId) {
                     copy(isBookmarkedByCurrentUser = isCurrentlyBookmarked)
-                }.copy(error = formatError(error))
+                }.withBanner(formatError(error))
             },
             transform = { optimisticState }
         )
     }
 
     private fun findPost(postId: Long, state: PostDetailUiState): Post? {
-        if (state.post?.id == postId) return state.post
-        return state.threadReplies.find { it.post.id == postId }?.post
+        val content = state.content ?: return null
+        if (content.post.id == postId) return content.post
+        return content.threadReplies.find { it.post.id == postId }?.post
     }
 
     private fun updatePostInState(
@@ -344,25 +382,60 @@ class PostDetailViewModel(
         postId: Long,
         transform: Post.() -> Post
     ): PostDetailUiState {
-        val updatedPost = if (state.post?.id == postId) {
-            state.post.transform()
+        val content = state.content ?: return state
+        val updatedPost = if (content.post.id == postId) {
+            content.post.transform()
         } else {
-            state.post
+            content.post
         }
-        val replyIndex = state.threadReplies.indexOfFirst { it.post.id == postId }
+        val replyIndex = content.threadReplies.indexOfFirst { it.post.id == postId }
         val updatedReplies = if (replyIndex >= 0) {
-            state.threadReplies.toMutableList().apply {
+            content.threadReplies.toMutableList().apply {
                 val currentReply = this[replyIndex]
                 this[replyIndex] = currentReply.copy(post = currentReply.post.transform())
             }
         } else {
-            state.threadReplies
+            content.threadReplies
         }
 
-        if (updatedPost === state.post && updatedReplies === state.threadReplies) {
+        if (updatedPost === content.post && updatedReplies === content.threadReplies) {
             return state
         }
 
-        return state.copy(post = updatedPost, threadReplies = updatedReplies)
+        return state.copy(
+            screenState = content.copy(
+                post = updatedPost,
+                threadReplies = updatedReplies
+            )
+        )
+    }
+
+    private fun PostDetailUiState.toLoadFailure(
+        postId: Long,
+        message: String
+    ): PostDetailUiState {
+        val currentContent = content
+            ?.takeIf { it.post.id == postId }
+            ?: return copy(
+            screenState = PostDetailScreenState.Error(message = message)
+        )
+        return copy(
+            screenState = currentContent.copy(bannerMessage = message)
+        )
+    }
+
+    private fun PostDetailUiState.withBanner(message: String): PostDetailUiState {
+        val currentContent = content ?: return this
+        return copy(
+            screenState = currentContent.copy(bannerMessage = message)
+        )
+    }
+
+    private fun PostDetailUiState.clearBanner(): PostDetailUiState {
+        val currentContent = content ?: return this
+        if (currentContent.bannerMessage == null) return this
+        return copy(
+            screenState = currentContent.copy(bannerMessage = null)
+        )
     }
 }

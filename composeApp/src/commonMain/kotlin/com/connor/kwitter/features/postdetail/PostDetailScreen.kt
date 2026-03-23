@@ -45,7 +45,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.connor.kwitter.core.result.errorOrNull
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.ErrorScreen
 import com.connor.kwitter.core.ui.ErrorStateCard
@@ -89,7 +88,7 @@ fun PostDetailScreen(
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (PostDetailIntent) -> Unit
 ) {
-    val errorMessage = state.operationResult.errorOrNull()
+    val bannerMessage = state.bannerMessage
     val nativeSubtitle = if (state.threadReplies.isNotEmpty()) {
         stringResource(Res.string.post_detail_reply_count, state.threadReplies.size)
     } else {
@@ -142,19 +141,24 @@ fun PostDetailScreen(
         val topOverlayPadding = paddingValues.calculateTopPadding()
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
 
-        when {
-            errorMessage != null && state.post == null -> {
+        when (val screenState = state.screenState) {
+            is PostDetailScreenState.Error -> {
                 ErrorScreen(
-                    message = errorMessage,
+                    message = screenState.message,
                     contentPadding = PaddingValues(
                         top = topOverlayPadding,
                         bottom = bottomInsetPadding
                     ),
-                    onDismiss = { onAction(PostDetailAction.ErrorDismissed) }
+                    onRetry = if (screenState.canRetry) {
+                        { onAction(PostDetailAction.Refresh) }
+                    } else {
+                        null
+                    },
+                    onDismiss = { onAction(PostDetailNavAction.BackClick) }
                 )
             }
 
-            state.isLoading || state.post == null -> {
+            PostDetailScreenState.Loading -> {
                 LoadingScreen(
                     contentPadding = PaddingValues(
                         top = topOverlayPadding,
@@ -163,23 +167,23 @@ fun PostDetailScreen(
                 )
             }
 
-            state.post != null -> {
-                var expandedReplyIds by remember(state.post.id) {
+            is PostDetailScreenState.Content -> {
+                var expandedReplyIds by remember(screenState.post.id) {
                     mutableStateOf(emptySet<Long>())
                 }
-                val threadReplyStructure = remember(state.threadReplies) {
-                    buildThreadReplyStructure(state.threadReplies)
+                val threadReplyStructure = remember(screenState.threadReplies) {
+                    buildThreadReplyStructure(screenState.threadReplies)
                 }
                 LaunchedEffect(threadReplyStructure.replyIds) {
                     expandedReplyIds = expandedReplyIds.intersect(threadReplyStructure.replyIds)
                 }
                 val visibleReplies = remember(
-                    state.threadReplies,
+                    screenState.threadReplies,
                     threadReplyStructure.repliesById,
                     expandedReplyIds
                 ) {
                     visibleThreadReplies(
-                        replies = state.threadReplies,
+                        replies = screenState.threadReplies,
                         repliesById = threadReplyStructure.repliesById,
                         expandedReplyIds = expandedReplyIds
                     )
@@ -198,7 +202,7 @@ fun PostDetailScreen(
                 ) {
                     item {
                         RootPostItem(
-                            post = state.post,
+                            post = screenState.post,
                             onReplyClick = { targetPost ->
                                 onAction(
                                     PostDetailNavAction.ReplyClick(
@@ -210,16 +214,16 @@ fun PostDetailScreen(
                                 )
                             },
                             onLikeClick = {
-                                onAction(PostDetailAction.ToggleLike(state.post.id))
+                                onAction(PostDetailAction.ToggleLike(screenState.post.id))
                             },
                             onBookmarkClick = {
-                                onAction(PostDetailAction.ToggleBookmark(state.post.id))
+                                onAction(PostDetailAction.ToggleBookmark(screenState.post.id))
                             },
                             onMediaClick = { index ->
-                                onAction(PostDetailNavAction.MediaClick(state.post.media, index))
+                                onAction(PostDetailNavAction.MediaClick(screenState.post.media, index))
                             },
                             onAuthorClick = {
-                                onAction(PostDetailNavAction.AuthorClick(state.post.author.id))
+                                onAction(PostDetailNavAction.AuthorClick(screenState.post.author.id))
                             }
                         )
                     }
@@ -246,13 +250,13 @@ fun PostDetailScreen(
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            if (state.threadReplies.isNotEmpty()) {
-                                RepliesBadge(text = state.threadReplies.size.toString())
+                            if (screenState.threadReplies.isNotEmpty()) {
+                                RepliesBadge(text = screenState.threadReplies.size.toString())
                             }
                         }
                     }
 
-                    if (state.threadReplies.isEmpty()) {
+                    if (screenState.threadReplies.isEmpty()) {
                         item {
                             Text(
                                 text = stringResource(Res.string.post_detail_no_replies),
@@ -307,9 +311,9 @@ fun PostDetailScreen(
             }
         }
 
-        if (errorMessage != null && state.post != null) {
+        if (bannerMessage != null && state.post != null) {
             ErrorStateCard(
-                message = errorMessage,
+                message = bannerMessage,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(
@@ -857,8 +861,10 @@ private fun PostDetailScreenPreview() {
     KwitterTheme(darkTheme = false) {
         PostDetailScreen(
             state = PostDetailUiState(
-                post = previewPost,
-                threadReplies = previewReplies
+                screenState = PostDetailScreenState.Content(
+                    post = previewPost,
+                    threadReplies = previewReplies
+                )
             ),
             onAction = {}
         )
@@ -870,7 +876,9 @@ private fun PostDetailScreenPreview() {
 private fun PostDetailScreenLoadingPreview() {
     KwitterTheme(darkTheme = true) {
         PostDetailScreen(
-            state = PostDetailUiState(isLoading = true),
+            state = PostDetailUiState(
+                screenState = PostDetailScreenState.Loading
+            ),
             onAction = {}
         )
     }

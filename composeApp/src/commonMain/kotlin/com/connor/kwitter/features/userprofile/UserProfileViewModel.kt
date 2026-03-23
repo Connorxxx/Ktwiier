@@ -14,13 +14,12 @@ import androidx.paging.map
 import app.cash.molecule.RecompositionMode
 import app.cash.molecule.launchMolecule
 import arrow.core.raise.fold
-import com.connor.kwitter.core.result.Result
-import com.connor.kwitter.core.result.uiResultOf
+import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.domain.post.model.Post
 import com.connor.kwitter.domain.post.model.PostMedia
-import com.connor.kwitter.domain.auth.repository.AuthRepository
 import com.connor.kwitter.domain.post.repository.PostRepository
 import com.connor.kwitter.domain.user.model.UserError
+import com.connor.kwitter.domain.user.model.UserProfile
 import com.connor.kwitter.domain.user.repository.UserRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -28,9 +27,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.collections.immutable.PersistentMap
@@ -39,20 +38,41 @@ import kotlinx.collections.immutable.plus
 
 enum class ProfileTab { POSTS, REPLIES, LIKES }
 
+sealed interface UserProfileScreenState {
+    data object Loading : UserProfileScreenState
+    data class Error(
+        val message: String,
+        val canRetry: Boolean = true
+    ) : UserProfileScreenState
+    data class Content(
+        val profile: UserProfile,
+        val currentUserId: Long?,
+        val isFollowLoading: Boolean = false,
+        val bannerMessage: String? = null
+    ) : UserProfileScreenState
+}
+
 data class UserProfileUiState(
-    val profile: com.connor.kwitter.domain.user.model.UserProfile? = null,
-    val currentUserId: Long? = null,
     val selectedTab: ProfileTab = ProfileTab.POSTS,
-    val isLoadingProfile: Boolean = false,
-    val isFollowLoading: Boolean = false,
-    val error: String? = null
+    val screenState: UserProfileScreenState = UserProfileScreenState.Loading
 ) {
-    val isOwnProfile: Boolean get() = currentUserId != null && currentUserId == profile?.id
-    val operationResult: Result<Unit, String>
-        get() = uiResultOf(
-            isLoading = isLoadingProfile || isFollowLoading,
-            error = error
-        )
+    val content: UserProfileScreenState.Content?
+        get() = screenState as? UserProfileScreenState.Content
+
+    val profile: UserProfile?
+        get() = content?.profile
+
+    val currentUserId: Long?
+        get() = content?.currentUserId
+
+    val isOwnProfile: Boolean
+        get() = currentUserId != null && currentUserId == profile?.id
+
+    val isFollowLoading: Boolean
+        get() = content?.isFollowLoading == true
+
+    val bannerMessage: String?
+        get() = content?.bannerMessage
 }
 
 sealed interface UserProfileIntent
@@ -155,20 +175,33 @@ class UserProfileViewModel(
         LaunchedEffect(Unit) {
             _events.receiveAsFlow().collect { action ->
                 state = when (action) {
-                    is UserProfileAction.Load -> loadProfile(action.userId, state)
-                    is UserProfileAction.Refresh -> {
-                        val userId = state.profile?.id
+                    is UserProfileAction.Load -> {
+                        if (state.profile?.id != action.userId) {
+                            state = UserProfileUiState(
+                                selectedTab = ProfileTab.POSTS,
+                                screenState = UserProfileScreenState.Loading
+                            )
+                        }
+                        loadProfile(action.userId, state)
+                    }
+                    UserProfileAction.Refresh -> {
+                        val userId = _userId.value
                         if (userId != null) {
                             _postMods.value = persistentHashMapOf()
                             _refreshTrigger.value++
+                            if (state.content == null) {
+                                state = state.copy(screenState = UserProfileScreenState.Loading)
+                            }
                             loadProfile(userId, state)
-                        } else state
+                        } else {
+                            state
+                        }
                     }
                     is UserProfileAction.SelectTab -> state.copy(selectedTab = action.tab)
-                    is UserProfileAction.ToggleFollow -> toggleFollow(state)
+                    UserProfileAction.ToggleFollow -> toggleFollow(state)
                     is UserProfileAction.ToggleLike -> handleToggleLike(action, state)
                     is UserProfileAction.ToggleBookmark -> handleToggleBookmark(action, state)
-                    is UserProfileAction.ErrorDismissed -> state.copy(error = null)
+                    UserProfileAction.ErrorDismissed -> state.clearBanner()
                 }
             }
         }
@@ -183,50 +216,53 @@ class UserProfileViewModel(
         _userId.value = userId
         _postMods.value = persistentHashMapOf()
         val currentUserId = authRepository.currentUserId.first()
-        val loadingState = previousState.copy(
-            isLoadingProfile = true,
-            error = null,
-            currentUserId = currentUserId
-        )
+        val shouldPreserveTab = previousState.profile?.id == userId
 
         return fold(
             block = { userRepository.getUserProfile(userId) },
             recover = { error ->
-                loadingState.copy(
-                    isLoadingProfile = false,
-                    error = formatError(error)
+                previousState.toLoadFailure(
+                    userId = userId,
+                    currentUserId = currentUserId,
+                    message = formatError(error)
                 )
             },
             transform = { profile ->
-                loadingState.copy(
-                    isLoadingProfile = false,
-                    profile = profile,
-                    selectedTab = ProfileTab.POSTS
+                previousState.copy(
+                    selectedTab = if (shouldPreserveTab) previousState.selectedTab else ProfileTab.POSTS,
+                    screenState = UserProfileScreenState.Content(
+                        profile = profile,
+                        currentUserId = currentUserId
+                    )
                 )
             }
         )
     }
 
     private suspend fun toggleFollow(currentState: UserProfileUiState): UserProfileUiState {
-        val profile = currentState.profile ?: return currentState
+        val content = currentState.content ?: return currentState
+        val profile = content.profile
         if (currentState.isOwnProfile) return currentState
-        if (currentState.isFollowLoading) return currentState
+        if (content.isFollowLoading) return currentState
 
         val isCurrentlyFollowing = profile.isFollowedByCurrentUser == true
 
-        val optimisticState = currentState.copy(
-            profile = profile.copy(
-                isFollowedByCurrentUser = !isCurrentlyFollowing,
-                stats = profile.stats.copy(
-                    followersCount = if (isCurrentlyFollowing) {
-                        profile.stats.followersCount - 1
-                    } else {
-                        profile.stats.followersCount + 1
-                    }
-                )
-            ),
-            isFollowLoading = true
-        )
+        val optimisticState = currentState.updateContent {
+            copy(
+                profile = profile.copy(
+                    isFollowedByCurrentUser = !isCurrentlyFollowing,
+                    stats = profile.stats.copy(
+                        followersCount = if (isCurrentlyFollowing) {
+                            profile.stats.followersCount - 1
+                        } else {
+                            profile.stats.followersCount + 1
+                        }
+                    )
+                ),
+                isFollowLoading = true,
+                bannerMessage = null
+            )
+        }
 
         return fold(
             block = {
@@ -237,14 +273,18 @@ class UserProfileViewModel(
                 }
             },
             recover = { error ->
-                optimisticState.copy(
-                    profile = profile,
-                    isFollowLoading = false,
-                    error = formatError(error)
-                )
+                optimisticState.updateContent {
+                    copy(
+                        profile = profile,
+                        isFollowLoading = false,
+                        bannerMessage = formatError(error)
+                    )
+                }
             },
             transform = {
-                optimisticState.copy(isFollowLoading = false)
+                optimisticState.updateContent {
+                    copy(isFollowLoading = false)
+                }
             }
         )
     }
@@ -284,7 +324,7 @@ class UserProfileViewModel(
                         likeCount = action.currentLikeCount
                     ))
                 }
-                currentState.copy(error = formatPostError(error))
+                currentState.withBanner(formatPostError(error))
             },
             transform = { updatedStats ->
                 _postMods.update { mods ->
@@ -325,9 +365,48 @@ class UserProfileViewModel(
                         isBookmarkedByCurrentUser = action.isCurrentlyBookmarked
                     ))
                 }
-                currentState.copy(error = formatPostError(error))
+                currentState.withBanner(formatPostError(error))
             },
             transform = { currentState }
+        )
+    }
+
+    private fun UserProfileUiState.updateContent(
+        transform: UserProfileScreenState.Content.() -> UserProfileScreenState.Content
+    ): UserProfileUiState {
+        val currentContent = content ?: return this
+        return copy(screenState = currentContent.transform())
+    }
+
+    private fun UserProfileUiState.withBanner(message: String): UserProfileUiState {
+        return updateContent {
+            copy(bannerMessage = message)
+        }
+    }
+
+    private fun UserProfileUiState.clearBanner(): UserProfileUiState {
+        val currentContent = content ?: return this
+        if (currentContent.bannerMessage == null) return this
+        return copy(
+            screenState = currentContent.copy(bannerMessage = null)
+        )
+    }
+
+    private fun UserProfileUiState.toLoadFailure(
+        userId: Long,
+        currentUserId: Long?,
+        message: String
+    ): UserProfileUiState {
+        val currentContent = content
+            ?.takeIf { it.profile.id == userId }
+            ?: return copy(
+            screenState = UserProfileScreenState.Error(message = message)
+        )
+        return copy(
+            screenState = currentContent.copy(
+                currentUserId = currentUserId,
+                bannerMessage = message
+            )
         )
     }
 

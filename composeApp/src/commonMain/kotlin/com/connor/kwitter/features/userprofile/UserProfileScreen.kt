@@ -51,7 +51,6 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
-import com.connor.kwitter.core.result.errorOrNull
 import com.connor.kwitter.core.theme.KwitterTheme
 import com.connor.kwitter.core.ui.ErrorScreen
 import com.connor.kwitter.core.ui.ErrorStateCard
@@ -101,7 +100,7 @@ fun UserProfileScreen(
     onNativeTopBarModel: (NativeTopBarModel) -> Unit = {},
     onAction: (UserProfileIntent) -> Unit
 ) {
-    val errorMessage = state.operationResult.errorOrNull()
+    val bannerMessage = state.bannerMessage
 
     PublishNativeTopBar(
         onNativeTopBarModel,
@@ -133,19 +132,24 @@ fun UserProfileScreen(
         val topOverlayPadding = paddingValues.calculateTopPadding()
         val bottomInsetPadding = paddingValues.calculateBottomPadding()
 
-        when {
-            errorMessage != null && state.profile == null -> {
+        when (val screenState = state.screenState) {
+            is UserProfileScreenState.Error -> {
                 ErrorScreen(
-                    message = errorMessage,
+                    message = screenState.message,
                     contentPadding = PaddingValues(
                         top = topOverlayPadding,
                         bottom = bottomInsetPadding
                     ),
-                    onDismiss = { onAction(UserProfileAction.ErrorDismissed) }
+                    onRetry = if (screenState.canRetry) {
+                        { onAction(UserProfileAction.Refresh) }
+                    } else {
+                        null
+                    },
+                    onDismiss = { onAction(UserProfileNavAction.BackClick) }
                 )
             }
 
-            state.isLoadingProfile || state.profile == null -> {
+            UserProfileScreenState.Loading -> {
                 LoadingScreen(
                     contentPadding = PaddingValues(
                         top = topOverlayPadding,
@@ -154,7 +158,7 @@ fun UserProfileScreen(
                 )
             }
 
-            state.profile != null -> {
+            is UserProfileScreenState.Content -> {
                 val listState = rememberLazyListState()
 
                 val activeVideoPostKey by remember {
@@ -180,9 +184,9 @@ fun UserProfileScreen(
                     // Profile Header
                     item(key = "profile_header") {
                         ProfileHeader(
-                            profile = state.profile,
+                            profile = screenState.profile,
                             isOwnProfile = state.isOwnProfile,
-                            isFollowLoading = state.isFollowLoading,
+                            isFollowLoading = screenState.isFollowLoading,
                             onEditClick = { onAction(UserProfileNavAction.EditProfileClick) },
                             onFollowClick = { onAction(UserProfileAction.ToggleFollow) },
                             onFollowingClick = { onAction(UserProfileNavAction.FollowingClick) },
@@ -190,8 +194,8 @@ fun UserProfileScreen(
                             onMessageClick = {
                                 onAction(
                                     UserProfileNavAction.MessageClick(
-                                        userId = state.profile.id,
-                                        displayName = state.profile.displayName
+                                        userId = screenState.profile.id,
+                                        displayName = screenState.profile.displayName
                                     )
                                 )
                             }
@@ -291,9 +295,9 @@ fun UserProfileScreen(
             }
         }
 
-        if (errorMessage != null && state.profile != null) {
+        if (bannerMessage != null && state.profile != null) {
             ErrorStateCard(
-                message = errorMessage,
+                message = bannerMessage,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(
@@ -715,8 +719,10 @@ private fun UserProfileScreenPreview() {
     KwitterTheme(darkTheme = false) {
         UserProfileScreen(
             state = UserProfileUiState(
-                profile = previewProfile,
-                currentUserId = 999L
+                screenState = UserProfileScreenState.Content(
+                    profile = previewProfile,
+                    currentUserId = 999L
+                )
             ),
             postsPaging = flowOf(PagingData.from(previewPosts)),
             repliesPaging = flowOf(PagingData.empty()),
@@ -734,8 +740,10 @@ private fun UserProfileScreenOwnPreview() {
     KwitterTheme(darkTheme = true) {
         UserProfileScreen(
             state = UserProfileUiState(
-                profile = ownProfile,
-                currentUserId = 999L
+                screenState = UserProfileScreenState.Content(
+                    profile = ownProfile,
+                    currentUserId = 999L
+                )
             ),
             postsPaging = flowOf(PagingData.from(previewPosts)),
             repliesPaging = flowOf(PagingData.empty()),

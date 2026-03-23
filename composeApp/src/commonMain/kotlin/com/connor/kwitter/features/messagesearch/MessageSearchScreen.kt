@@ -37,7 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.connor.kwitter.core.ui.ErrorStateCard
+import com.connor.kwitter.core.ui.ErrorScreen
 import com.connor.kwitter.core.ui.GlassTopBar
 import com.connor.kwitter.core.ui.GlassTopBarBackButton
 import com.connor.kwitter.core.util.formatPostTime
@@ -46,7 +46,6 @@ import com.connor.kwitter.features.glass.NativeTopBarButtons
 import com.connor.kwitter.features.glass.NativeTopBarModel
 import com.connor.kwitter.features.glass.NativeTopBarSlot
 import com.connor.kwitter.features.glass.PublishNativeTopBar
-import com.connor.kwitter.features.glass.getNativeTopBarController
 import com.connor.kwitter.features.search.SearchIcon
 import kwitter.composeapp.generated.resources.Res
 import kwitter.composeapp.generated.resources.message_search_no_results
@@ -62,7 +61,6 @@ fun MessageSearchScreen(
     onAction: (MessageSearchIntent) -> Unit
 ) {
     val focusManager = LocalFocusManager.current
-    val nativeTopBarController = remember { getNativeTopBarController() }
     val searchPlaceholder = stringResource(Res.string.message_search_placeholder)
     val noResultsText = stringResource(Res.string.message_search_no_results)
 
@@ -104,8 +102,8 @@ fun MessageSearchScreen(
                 .fillMaxSize()
                 .padding(top = topPadding, bottom = bottomPadding)
         ) {
-            when {
-                state.isSearching -> {
+            when (val screenState = state.screenState) {
+                is MessageSearchScreenState.Loading -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
@@ -114,33 +112,38 @@ fun MessageSearchScreen(
                     }
                 }
 
-                state.error != null -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        ErrorStateCard(
-                            message = state.error,
-                            onDismiss = { onAction(MessageSearchAction.ErrorDismissed) }
-                        )
+                is MessageSearchScreenState.Error -> {
+                    ErrorScreen(
+                        message = screenState.message,
+                        contentPadding = PaddingValues(
+                            top = topPadding,
+                            bottom = bottomPadding
+                        ),
+                        onRetry = if (screenState.canRetry) {
+                            { onAction(MessageSearchAction.SubmitSearch) }
+                        } else {
+                            null
+                        },
+                        onDismiss = { onAction(MessageSearchAction.ErrorDismissed) }
+                    )
+                }
+
+                is MessageSearchScreenState.Empty -> {
+                    if (!screenState.submittedQuery.isNullOrBlank()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = noResultsText,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 
-                state.hasSearched && state.results.isEmpty() -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = noResultsText,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                state.results.isNotEmpty() -> {
+                is MessageSearchScreenState.Content -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
@@ -152,7 +155,7 @@ fun MessageSearchScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         items(
-                            items = state.results,
+                            items = screenState.items,
                             key = { it.message.id },
                             contentType = { "message_search_result" }
                         ) { item ->

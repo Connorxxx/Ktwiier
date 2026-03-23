@@ -65,7 +65,6 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemContentType
 import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
-import com.connor.kwitter.core.result.errorOrNull
 import com.connor.kwitter.core.ui.ErrorScreen
 import com.connor.kwitter.core.ui.ErrorStateCard
 import com.connor.kwitter.core.ui.GlassTopBar
@@ -111,7 +110,7 @@ fun SearchScreen(
     val focusManager = LocalFocusManager.current
     val nativeTopBarController = remember { getNativeTopBarController() }
     val nativeSearchPlaceholder = stringResource(Res.string.search_placeholder)
-    val errorMessage = state.operationResult.errorOrNull()
+    val bannerMessage = state.bannerMessage
     val dismissKeyboard: () -> Unit = {
         focusManager.clearFocus(force = true)
         nativeTopBarController?.dismissKeyboard()
@@ -167,16 +166,16 @@ fun SearchScreen(
         ) {
             Spacer(modifier = Modifier.height(topOverlayPadding))
 
-            if (errorMessage != null) {
+            if (bannerMessage != null) {
                 ErrorStateCard(
-                    message = errorMessage,
+                    message = bannerMessage,
                     modifier = Modifier.padding(horizontal = 16.dp),
                     onDismiss = { onAction(SearchAction.ErrorDismissed) }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            if (state.hasSearched) {
+            if (state.hasSubmittedSearch) {
                 SearchTabRow(
                     selectedTab = state.selectedTab,
                     onTabSelected = {
