@@ -607,7 +607,7 @@ internal class DefaultCronetRequestExecutor(
 
         private fun buildHttpResponseData(info: UrlResponseInfo): HttpResponseData {
             val status = info.toKtorStatusCode()
-            val headers = info.toKtorHeaders()
+            val headers = info.toKtorHeaders(requestData)
             val version = info.toKtorProtocolVersion()
 
             // For SSE, wrap the response channel so that session close (input.cancel())

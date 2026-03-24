@@ -1,20 +1,28 @@
 package com.connor.cronet.engine.internal.request.mapping
 
+import io.ktor.client.request.HttpRequestData
 import io.ktor.http.Headers
 import io.ktor.http.HeadersBuilder
 import io.ktor.http.HttpProtocolVersion
 import io.ktor.http.HttpStatusCode
+import io.ktor.utils.io.InternalAPI
+import io.ktor.client.utils.dropCompressionHeaders
 import org.chromium.net.UrlResponseInfo
 
 internal fun UrlResponseInfo.toKtorStatusCode(): HttpStatusCode {
     return HttpStatusCode(getHttpStatusCode(), getHttpStatusText())
 }
 
-internal fun UrlResponseInfo.toKtorHeaders(): Headers {
+@OptIn(InternalAPI::class)
+internal fun UrlResponseInfo.toKtorHeaders(requestData: HttpRequestData): Headers {
     val builder = HeadersBuilder()
-    getAllHeadersAsList().forEach { (name, value) ->
+    allHeadersAsList.forEach { (name, value) ->
         builder.append(name, value)
     }
+    builder.dropCompressionHeaders(
+        method = requestData.method,
+        attributes = requestData.attributes,
+    )
     return builder.build()
 }
 

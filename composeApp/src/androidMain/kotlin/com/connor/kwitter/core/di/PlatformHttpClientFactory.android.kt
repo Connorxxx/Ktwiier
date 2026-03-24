@@ -25,7 +25,9 @@ internal actual fun createPlatformHttpClient(
         HttpClient(Cronet) {
             engine {
                 context(appContext)
-                enableQuic = false
+                enableQuic = true
+                enableHttp2 = true
+                //enableBrotli = false
                 storagePath = appContext.cacheDir.absolutePath
                 httpCache = CronetHttpCache.Disk(1024 * 1024 * 600)
             }

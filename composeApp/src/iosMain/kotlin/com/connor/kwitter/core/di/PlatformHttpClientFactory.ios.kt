@@ -8,6 +8,14 @@ internal actual fun createPlatformHttpClient(
     configure: HttpClientConfig<*>.() -> Unit,
 ): HttpClient {
     return HttpClient(Darwin) {
+        engine {
+            configureRequest {
+                setAssumesHTTP3Capable(true)
+            }
+            configureSession {
+
+            }
+        }
         configure()
     }
 }
